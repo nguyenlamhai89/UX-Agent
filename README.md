@@ -106,34 +106,33 @@ A specialized utility skill that programmatically parses `insights.md`, `mapped-
 
 ## 📁 Workspace Structure
 
-```
-.agents/
-  scripts/
-    check_libraries.py          # Dependency checker
-  skills/
-    analyze-skill/              # Quality analysis suite
-    visualize-insights/         # Dashboard compiler skill
-  workflows/
-    ux-cjm/                     # CJM Orchestrator & Skills
-      ORCHESTRATOR.md
-      skills/
-        extract-map/
-        extract-phases/
-        interpret-phases/
-      tests/
-        test_e2e_pipeline.py    # CJM pipeline tests
-    ux-transcribe/              # Transcribe Orchestrator & Skills
-      ORCHESTRATOR.md
-      skills/
-        create-questionnaire-table/
-        elevenlabs-transcribe/
-        map-transcript/
-        saturate-insights/
-      tests/
-        test_e2e_pipeline.py    # Transcribe pipeline tests
-AGENTS.md                       # Agent behavior rules & constraints
-generate_demo.py                # script to compile a 6-user visual demo
-```
+The project is structured logically around the `.agents/` environment:
+
+* 📂 **`.agents/`** — Core agent configurations and tools
+  * 📂 **`scripts/`** — Script utilities
+    * 📄 `check_libraries.py` — Verifies external library dependencies (`elevenlabs`, `matplotlib`, `pytest`).
+  * 📂 **`skills/`** — Global utility skills
+    * 📂 `analyze-skill/` — Quality assurance suite to score skills against various criteria.
+    * 📂 `visualize-insights/` — Skill to compile Markdown results into an interactive HTML dashboard.
+  * 📂 **`workflows/`** — Domain-specific orchestration pipelines
+    * 📂 **`ux-transcribe/`** — Transcribes user audios and maps responses
+      * 📄 `ORCHESTRATOR.md` — Defines transcription pipeline routing logic and rules.
+      * 📂 `skills/` — Skills specific to the transcription pipeline:
+        * 📂 `create-questionnaire-table/` — Extracts question formats from images.
+        * 📂 `elevenlabs-transcribe/` — Speech-to-text transcriber using ElevenLabs API.
+        * 📂 `map-transcript/` — Programmatically aligns responses with questionnaire tables.
+        * 📂 `saturate-insights/` — Extracts insights and computes user saturation matrices.
+      * 📂 `tests/` — Pipeline end-to-end integration tests.
+    * 📂 **`ux-cjm/`** — Generates Customer Journey Maps
+      * 📄 `ORCHESTRATOR.md` — Defines CJM pipeline routing logic and rules.
+      * 📂 `skills/` — Skills specific to the CJM pipeline:
+        * 📂 `extract-phases/` — Segregates transcript answers by journey theme.
+        * 📂 `interpret-phases/` — Evaluates user emotions, actions, and pain points per phase.
+        * 📂 `extract-map/` — Compiles phase tables into a unified journey matrix.
+      * 📂 `tests/` — Pipeline end-to-end integration tests.
+
+* 📄 **`AGENTS.md`** — Defines global agent constraints, behavior rules, testing criteria, and Git synchronization.
+* 📄 **`generate_demo.py`** — Generates a mocked 6-user data visualization to preview dashboard layouts locally.
 
 ---
 
