@@ -94,4 +94,8 @@ To ensure the workspace remains fully portable and syncs seamlessly via iCloud:
 - **Scratch and Temporary Files**: Any temporary test files, scratch scripts, mock datasets, or execution logs generated during development MUST be saved inside the local workspace (e.g., in the workspace root or a local `scratch/` directory) instead of the global application directory.
 - **No External Writes**: The agent MUST NOT write project code, configuration settings, or dependencies to directories outside the workspace (such as `/tmp` or `~/.gemini/`) unless explicitly requested by the user.
 
+## GitHub Synchronization
+- **Automatic push**: At the end of every task where any files in the workspace are created, modified, or deleted, the agent MUST automatically stage, commit, and push the changes to GitHub (`git add .`, `git commit -m "update: [short summary of changes]"`, `git push origin main`) to ensure the remote repository is always in sync with the local workspace.
+
+
 
