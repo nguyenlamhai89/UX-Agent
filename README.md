@@ -22,6 +22,77 @@ Automates the analysis of user experience phases to compile a comprehensive Cust
 - **Phase Interpretation (`interpret-phases`)**: Leverages built-in AI to summarize goals, actions, touchpoints, pain points, emotion ratings (1-5), and opportunities for each journey phase.
 - **Phase Mapping (`extract-map`)**: Programmatically builds the final `journey-map.md` markdown report.
 
+### 📊 Workflow Sequence Diagrams
+
+#### UX Transcribe Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Orchestrator as UX Transcribe Orchestrator
+    participant CQT as create-questionnaire-table
+    participant STT as elevenlabs-transcribe
+    participant MT as map-transcript
+    participant SA as saturate-insights
+
+    User->>Orchestrator: Run transcribe workflow (audio files, questionnaire image)
+    activate Orchestrator
+    
+    Orchestrator->>CQT: 1. Extract table from image
+    CQT-->>Orchestrator: Return full-questionnaire.md
+    Orchestrator-->>User: Pause for approval
+    User->>Orchestrator: Approve
+    
+    Orchestrator-->>User: Ask for transcription keyterms
+    User->>Orchestrator: Provide keyterms
+    
+    Orchestrator->>STT: 2. Transcribe audio files using keyterms
+    STT-->>Orchestrator: Return raw interview transcripts
+    Orchestrator-->>User: Pause for approval
+    User->>Orchestrator: Approve
+    
+    Orchestrator->>MT: 3. Map transcripts to questionnaire
+    MT-->>Orchestrator: Return mapped-transcript.md
+    Orchestrator-->>User: Pause for approval
+    User->>Orchestrator: Approve
+    
+    Orchestrator->>SA: 4. Extract insights & compute saturation
+    SA-->>Orchestrator: Return insights.md & saturation matrix
+    
+    Orchestrator-->>User: Complete (Return insights and transcript mapping)
+    deactivate Orchestrator
+```
+
+#### UX CJM Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Orchestrator as UX CJM Orchestrator
+    participant EP as extract-phases
+    participant IP as interpret-phases
+    participant EM as extract-map
+
+    User->>Orchestrator: Run CJM workflow (mapped-transcript.md)
+    activate Orchestrator
+    
+    Orchestrator->>EP: 1. Categorize rows by journey theme
+    EP-->>Orchestrator: Return 5 extracted phase markdown files
+    Orchestrator-->>User: Pause for approval
+    User->>Orchestrator: Approve
+    
+    Orchestrator->>IP: 2. Interpret phase details with AI
+    IP-->>Orchestrator: Return 5 interpreted phase tables
+    Orchestrator-->>User: Pause for approval
+    User->>Orchestrator: Approve
+    
+    Orchestrator->>EM: 3. Programmatically map tables to template
+    EM-->>Orchestrator: Return journey-map.md
+    
+    Orchestrator-->>User: Complete (Return final Customer Journey Map)
+    deactivate Orchestrator
+```
+
 ---
 
 ## 🎨 Visualization Tool: Visualize Insights (`visualize-insights`)
