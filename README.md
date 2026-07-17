@@ -139,24 +139,90 @@ generate_demo.py                # script to compile a 6-user visual demo
 
 ## ⚙️ Installation & Usage
 
-### Prerequisites
-Make sure you have Python 3.12+ installed.
+Follow these step-by-step instructions to set up and run the UX Agent workflows in your local environment.
 
-### Setup Dependencies
-Install the required packages in your Python environment:
+### 🛠️ Step 1: Clone the Repository
+Clone the repository and navigate to the project root directory:
 ```bash
+git clone https://github.com/nguyenlamhai89/UX-Agent.git
+cd UX-Agent
+```
+
+### 🐍 Step 2: Setup Python Virtual Environment (Recommended)
+Create and activate a virtual environment to manage dependencies safely:
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate environment (macOS/Linux)
+source venv/bin/activate
+
+# Activate environment (Windows)
+venv\Scripts\activate
+```
+
+### 📦 Step 3: Install Dependencies
+Install python packages required for transcription, charts generation, and testing:
+```bash
+pip install -r requirements.txt  # If requirements.txt is available
+# Or install directly:
 pip install elevenlabs matplotlib pytest
 ```
+*Note: Make sure `ffprobe` is installed on your system (e.g., via `brew install ffmpeg` on macOS or `choco install ffmpeg` on Windows) if you want the visualization dashboard to display audio track durations.*
 
-### Running E2E Tests
-To run pipeline tests for both orchestrators:
+### 🔑 Step 4: Configure API Keys
+Create a `.env` file in the root folder of the project:
+```env
+ELEVENLABS_API_KEY=your_actual_elevenlabs_api_key_here
+```
+> 💡 **Pro Tip**: The UX Agent follows an automatic API key fallback protocol. If the `.env` file is missing or the key is not defined, the agent will prompt you to enter the API key directly in the CLI and will write it to the `.env` file for you automatically.
+
+---
+
+## 🏃 Running the Workflows
+
+### Scenario A: Raw User Interview Transcription & Synthesis (`ux-transcribe`)
+Use this workflow when you have a folder of interview audio files and a screenshot image of the questionnaire structure.
+
+1. Create a workspace folder (e.g., `my_ux_project/`) and place the interview audios and questionnaire image inside it.
+2. Trigger the `ux-transcribe` orchestrator:
+   - The orchestrator will create an `Interview/` folder and organize your inputs.
+   - It will run `create-questionnaire-table` to extract the table layout to `full-questionnaire.md`.
+   - **Pause for Approval**: Review the extracted table and approve to proceed.
+   - **Transcription Terms**: Provide optional keyterms (e.g. product names, slang) to guide the transcriber.
+   - The orchestrator will transcribe audios via ElevenLabs, map answers to the questionnaire in `mapped-transcript.md`, and compute insights saturation in `insights.md`.
+   - **Visualization Prompt**: Finally, the agent will ask if you want to run `visualize-insights` to compile the interactive HTML dashboard.
+
+### Scenario B: Generating a Customer Journey Map (`ux-cjm`)
+Use this workflow when you have a completed `mapped-transcript.md` file and want to map it to user journey phases.
+
+1. Trigger the `ux-cjm` orchestrator, pointing it to the folder containing your `mapped-transcript.md`.
+2. The orchestrator will:
+   - Parse themes into separate markdown files for each phase (Awareness, Consideration, Decision Making, Usage, Advocacy).
+   - Interpret touchpoints, goals, actions, pain points, and opportunities with Built-in AI.
+   - Map them deterministically into `journey-map.md`.
+   - Ask if you want to generate the interactive HTML dashboard featuring the Customer Journey map.
+
+---
+
+## 🧪 Running E2E & Unit Tests
+To verify all pipelines and skills are functioning correctly:
 ```bash
-# Test the CJM workflow
+# Run CJM pipeline end-to-end tests
 pytest .agents/workflows/ux-cjm/tests/test_e2e_pipeline.py
 
-# Test the Transcribe workflow
+# Run Transcribe pipeline end-to-end tests
 pytest .agents/workflows/ux-transcribe/tests/test_e2e_pipeline.py
+
+# Run all tests in the workspace (including individual skill unit tests)
+pytest
 ```
 
-### Automatic Git Sync
-Per the workspace rules in `AGENTS.md`, all edits, updates, and creation of skills within this workspace are automatically staged, committed, and pushed to the remote repository origin at the end of each task execution.
+### 🔄 Automatic Git Sync
+Per the workspace rules, whenever changes are made during development, the agent automatically syncs files back to GitHub:
+```bash
+git add .
+git commit -m "update: [changes summary]"
+git push origin main
+```
+
