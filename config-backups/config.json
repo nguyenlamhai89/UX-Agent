@@ -1,0 +1,36 @@
+{
+  "userSettings": {
+    "globalPermissionGrants": {
+      "allow": [
+        "write_file(/Users/madebynham/Desktop/questionnaire.md)",
+        "read_file(/Users/madebynham/Desktop/Mua hàng online/CleanShot 2026-06-20 at 11.34.40@2x.png)",
+        "command(mkdir)",
+        "command(mv)",
+        "read_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế/Desk Research/Findings/global-disruptor-benchmarking-fintechs-neobanks.md)",
+        "command(cat)",
+        "read_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế/Desk Research/strategy.md)",
+        "write_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế/Desk Research/strategy.md)",
+        "command(stat)",
+        "write_file(/Users/madebynham/Desktop/Sociology/Desk Research/plan.md)",
+        "command(grep)",
+        "write_file(/Users/madebynham/Desktop/Sermon on the Mount/Desk Research/plan.md)",
+        "write_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/questionnaire.md)",
+        "write_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/mapped-responses.md)",
+        "command(open)",
+        "command(awk)",
+        "command(head)",
+        "read_file(/Users/madebynham/Desktop/Sample Transcript)",
+        "command(cp)",
+        "write_file(/Users/madebynham/Desktop/Sample Transcript/HR - Leanbase_transcript.txt)",
+        "command(file)",
+        "command(ffmpeg)",
+        "command(find)",
+        "command(pytest)",
+        "write_file(/Users/madebynham/Desktop/Sample Transcript/questionnaire.md)",
+        "read_file(/Users/madebynham/Desktop/Chuyển tiền quốc tế)"
+      ]
+    },
+    "remoteControlHostname": "nham-local-turbo-cosmos",
+    "themeMode": "THEME_MODE_LIGHT"
+  }
+}

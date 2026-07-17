@@ -1,0 +1,23 @@
+            <section id="overview" class="scroll-mt-8">
+                <h3 class="text-2xl font-semibold text-slate-800 mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    Overview
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Card 1 -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Total Interviewees</dt>
+                        <dd class="mt-2 text-3xl font-semibold text-slate-900">{{ total_interviewees }} <span class="text-sm font-normal text-slate-400 ml-1">Users</span></dd>
+                    </div>
+                    <!-- Card 2 -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Total Interview Time</dt>
+                        <dd class="mt-2 text-3xl font-semibold text-slate-900">{{ total_time_html }}</dd>
+                    </div>
+                    <!-- Card 3 -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
+                        <dt class="text-sm font-medium text-slate-500 truncate">Total Insights Discovered</dt>
+                        <dd class="mt-2 text-3xl font-semibold text-blue-600">{{ total_insights }} <span class="text-sm font-normal text-slate-400 ml-1">Insights</span></dd>
+                    </div>
+                </div>
+            </section>

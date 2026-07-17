@@ -1,0 +1,88 @@
+<div class="flex flex-col gap-8">
+                    <!-- Chart Section -->
+                    <div class="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden flex flex-col items-center justify-center p-6 w-full">
+                        <h4 class="text-sm font-semibold text-slate-800 mb-4 w-full text-left flex items-center">
+                            Saturation Curve
+                        </h4>
+                        <div class="w-full max-w-3xl relative h-64 sm:h-80">
+                            <canvas id="saturationChart"></canvas>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-4 mb-6 text-center leading-relaxed">Biểu đồ thể hiện mức độ bão hòa dữ liệu sau các lượt phỏng vấn.</p>
+                        
+                        <!-- Summary Section -->
+                        <div class="w-full rounded-xl flex flex-col p-6 shadow-sm border border-blue-100" style="background-color: #EFF6FF; color: #2463EB;">
+                            <h4 class="text-lg font-bold mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                Summary
+                            </h4>
+                            <ul class="list-disc pl-5 space-y-3 text-sm leading-relaxed" style="color: #2463EB;">
+                                {{ summary_insights_html }}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Combined Matrix & Quote Table -->
+                    <div class="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-slate-200 table-auto">
+                                <thead class="bg-slate-50 sticky top-0 z-10">
+                                    <tr>
+{{ saturation_thead }}
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-slate-100">
+                                    {{ insights_rows }}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            
+            <!-- Chart.js Logic -->
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const ctx = document.getElementById('saturationChart').getContext('2d');
+                    const totalInsights = {{ total_insights }};
+                    
+                    const data = {
+                        labels: {{ chart_labels }},
+                        datasets: [{
+                            label: 'Cumulative Insights Discovered',
+                            data: {{ chart_data }},
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            borderWidth: 2,
+                            fill: 'start',
+                            tension: 0.3,
+                            pointBackgroundColor: '#2563eb',
+                            pointRadius: 4
+                        }]
+                    };
+
+                    const config = {
+                        type: 'line',
+                        data: data,
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                },
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    suggestedMax: totalInsights + 5,
+                                    title: {
+                                        display: true,
+                                        text: 'Number of Insights'
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    new Chart(ctx, config);
+                });
+            </script>

@@ -1,0 +1,11 @@
+# Environments
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# System and Cache
+.DS_Store
+.pytest_cache/
