@@ -97,5 +97,12 @@ To ensure the workspace remains fully portable and syncs seamlessly via iCloud:
 ## GitHub Synchronization
 - **Automatic push**: At the end of every task where any files in the workspace are created, modified, or deleted, the agent MUST automatically stage, commit, and push the changes to GitHub (`git add .`, `git commit -m "update: [short summary of changes]"`, `git push origin main`) to ensure the remote repository is always in sync with the local workspace.
 
+## API Key Management & .env Creation
+- **Missing API Keys**: Whenever a workflow or skill requires an API key (e.g. `ELEVENLABS_API_KEY`), but the key is not found in `.env` or the `.env` file does not exist in the workspace root:
+  1. The agent MUST proactively check for or create a `.env` file in the workspace root.
+  2. The agent MUST ask the user directly to provide the required API key.
+  3. Once the user provides the key, the agent MUST write it to the `.env` file (e.g. `ELEVENLABS_API_KEY=your_key_here`) and verify it is loaded correctly before proceeding.
+
+
 
 
