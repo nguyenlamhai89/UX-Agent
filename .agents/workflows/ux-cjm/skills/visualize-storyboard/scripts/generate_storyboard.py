@@ -128,207 +128,271 @@ def parse_journey_map(journey_map_path: str) -> dict:
         return {}
 
 async def generate_story_scripts(stages_data: dict, output_dir: str) -> list[str]:
-    logging.info("Generating story scripts...")
+    logging.info("Generating story scripts in a single batch AI call...")
     os.makedirs(output_dir, exist_ok=True)
     
     config = LocalAgentConfig(
-        system_instructions="You are an expert storyboard scriptwriter. Generate script following the exact requested markdown format.",
+        system_instructions="You are an expert storyboard scriptwriter. Generate 5 scripts following the exact requested markdown format.",
         capabilities=CapabilitiesConfig()
     )
     
-    script_files = []
-    
+    stages_prompt_data = ""
     for stage in STAGES:
         key = stage["key"]
         name = stage["name"]
-        
-        # If the stage key is decision, the stages_data uses "decision" but output file is decision-making-script.md
-        file_name_key = key if key != "decision" else "decision-making"
-        output_file = os.path.join(output_dir, f"{file_name_key}-script.md")
-        
         stage_info = stages_data.get(key, {})
         visual_config = STAGE_VISUAL_CONFIG.get(key, {})
-        
-        prompt = f"""
-        Generate a storyboard panel script for Stage: {name}.
-        
-        Stage Data:
-        Goal: {stage_info.get('goal', '')}
-        Touchpoints: {stage_info.get('touchpoints', '')}
-        Actions: {stage_info.get('actions', '')}
-        Pain Points: {stage_info.get('pain points', '')}
-        Emotion: {stage_info.get('emotion', '')}
-        Opportunities: {stage_info.get('opportunities', '')}
-        
-        Visual Config:
-        Color Wash: {visual_config.get('color_wash', '')}
-        Shot Type: {visual_config.get('shot_type', '')}
-        
-        Style Guide:
-        {STYLE_GUIDE}
-        
-        Format your response EXACTLY like this:
-        # Stage [Number]: {name} — Panel Script
+        stages_prompt_data += f"""
+---
+STAGE: {name} (Key: {key})
+Goal: {stage_info.get('goal', '')}
+Touchpoints: {stage_info.get('touchpoints', '')}
+Actions: {stage_info.get('actions', '')}
+Pain Points: {stage_info.get('pain points', '')}
+Emotion: {stage_info.get('emotion', '')}
+Opportunities: {stage_info.get('opportunities', '')}
+Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {visual_config.get('shot_type', '')}
+"""
 
-        ## Scene Description
-        [Detailed description]
+    prompt = f"""
+    Generate panel scripts for ALL 5 STAGES below in a SINGLE response.
+    
+    {stages_prompt_data}
+    
+    Style Guide:
+    {STYLE_GUIDE}
+    
+    FORMAT REQUIREMENT:
+    Separate each stage script with a clear delimiter line: `=== STAGE: [key] ===` (where [key] is awareness, consideration, decision-making, usage, advocacy).
+    
+    For each stage, output the script EXACTLY like this:
+    === STAGE: [key] ===
+    # Stage [Number]: [Stage Name] — Panel Script
 
-        ## Character
-        - **Expression**: ...
-        - **Posture/Gesture**: ...
-        - **Outfit**: ...
+    ## Scene Description
+    [Detailed description]
 
-        ## Actions
-        ...
+    ## Character
+    - **Expression**: ...
+    - **Posture/Gesture**: ...
+    - **Outfit**: ...
 
-        ## Environment & Setting
-        - **Location**: ...
-        - **Key Props**: ...
-        - **Background Color Wash**: ...
+    ## Actions
+    ...
 
-        ## Camera/Framing
-        - **Shot Type**: ...
-        - **Perspective**: ...
+    ## Environment & Setting
+    - **Location**: ...
+    - **Key Props**: ...
+    - **Background Color Wash**: ...
 
-        ## Floating Iconography
-        ...
+    ## Camera/Framing
+    - **Shot Type**: ...
+    - **Perspective**: ...
 
-        ## Dialogue / Caption Text
-        - **Speech Bubble**: ...
-        - **Narrative Caption**: ...
+    ## Floating Iconography
+    ...
 
-        ## Emotion Indicator
-        - **Rating**: ...
-        - **Visual Cue**: ...
-        """
-        
-        retries = 3
-        for attempt in range(retries):
-            try:
-                logging.info(f"Generating script for {name} (Attempt {attempt+1}/{retries})")
-                async with Agent(config) as agent:
-                    response = await agent.chat(prompt)
-                    full_text = ""
-                    async for token in response:
-                        full_text += token
+    ## Dialogue / Caption Text
+    - **Speech Bubble**: ...
+    - **Narrative Caption**: ...
+
+    ## Emotion Indicator
+    - **Rating**: ...
+    - **Visual Cue**: ...
+    """
+    
+    retries = 3
+    full_text = ""
+    for attempt in range(retries):
+        try:
+            logging.info(f"Generating all 5 scripts in batch (Attempt {attempt+1}/{retries})")
+            async with Agent(config) as agent:
+                response = await agent.chat(prompt)
+                async for token in response:
+                    full_text += token
+            break
+        except Exception as e:
+            logging.error(f"Error generating batch scripts: {e}")
+            if attempt == retries - 1:
+                logging.error("Failed to generate batch scripts after 3 attempts.")
+            else:
+                await asyncio.sleep(2)
                 
-                with open(output_file, "w", encoding="utf-8") as f:
-                    f.write(full_text)
-                script_files.append(output_file)
+    script_files = []
+    # Split response by delimiter
+    sections = full_text.split("=== STAGE:")
+    
+    stage_file_map = {
+        "awareness": "awareness-script.md",
+        "consideration": "consideration-script.md",
+        "decision": "decision-making-script.md",
+        "decision-making": "decision-making-script.md",
+        "usage": "usage-script.md",
+        "advocacy": "advocacy-script.md"
+    }
+    
+    parsed_stages = {}
+    for sec in sections:
+        sec = sec.strip()
+        if not sec:
+            continue
+        lines = sec.split("\n", 1)
+        stage_key = lines[0].strip().lower()
+        content = lines[1].strip() if len(lines) > 1 else ""
+        for k in stage_file_map:
+            if k in stage_key:
+                parsed_stages[k] = content
                 break
-            except Exception as e:
-                logging.error(f"Error generating script for {name}: {e}")
-                if attempt == retries - 1:
-                    logging.error(f"Failed to generate script for {name} after 3 attempts.")
-                else:
-                    await asyncio.sleep(2)
-                    
+                
+    for stage in STAGES:
+        key = stage["key"]
+        file_name = stage_file_map[key]
+        output_file = os.path.join(output_dir, file_name)
+        content = parsed_stages.get(key, f"# Stage: {stage['name']} — Panel Script\n\nFallback script content.")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        script_files.append(output_file)
+        
     return script_files
 
 def load_reference_images(api_key: str) -> list[dict]:
-    logging.info("Loading reference images...")
+    logging.info("Loading reference images (with cache)...")
     try:
-        client = genai.Client(api_key=api_key)
-        
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         ref_dir = os.path.join(base_dir, "Storyboard References")
+        cache_file = os.path.join(ref_dir, ".cache.json")
         
         if not os.path.exists(ref_dir):
             logging.warning(f"Storyboard References folder not found at {ref_dir}")
             return []
             
         supported_exts = [".png", ".jpg", ".jpeg", ".webp"]
-        ref_images = []
+        image_files = [f for f in os.listdir(ref_dir) if os.path.splitext(f)[1].lower() in supported_exts]
         
-        for file in os.listdir(ref_dir):
-            ext = os.path.splitext(file)[1].lower()
-            if ext in supported_exts:
-                file_path = os.path.join(ref_dir, file)
+        if not image_files:
+            logging.warning(f"No reference images found in {ref_dir}")
+            return []
+
+        # Load cache if available
+        cache = {}
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    cache = json.load(f)
+            except Exception:
+                cache = {}
+                
+        client = None
+        ref_images = []
+        cache_updated = False
+        
+        for file in image_files:
+            file_path = os.path.join(ref_dir, file)
+            mtime = os.path.getmtime(file_path)
+            
+            # Check if cached and file hasn't changed
+            if file in cache and cache[file].get("mtime") == mtime and cache[file].get("uri"):
+                ref_images.append({
+                    "uri": cache[file]["uri"],
+                    "mime_type": cache[file]["mime_type"]
+                })
+            else:
+                if client is None:
+                    client = genai.Client(api_key=api_key)
                 logging.info(f"Uploading {file_path}...")
                 uploaded_file = client.files.upload(file=file_path)
+                uri_data = {
+                    "uri": uploaded_file.uri,
+                    "mime_type": uploaded_file.mime_type,
+                    "mtime": mtime
+                }
+                cache[file] = uri_data
                 ref_images.append({
                     "uri": uploaded_file.uri,
                     "mime_type": uploaded_file.mime_type
                 })
+                cache_updated = True
                 
-        if not ref_images:
-            logging.warning(f"No reference images found in {ref_dir}")
-            
+        if cache_updated:
+            try:
+                with open(cache_file, "w") as f:
+                    json.dump(cache, f, indent=2)
+            except Exception as e:
+                logging.warning(f"Could not write cache file: {e}")
+                
         return ref_images
     except Exception as e:
         logging.error(f"Error loading reference images: {e}")
         return []
 
 def generate_panel_images(script_files: list[str], ref_images: list[dict], api_key: str) -> list[Image.Image]:
-    logging.info("Generating panel images...")
-    panel_images = []
+    logging.info("Generating panel images in 1 single Nano Banana Pro API call...")
     
+    # Read all scripts
+    all_scripts_text = ""
+    for sf in script_files:
+        try:
+            with open(sf, "r", encoding="utf-8") as f:
+                all_scripts_text += f.read() + "\n\n"
+        except Exception:
+            pass
+            
     try:
         client = genai.Client(api_key=api_key)
         
-        for i, script_file in enumerate(script_files):
+        input_parts = []
+        for ref in ref_images:
+            input_parts.append(
+                Part.from_uri(uri=ref["uri"], mime_type=ref["mime_type"])
+            )
+            
+        prompt = f"""
+        Generate a single comic strip image containing 5 distinct storyboard panels in a 3+2 grid layout (3 panels in row 1, 2 panels centered in row 2).
+        
+        STYLE GUIDE:
+        {STYLE_GUIDE}
+        
+        PANEL SCRIPTS FOR ALL 5 PANELS:
+        {all_scripts_text}
+        
+        CRITICAL INSTRUCTIONS:
+        - Output a single complete storyboard graphic containing all 5 comic panels clearly arranged.
+        - Match the style of the provided reference images exactly:
+          * Crisp thin vector line art
+          * Dual-tone color wash per panel (warm yellow, sage green, dusty pink, soft blue, lavender)
+          * Stark black-and-white foreground characters
+          * Zero shading or gradients
+        """
+        input_parts.append(prompt)
+        
+        retries = 2
+        for attempt in range(retries):
             try:
-                with open(script_file, "r", encoding="utf-8") as f:
-                    script_content = f.read()
-                    
-                input_parts = []
-                for ref in ref_images:
-                    input_parts.append(
-                        Part.from_uri(uri=ref["uri"], mime_type=ref["mime_type"])
-                    )
-                    
-                prompt = f"""
-                Generate a storyboard panel illustration based on this script and the style guide.
+                logging.info(f"Generating single 5-panel grid image (Attempt {attempt+1}/{retries})")
+                response = client.interactions.create(
+                    model="gemini-3-pro-image-preview",
+                    input=input_parts,
+                    response_modalities=["IMAGE"]
+                )
                 
-                STYLE GUIDE:
-                {STYLE_GUIDE}
-                
-                SCRIPT:
-                {script_content}
-                
-                Match the style of the provided reference images exactly:
-                - Consistent thin line art
-                - Monochromatic background color wash as specified in the script
-                - Black and white foreground characters and props
-                - No shading or gradients
-                - Modern UI explainer aesthetic
-                """
-                input_parts.append(prompt)
-                
-                retries = 2
-                for attempt in range(retries):
-                    try:
-                        logging.info(f"Generating image for {os.path.basename(script_file)} (Attempt {attempt+1}/{retries})")
-                        response = client.interactions.create(
-                            model="gemini-3-pro-image-preview",
-                            input=input_parts,
-                            response_modalities=["IMAGE"]
-                        )
-                        
-                        # Assuming the first interaction result contains the image
-                        if response.candidates and response.candidates[0].content.parts:
-                            for part in response.candidates[0].content.parts:
-                                if part.inline_data:
-                                    img_data = part.inline_data.data
-                                    img = Image.open(io.BytesIO(img_data))
-                                    panel_images.append(img)
-                                    break
-                            break
-                        else:
-                            raise ValueError("No image part found in response")
-                    except Exception as e:
-                        logging.error(f"Error during image generation: {e}")
-                        if attempt == retries - 1:
-                            # Append a blank image as fallback
-                            panel_images.append(Image.new("RGB", (1050, 900), color="white"))
-                        else:
-                            time.sleep(2)
-                            
+                if response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if part.inline_data:
+                            img_data = part.inline_data.data
+                            grid_img = Image.open(io.BytesIO(img_data))
+                            # Return 5 cropped panel slices or return the grid image 5 times for compositing
+                            # To be fully compatible with composite_storyboard, slice the grid image into 5 panels
+                            # Or return the full image 5 times (composite_storyboard will crop/scale)
+                            return [grid_img] * 5
+                    raise ValueError("No image part found in response")
             except Exception as e:
-                logging.error(f"Error processing script {script_file}: {e}")
-                panel_images.append(Image.new("RGB", (1050, 900), color="white"))
-                
-        return panel_images
+                logging.error(f"Error during single grid image generation: {e}")
+                if attempt == retries - 1:
+                    return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
+                else:
+                    time.sleep(2)
+                    
+        return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
     except Exception as e:
         logging.error(f"Critical error in generate_panel_images: {e}")
         return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
