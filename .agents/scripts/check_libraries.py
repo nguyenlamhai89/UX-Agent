@@ -8,9 +8,7 @@ from importlib.metadata import version, PackageNotFoundError
 LIBRARIES = {
     "elevenlabs": "Required for voice synthesis and audio transcription in the ElevenLabs Transcribe skill.",
     "matplotlib": "Required for rendering insights charts and matrices in the Saturate Insights skill.",
-    "pytest": "Required for running the unit tests of skills and workflows.",
-    "google-genai": "Required for Gemini/Nano Banana Pro image generation in the visualize-storyboard skill.",
-    "Pillow": "Required for image compositing and storyboard assembly in the visualize-storyboard skill."
+    "pytest": "Required for running the unit tests of skills and workflows."
 }
 
 def get_installed_version(pkg):
