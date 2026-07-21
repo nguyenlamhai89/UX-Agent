@@ -11,8 +11,9 @@ from unittest.mock import patch, MagicMock, AsyncMock
 base_dir = Path(__file__).parent.parent
 sys.path.append(str(base_dir / "skills" / "extract-map" / "scripts"))
 sys.path.append(str(base_dir / "skills" / "interpret-phases" / "scripts"))
+sys.path.append(str(base_dir / "skills" / "visualize-storyboard" / "scripts"))
 
-# Setup mock for google.antigravity
+# Setup mock for google.antigravity and google.genai
 mock_google = MagicMock()
 mock_antigravity = MagicMock()
 mock_agent = MagicMock()
@@ -21,8 +22,14 @@ mock_cap = MagicMock()
 mock_antigravity.Agent = mock_agent
 mock_antigravity.LocalAgentConfig = mock_config
 mock_antigravity.CapabilitiesConfig = mock_cap
+
+mock_genai = MagicMock()
+mock_genai_types = MagicMock()
+
 sys.modules['google'] = mock_google
 sys.modules['google.antigravity'] = mock_antigravity
+sys.modules['google.genai'] = mock_genai
+sys.modules['google.genai.types'] = mock_genai_types
 
 class MockAgentContext:
     def __init__(self, *args, **kwargs):
@@ -118,4 +125,41 @@ def test_e2e_pipeline(mock_workspace):
     assert "# Customer Journey Map" in content
     assert "Stage 1: Awareness" in content
 
+    # Step 4: Run visualize-storyboard (with mocked Gemini API)
+    from generate_storyboard import generate_storyboard
+    from PIL import Image
+    import io as io_module
 
+    # Mock the genai module for image generation
+    mock_genai_module = MagicMock()
+    mock_client = MagicMock()
+    
+    # Create a dummy image response
+    dummy_img = Image.new("RGB", (1050, 900), color="white")
+    img_bytes = io_module.BytesIO()
+    dummy_img.save(img_bytes, format="PNG")
+    img_bytes_data = img_bytes.getvalue()
+    
+    mock_part = MagicMock()
+    mock_part.inline_data.data = img_bytes_data
+    mock_candidate = MagicMock()
+    mock_candidate.content.parts = [mock_part]
+    mock_response = MagicMock()
+    mock_response.candidates = [mock_candidate]
+    mock_client.interactions.create.return_value = mock_response
+    mock_client.files.upload.return_value = MagicMock(uri="gs://test", mime_type="image/png")
+    mock_genai_module.Client.return_value = mock_client
+    
+    with patch('generate_storyboard.genai', mock_genai_module), \
+         patch('generate_storyboard.Agent', new=MockAgentContext):
+        result_storyboard = asyncio.run(generate_storyboard(str(mock_workspace), "fake-api-key"))
+    
+    assert result_storyboard["status"] == "success"
+    
+    # Verify storyboard.png is generated
+    assert (jm_dir / "storyboard.png").exists()
+    
+    # Verify script files are generated
+    assert len(result_storyboard["script_files"]) == 5
+    for script_path in result_storyboard["script_files"]:
+        assert os.path.exists(script_path)

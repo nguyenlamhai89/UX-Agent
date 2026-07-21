@@ -1,0 +1,462 @@
+import os
+import sys
+import asyncio
+import argparse
+import logging
+import json
+import textwrap
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+import io
+import time
+
+from google import genai
+from google.genai.types import Part
+from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig
+
+# Configure logging to stderr
+logging.basicConfig(level=logging.INFO, stream=sys.stderr, format='%(levelname)s: %(message)s')
+
+STAGES = [
+    {"key": "awareness", "name": "Awareness"},
+    {"key": "consideration", "name": "Consideration"},
+    {"key": "decision", "name": "Decision Making"},
+    {"key": "usage", "name": "Usage"},
+    {"key": "advocacy", "name": "Advocacy"}
+]
+
+STYLE_GUIDE = """
+# Art Style Analysis: Digital Storyboard & Explainer Illustration
+
+This document provides a comprehensive visual analysis of a specific digital illustration style frequently used for storyboarding, user experience (UX) narratives, and corporate explainer content. The analysis covers both monochromatic comic layouts and standalone dual-tone spot illustrations.
+
+## 1. Format and Layout
+* **Grid Structure (Storyboards):** When presented as a narrative sequence, the art utilizes a rigid, traditional comic grid (e.g., 2x3 or 3x3 panels). 
+* **Gutters and Borders:** Clean, uniform white spaces (gutters) separate the panels to indicate the passage of time. Simple, thin, consistent black lines box in each scene, keeping the narrative highly structured.
+* **Standalone Vignettes (Spot Illustrations):** When used for individual feature graphics or landing pages, the layouts are presented as standalone, rounded-rectangle cards without external borders, focusing on a single, self-contained concept.
+
+## 2. Line Art, Rendering, and Color Palette
+The style relies heavily on clean line art but utilizes two distinct approaches to color depending on the context:
+
+* **Line Quality:** Across all variations, the lines are crisp, solid, and digital (vector-based). There is minimal variation in line weight; outlines are slightly thicker than interior details, maintaining a flat, uniform "coloring book" aesthetic.
+* **Zero Shading:** There is no use of crosshatching, gradients, or cel-shading to indicate depth or volume. Depth is achieved purely through perspective, overlapping elements, and color contrast.
+* **Monochromatic Approach (Storyboarding):** The artwork is strictly black and white. Stark contrast is used to direct the eye, with large areas of solid black applied to specific clothing items or hair to ground the characters.
+* **Dual-Tone "Color Wash" Approach (Spot Illustrations):** 
+    * **Foreground Emphasis:** Characters and key narrative props (cameras, floating UI elements, laptops) remain in stark black-and-white line art with solid white and black fills. This high contrast makes them "pop" off the page.
+    * **Environmental Coding:** Panels utilize a flat, pastel color wash (e.g., warm yellow, sage green, dusty pink) applied to the entire background. This acts as a visual anchor and differentiates scenes or themes.
+    * **Receding Background Lines:** Instead of black lines, background details (architecture, classroom furniture, web wireframes) are drawn using a slightly darker, monochromatic shade of the main background color. This pushes the environment backward, creating separation between the focal point and the setting without visual clutter.
+
+## 3. Character Design
+* **Realism Level:** Characters are drawn in a semi-realistic, modern illustrative style. They are anatomically proportionate but highly simplified, avoiding exaggerated cartoon or manga features.
+* **Consistency:** Characters are easily recognizable through consistent hairstyles, facial structures, and distinct outfits (often featuring solid black garments).
+* **Expressiveness:** Facial expressions are subtle but communicative. Posture and hand gestures play a massive role in conveying emotion (e.g., waving, throwing hands up in frustration, pointing).
+
+## 4. Composition and Framing (Cinematography)
+* **Varied Shot Types:** The framing acts like a camera to pace the story:
+    * *Medium Portraits:* Used to establish characters addressing the viewer or performing a primary action.
+    * *Close-ups/POV:* Used to focus intensely on specific, relatable actions, particularly UI interactions (hands typing, swiping on a smartphone, writing on a notepad).
+    * *Wide/Establishing Shots:* Used to show the character navigating an environment (like a grocery store).
+* **Floating Iconography:** To visually represent abstract concepts (like a career, software features, or a digital shopping list), the style frequently uses floating icons (globes, beakers, chat bubbles, vegetables) hovering around the characters.
+
+## 5. Text and Typography
+* **Dialogue and Thoughts:** Speech bubbles (oval shapes with directional tails) are used for direct dialogue or inner thoughts addressed to the audience.
+* **Narrative Captions:** Rectangular boxes or floating text without a bounding box are used to describe actions or set the scene.
+* **Onomatopoeia/UI Action Words:** Floating text without borders is cleverly used to indicate repetitive actions, particularly tech interactions (e.g., "Tap," "Swipe," "Scroll" floating around hands).
+* **Typography:** Fonts are clean, highly legible, sans-serif, or simulated hand-lettered comic fonts. They remain consistent in size and weight to ensure immediate readability.
+
+## 6. Narrative Tone and Purpose
+* **The "Explainer" Aesthetic:** The overall style is deeply rooted in professional storyboarding, UX design, and marketing explainer videos. 
+* **Problem-Solution Arcs:** The art is tailored to illustrate "pain points" (e.g., the tedious process of meal planning) and quickly pivot to a solution, making it ideal for product pitches.
+* **High Relatability:** The combination of clean lines, everyday scenarios, unobtrusive backgrounds, and direct audience address makes the style incredibly accessible, non-threatening, and easy for a general audience to parse quickly.
+"""
+
+STAGE_VISUAL_CONFIG = {
+    "awareness": {"color_wash": "warm yellow #FFF3D4", "shot_type": "Wide/establishing shot"},
+    "consideration": {"color_wash": "sage green #D4EDDA", "shot_type": "Medium portrait"},
+    "decision": {"color_wash": "dusty pink #F8D7DA", "shot_type": "Close-up/POV"},
+    "usage": {"color_wash": "soft blue #D1ECF1", "shot_type": "Medium portrait"},
+    "advocacy": {"color_wash": "lavender #E2D9F3", "shot_type": "Wide shot"}
+}
+
+def parse_journey_map(journey_map_path: str) -> dict:
+    """Parses journey-map.md markdown table into a structured dict.
+    Handles the **Stage Goal**, **Stage Touchpoints**, etc. format.
+    """
+    logging.info(f"Parsing journey map from {journey_map_path}")
+    data = {
+        "awareness": {"goal": "", "touchpoints": "", "actions": "", "pain points": "", "emotion": "", "opportunities": ""},
+        "consideration": {"goal": "", "touchpoints": "", "actions": "", "pain points": "", "emotion": "", "opportunities": ""},
+        "decision": {"goal": "", "touchpoints": "", "actions": "", "pain points": "", "emotion": "", "opportunities": ""},
+        "usage": {"goal": "", "touchpoints": "", "actions": "", "pain points": "", "emotion": "", "opportunities": ""},
+        "advocacy": {"goal": "", "touchpoints": "", "actions": "", "pain points": "", "emotion": "", "opportunities": ""}
+    }
+    
+    stage_keys = ["awareness", "consideration", "decision", "usage", "advocacy"]
+    
+    try:
+        with open(journey_map_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        for line in content.split("\n"):
+            line = line.strip()
+            if not line.startswith("|") or "Category" in line or ":---" in line or "Dimension" in line:
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 7:
+                # Match dimension by substring (handles **Stage Goal**, etc.)
+                dim_raw = parts[1].strip().lower()
+                dimension = None
+                if "goal" in dim_raw:
+                    dimension = "goal"
+                elif "touchpoints" in dim_raw:
+                    dimension = "touchpoints"
+                elif "actions" in dim_raw:
+                    dimension = "actions"
+                elif "pain points" in dim_raw:
+                    dimension = "pain points"
+                elif "emotion" in dim_raw:
+                    dimension = "emotion"
+                elif "opportunities" in dim_raw or "metrics" in dim_raw:
+                    dimension = "opportunities"
+                    
+                if dimension:
+                    for i, key in enumerate(stage_keys):
+                        data[key][dimension] = parts[i + 2]
+                        
+        return data
+    except Exception as e:
+        logging.error(f"Failed to parse journey map: {e}")
+        return {}
+
+async def generate_story_scripts(stages_data: dict, output_dir: str) -> list[str]:
+    logging.info("Generating story scripts...")
+    os.makedirs(output_dir, exist_ok=True)
+    
+    config = LocalAgentConfig(
+        system_instructions="You are an expert storyboard scriptwriter. Generate script following the exact requested markdown format.",
+        capabilities=CapabilitiesConfig()
+    )
+    
+    script_files = []
+    
+    for stage in STAGES:
+        key = stage["key"]
+        name = stage["name"]
+        
+        # If the stage key is decision, the stages_data uses "decision" but output file is decision-making-script.md
+        file_name_key = key if key != "decision" else "decision-making"
+        output_file = os.path.join(output_dir, f"{file_name_key}-script.md")
+        
+        stage_info = stages_data.get(key, {})
+        visual_config = STAGE_VISUAL_CONFIG.get(key, {})
+        
+        prompt = f"""
+        Generate a storyboard panel script for Stage: {name}.
+        
+        Stage Data:
+        Goal: {stage_info.get('goal', '')}
+        Touchpoints: {stage_info.get('touchpoints', '')}
+        Actions: {stage_info.get('actions', '')}
+        Pain Points: {stage_info.get('pain points', '')}
+        Emotion: {stage_info.get('emotion', '')}
+        Opportunities: {stage_info.get('opportunities', '')}
+        
+        Visual Config:
+        Color Wash: {visual_config.get('color_wash', '')}
+        Shot Type: {visual_config.get('shot_type', '')}
+        
+        Style Guide:
+        {STYLE_GUIDE}
+        
+        Format your response EXACTLY like this:
+        # Stage [Number]: {name} — Panel Script
+
+        ## Scene Description
+        [Detailed description]
+
+        ## Character
+        - **Expression**: ...
+        - **Posture/Gesture**: ...
+        - **Outfit**: ...
+
+        ## Actions
+        ...
+
+        ## Environment & Setting
+        - **Location**: ...
+        - **Key Props**: ...
+        - **Background Color Wash**: ...
+
+        ## Camera/Framing
+        - **Shot Type**: ...
+        - **Perspective**: ...
+
+        ## Floating Iconography
+        ...
+
+        ## Dialogue / Caption Text
+        - **Speech Bubble**: ...
+        - **Narrative Caption**: ...
+
+        ## Emotion Indicator
+        - **Rating**: ...
+        - **Visual Cue**: ...
+        """
+        
+        retries = 3
+        for attempt in range(retries):
+            try:
+                logging.info(f"Generating script for {name} (Attempt {attempt+1}/{retries})")
+                async with Agent(config) as agent:
+                    response = await agent.chat(prompt)
+                    full_text = ""
+                    async for token in response:
+                        full_text += token
+                
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(full_text)
+                script_files.append(output_file)
+                break
+            except Exception as e:
+                logging.error(f"Error generating script for {name}: {e}")
+                if attempt == retries - 1:
+                    logging.error(f"Failed to generate script for {name} after 3 attempts.")
+                else:
+                    await asyncio.sleep(2)
+                    
+    return script_files
+
+def load_reference_images(api_key: str) -> list[dict]:
+    logging.info("Loading reference images...")
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ref_dir = os.path.join(base_dir, "Storyboard References")
+        
+        if not os.path.exists(ref_dir):
+            logging.warning(f"Storyboard References folder not found at {ref_dir}")
+            return []
+            
+        supported_exts = [".png", ".jpg", ".jpeg", ".webp"]
+        ref_images = []
+        
+        for file in os.listdir(ref_dir):
+            ext = os.path.splitext(file)[1].lower()
+            if ext in supported_exts:
+                file_path = os.path.join(ref_dir, file)
+                logging.info(f"Uploading {file_path}...")
+                uploaded_file = client.files.upload(file=file_path)
+                ref_images.append({
+                    "uri": uploaded_file.uri,
+                    "mime_type": uploaded_file.mime_type
+                })
+                
+        if not ref_images:
+            logging.warning(f"No reference images found in {ref_dir}")
+            
+        return ref_images
+    except Exception as e:
+        logging.error(f"Error loading reference images: {e}")
+        return []
+
+def generate_panel_images(script_files: list[str], ref_images: list[dict], api_key: str) -> list[Image.Image]:
+    logging.info("Generating panel images...")
+    panel_images = []
+    
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        for i, script_file in enumerate(script_files):
+            try:
+                with open(script_file, "r", encoding="utf-8") as f:
+                    script_content = f.read()
+                    
+                input_parts = []
+                for ref in ref_images:
+                    input_parts.append(
+                        Part.from_uri(uri=ref["uri"], mime_type=ref["mime_type"])
+                    )
+                    
+                prompt = f"""
+                Generate a storyboard panel illustration based on this script and the style guide.
+                
+                STYLE GUIDE:
+                {STYLE_GUIDE}
+                
+                SCRIPT:
+                {script_content}
+                
+                Match the style of the provided reference images exactly:
+                - Consistent thin line art
+                - Monochromatic background color wash as specified in the script
+                - Black and white foreground characters and props
+                - No shading or gradients
+                - Modern UI explainer aesthetic
+                """
+                input_parts.append(prompt)
+                
+                retries = 2
+                for attempt in range(retries):
+                    try:
+                        logging.info(f"Generating image for {os.path.basename(script_file)} (Attempt {attempt+1}/{retries})")
+                        response = client.interactions.create(
+                            model="gemini-3-pro-image-preview",
+                            input=input_parts,
+                            response_modalities=["IMAGE"]
+                        )
+                        
+                        # Assuming the first interaction result contains the image
+                        if response.candidates and response.candidates[0].content.parts:
+                            for part in response.candidates[0].content.parts:
+                                if part.inline_data:
+                                    img_data = part.inline_data.data
+                                    img = Image.open(io.BytesIO(img_data))
+                                    panel_images.append(img)
+                                    break
+                            break
+                        else:
+                            raise ValueError("No image part found in response")
+                    except Exception as e:
+                        logging.error(f"Error during image generation: {e}")
+                        if attempt == retries - 1:
+                            # Append a blank image as fallback
+                            panel_images.append(Image.new("RGB", (1050, 900), color="white"))
+                        else:
+                            time.sleep(2)
+                            
+            except Exception as e:
+                logging.error(f"Error processing script {script_file}: {e}")
+                panel_images.append(Image.new("RGB", (1050, 900), color="white"))
+                
+        return panel_images
+    except Exception as e:
+        logging.error(f"Critical error in generate_panel_images: {e}")
+        return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
+
+def composite_storyboard(panel_images: list[Image.Image], stages_data: dict) -> Image.Image:
+    logging.info("Compositing storyboard...")
+    try:
+        # Canvas sizes
+        canvas_width = 3600
+        canvas_height = 2400
+        panel_width = 1050
+        panel_height = 900
+        gutter = 20
+        border_width = 2
+        
+        canvas = Image.new("RGB", (canvas_width, canvas_height), color="white")
+        draw = ImageDraw.Draw(canvas)
+        
+        # Load fonts
+        try:
+            title_font = ImageFont.truetype("Arial", 80)
+            stage_font = ImageFont.truetype("Arial", 50)
+            caption_font = ImageFont.truetype("Arial", 35)
+            badge_font = ImageFont.truetype("Arial", 30)
+        except IOError:
+            # Fallback to default if Arial is not found
+            logging.warning("Arial font not found, falling back to default")
+            title_font = ImageFont.load_default()
+            stage_font = ImageFont.load_default()
+            caption_font = ImageFont.load_default()
+            badge_font = ImageFont.load_default()
+            
+        # Draw Title
+        title = "CUSTOMER JOURNEY MAP STORYBOARD"
+        # title_bbox = draw.textbbox((0, 0), title, font=title_font)
+        # title_w = title_bbox[2] - title_bbox[0]
+        draw.text((canvas_width/2, 100), title, font=title_font, fill="black", anchor="mm")
+        
+        positions = [
+            (canvas_width/2 - panel_width - gutter, 500), # Col 1, Row 1 (Awareness)
+            (canvas_width/2, 500), # Col 2, Row 1 (Consideration)
+            (canvas_width/2 + panel_width + gutter, 500), # Col 3, Row 1 (Decision)
+            (canvas_width/2 - panel_width/2 - gutter/2, 500 + panel_height + gutter + 300), # Col 1.5, Row 2 (Usage)
+            (canvas_width/2 + panel_width/2 + gutter/2, 500 + panel_height + gutter + 300) # Col 2.5, Row 2 (Advocacy)
+        ]
+        
+        for i, stage in enumerate(STAGES):
+            if i >= len(panel_images):
+                break
+                
+            key = stage["key"]
+            name = stage["name"]
+            stage_info = stages_data.get(key, {})
+            goal = stage_info.get("goal", "")
+            emotion = stage_info.get("emotion", "")
+            
+            img = panel_images[i]
+            # Resize and crop to fit panel
+            img_resized = ImageOps.fit(img, (panel_width, panel_height))
+            
+            # Draw border
+            img_with_border = ImageOps.expand(img_resized, border=border_width, fill="black")
+            
+            center_x, top_y = positions[i]
+            left_x = int(center_x - panel_width/2)
+            
+            # Paste image
+            canvas.paste(img_with_border, (left_x, int(top_y)))
+            
+            # Draw Stage Label
+            stage_label = f"{i+1}. {name}"
+            draw.text((center_x, top_y - 40), stage_label, font=stage_font, fill="black", anchor="md")
+            
+            # Draw Caption (Goal)
+            wrapped_goal = textwrap.fill(goal, width=60)
+            draw.multiline_text((center_x, top_y + panel_height + 40), wrapped_goal, font=caption_font, fill="black", anchor="ma", align="center")
+            
+            # Draw Emotion Badge
+            badge_text = f"Emotion: {emotion}"
+            draw.text((center_x, top_y + panel_height + 150), badge_text, font=badge_font, fill="black", anchor="ma")
+            
+        return canvas
+    except Exception as e:
+        logging.error(f"Error in composite_storyboard: {e}")
+        return Image.new("RGB", (3600, 2400), color="white")
+
+async def generate_storyboard(folder_path: str, gemini_api_key: str) -> dict:
+    logging.info(f"Starting storyboard generation for folder: {folder_path}")
+    
+    journey_map_path = os.path.join(folder_path, "Journey Map", "journey-map.md")
+    
+    if not os.path.exists(journey_map_path):
+        return {"status": "error", "message": f"Journey map not found at {journey_map_path}"}
+        
+    stages_data = parse_journey_map(journey_map_path)
+    if not stages_data:
+        return {"status": "error", "message": "Failed to parse journey map data."}
+        
+    output_dir = os.path.join(folder_path, "Journey Map")
+    script_files = await generate_story_scripts(stages_data, output_dir)
+    
+    ref_images = load_reference_images(gemini_api_key)
+    
+    panel_images = generate_panel_images(script_files, ref_images, gemini_api_key)
+    
+    storyboard = composite_storyboard(panel_images, stages_data)
+    
+    output_path = os.path.join(folder_path, "Journey Map", "storyboard.png")
+    storyboard.save(output_path)
+    logging.info(f"Storyboard saved to {output_path}")
+    
+    return {
+        "status": "success",
+        "output_file": output_path,
+        "script_files": script_files,
+        "message": "Storyboard generated successfully"
+    }
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate Customer Journey Map Storyboard")
+    parser.add_argument("--folder", required=True, help="Path to the workspace folder")
+    parser.add_argument("--api-key", required=True, help="Gemini API Key")
+    
+    args = parser.parse_args()
+    
+    try:
+        result = asyncio.run(generate_storyboard(args.folder, args.api_key))
+        print(json.dumps(result))
+    except Exception as e:
+        logging.error(f"Execution failed: {e}")
+        sys.exit(1)
