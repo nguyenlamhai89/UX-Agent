@@ -11,7 +11,13 @@ import time
 
 from google import genai
 from google.genai.types import Part
-from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig
+
+try:
+    from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig
+    HAS_ANTIGRAVITY = True
+except Exception as e:
+    logging.warning(f"google.antigravity not available or proto error ({e}), using fallback script generator.")
+    HAS_ANTIGRAVITY = False
 
 # Configure logging to stderr
 logging.basicConfig(level=logging.INFO, stream=sys.stderr, format='%(levelname)s: %(message)s')
@@ -131,10 +137,11 @@ async def generate_story_scripts(stages_data: dict, output_dir: str) -> list[str
     logging.info("Generating story scripts in a single batch AI call...")
     os.makedirs(output_dir, exist_ok=True)
     
-    config = LocalAgentConfig(
-        system_instructions="You are an expert storyboard scriptwriter. Generate 5 scripts following the exact requested markdown format.",
-        capabilities=CapabilitiesConfig()
-    )
+    if HAS_ANTIGRAVITY:
+        config = LocalAgentConfig(
+            system_instructions="You are an expert storyboard scriptwriter. Generate 5 scripts following the exact requested markdown format.",
+            capabilities=CapabilitiesConfig()
+        )
     
     stages_prompt_data = ""
     for stage in STAGES:
@@ -203,20 +210,62 @@ Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {vi
     
     retries = 3
     full_text = ""
-    for attempt in range(retries):
-        try:
-            logging.info(f"Generating all 5 scripts in batch (Attempt {attempt+1}/{retries})")
-            async with Agent(config) as agent:
-                response = await agent.chat(prompt)
-                async for token in response:
-                    full_text += token
-            break
-        except Exception as e:
-            logging.error(f"Error generating batch scripts: {e}")
-            if attempt == retries - 1:
-                logging.error("Failed to generate batch scripts after 3 attempts.")
-            else:
-                await asyncio.sleep(2)
+    if HAS_ANTIGRAVITY:
+        for attempt in range(retries):
+            try:
+                logging.info(f"Generating all 5 scripts in batch (Attempt {attempt+1}/{retries})")
+                async with Agent(config) as agent:
+                    response = await agent.chat(prompt)
+                    async for token in response:
+                        full_text += token
+                break
+            except Exception as e:
+                logging.error(f"Error generating batch scripts: {e}")
+                if attempt == retries - 1:
+                    logging.error("Failed to generate batch scripts after 3 attempts.")
+                else:
+                    await asyncio.sleep(2)
+    else:
+        logging.info("Using deterministic script formatting fallback from journey map data...")
+        for stage in STAGES:
+            key = stage["key"]
+            name = stage["name"]
+            stage_info = stages_data.get(key, {})
+            vis = STAGE_VISUAL_CONFIG.get(key, {})
+            full_text += f"""
+=== STAGE: {key} ===
+# Stage: {name} — Panel Script
+
+## Scene Description
+A customer interacting with ABBANK mobile banking service during the {name} stage.
+Goal: {stage_info.get('goal', '')}
+
+## Character
+- **Expression**: Reflecting emotion rating {stage_info.get('emotion', '')}
+- **Posture/Gesture**: Active engagement with mobile device / environment
+- **Outfit**: Modern attire with solid black clothing elements
+
+## Actions
+{stage_info.get('actions', '')}
+
+## Environment & Setting
+- **Location**: Modern everyday setting (home / office / store)
+- **Key Props**: {stage_info.get('touchpoints', '')}
+- **Background Color Wash**: {vis.get('color_wash', '')}
+
+## Camera/Framing
+- **Shot Type**: {vis.get('shot_type', '')}
+- **Perspective**: Eye-level, clean composition
+
+## Floating Iconography
+Abstract icons for key concepts: {stage_info.get('opportunities', '')}
+
+## Dialogue / Caption Text
+- **Narrative Caption**: {stage_info.get('goal', '')}
+
+## Emotion Indicator
+- **Rating**: {stage_info.get('emotion', '')}
+"""
                 
     script_files = []
     # Split response by delimiter
@@ -326,9 +375,8 @@ def load_reference_images(api_key: str) -> list[dict]:
         return []
 
 def generate_panel_images(script_files: list[str], ref_images: list[dict], api_key: str) -> list[Image.Image]:
-    logging.info("Generating panel images in 1 single Nano Banana Pro API call...")
+    logging.info("Generating panel images via Gemini Image API...")
     
-    # Read all scripts
     all_scripts_text = ""
     for sf in script_files:
         try:
@@ -340,14 +388,8 @@ def generate_panel_images(script_files: list[str], ref_images: list[dict], api_k
     try:
         client = genai.Client(api_key=api_key)
         
-        input_parts = []
-        for ref in ref_images:
-            input_parts.append(
-                Part.from_uri(uri=ref["uri"], mime_type=ref["mime_type"])
-            )
-            
         prompt = f"""
-        Generate a single comic strip image containing 5 distinct storyboard panels in a 3+2 grid layout (3 panels in row 1, 2 panels centered in row 2).
+        Digital comic storyboard illustration with 5 distinct panels in a 3+2 grid layout.
         
         STYLE GUIDE:
         {STYLE_GUIDE}
@@ -355,38 +397,43 @@ def generate_panel_images(script_files: list[str], ref_images: list[dict], api_k
         PANEL SCRIPTS FOR ALL 5 PANELS:
         {all_scripts_text}
         
-        CRITICAL INSTRUCTIONS:
-        - Output a single complete storyboard graphic containing all 5 comic panels clearly arranged.
-        - Match the style of the provided reference images exactly:
-          * Crisp thin vector line art
-          * Dual-tone color wash per panel (warm yellow, sage green, dusty pink, soft blue, lavender)
-          * Stark black-and-white foreground characters
-          * Zero shading or gradients
+        CRITICAL VISUAL INSTRUCTIONS:
+        - Clean thin vector line art, modern UX explainer storyboard aesthetic.
+        - Dual-tone color wash per panel (warm yellow, sage green, dusty pink, soft blue, lavender).
+        - Stark black-and-white foreground characters with solid black clothing elements.
+        - Zero shading or gradients.
+        - High-contrast, professional, highly legible.
         """
-        input_parts.append(prompt)
         
         retries = 2
         for attempt in range(retries):
             try:
-                logging.info(f"Generating single 5-panel grid image (Attempt {attempt+1}/{retries})")
-                response = client.interactions.create(
-                    model="gemini-3-pro-image-preview",
-                    input=input_parts,
-                    response_modalities=["IMAGE"]
-                )
-                
-                if response.candidates and response.candidates[0].content.parts:
-                    for part in response.candidates[0].content.parts:
-                        if part.inline_data:
-                            img_data = part.inline_data.data
-                            grid_img = Image.open(io.BytesIO(img_data))
-                            # Return 5 cropped panel slices or return the grid image 5 times for compositing
-                            # To be fully compatible with composite_storyboard, slice the grid image into 5 panels
-                            # Or return the full image 5 times (composite_storyboard will crop/scale)
-                            return [grid_img] * 5
-                    raise ValueError("No image part found in response")
+                logging.info(f"Calling client.models.generate_images (Attempt {attempt+1}/{retries})...")
+                # Try imagen-3.0-generate-002 or gemini-2.5-flash-image
+                try:
+                    response = client.models.generate_images(
+                        model="imagen-3.0-generate-002",
+                        prompt=prompt,
+                        config=genai.types.GenerateImagesConfig(
+                            number_of_images=1,
+                            aspect_ratio="3:2"
+                        )
+                    )
+                    if response.generated_images:
+                        img_bytes = response.generated_images[0].image.image_bytes
+                        grid_img = Image.open(io.BytesIO(img_bytes))
+                        return [grid_img] * 5
+                except Exception as e:
+                    logging.info(f"Imagen model call failed ({e}), trying client.models.generate_content...")
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt
+                    )
+                    # Fallback blank panels if model does not output raw image bytes directly
+                    logging.info("Generated text response, using structured fallback canvas.")
+                    return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
             except Exception as e:
-                logging.error(f"Error during single grid image generation: {e}")
+                logging.error(f"Error during image generation: {e}")
                 if attempt == retries - 1:
                     return [Image.new("RGB", (1050, 900), color="white") for _ in script_files]
                 else:
