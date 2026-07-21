@@ -172,40 +172,14 @@ Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {vi
     FORMAT REQUIREMENT:
     Separate each stage script with a clear delimiter line: `=== STAGE: [key] ===` (where [key] is awareness, consideration, decision-making, usage, advocacy).
     
-    For each stage, output the script EXACTLY like this:
+    For each stage, output the script EXACTLY like this template:
     === STAGE: [key] ===
-    # Stage [Number]: [Stage Name] — Panel Script
-
-    ## Scene Description
-    [Detailed description]
-
-    ## Character
-    - **Expression**: ...
-    - **Posture/Gesture**: ...
-    - **Outfit**: ...
-
-    ## Actions
-    ...
-
-    ## Environment & Setting
-    - **Location**: ...
-    - **Key Props**: ...
-    - **Background Color Wash**: ...
-
-    ## Camera/Framing
-    - **Shot Type**: ...
-    - **Perspective**: ...
-
-    ## Floating Iconography
-    ...
-
-    ## Dialogue / Caption Text
-    - **Speech Bubble**: ...
-    - **Narrative Caption**: ...
-
-    ## Emotion Indicator
-    - **Rating**: ...
-    - **Visual Cue**: ...
+    [ Stage: [Stage Name] ]
+    Background: [Detailed setting description, location, background color wash, framing, shot type]
+    Character(s): [Character description, appearance, expression, posture/gesture, outfit]
+    Object(s): [Key touchpoints, props, floating iconography]
+    Action(s): [Step-by-step user actions and behaviors]
+    Dialogue/Thinking: [Speech bubbles, internal thoughts, or narrative captions]
     """
     
     retries = 3
@@ -234,37 +208,12 @@ Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {vi
             vis = STAGE_VISUAL_CONFIG.get(key, {})
             full_text += f"""
 === STAGE: {key} ===
-# Stage: {name} — Panel Script
-
-## Scene Description
-A customer interacting with ABBANK mobile banking service during the {name} stage.
-Goal: {stage_info.get('goal', '')}
-
-## Character
-- **Expression**: Reflecting emotion rating {stage_info.get('emotion', '')}
-- **Posture/Gesture**: Active engagement with mobile device / environment
-- **Outfit**: Modern attire with solid black clothing elements
-
-## Actions
-{stage_info.get('actions', '')}
-
-## Environment & Setting
-- **Location**: Modern everyday setting (home / office / store)
-- **Key Props**: {stage_info.get('touchpoints', '')}
-- **Background Color Wash**: {vis.get('color_wash', '')}
-
-## Camera/Framing
-- **Shot Type**: {vis.get('shot_type', '')}
-- **Perspective**: Eye-level, clean composition
-
-## Floating Iconography
-Abstract icons for key concepts: {stage_info.get('opportunities', '')}
-
-## Dialogue / Caption Text
-- **Narrative Caption**: {stage_info.get('goal', '')}
-
-## Emotion Indicator
-- **Rating**: {stage_info.get('emotion', '')}
+[ Stage: {name} ]
+Background: Modern everyday setting during {name} stage. Color Wash: {vis.get('color_wash', '')}. Framing: {vis.get('shot_type', '')}.
+Character(s): User interacting with mobile banking app. Expression reflecting emotion score: {stage_info.get('emotion', '')}. Wearing modern attire with solid black clothing accents.
+Object(s): Touchpoints & props: {stage_info.get('touchpoints', '')}. Key opportunities & icons: {stage_info.get('opportunities', '')}.
+Action(s): {stage_info.get('actions', '')}
+Dialogue/Thinking: "{stage_info.get('goal', '')}"
 """
                 
     script_files = []
