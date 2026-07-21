@@ -139,7 +139,17 @@ async def generate_story_scripts(stages_data: dict, output_dir: str) -> list[str
     
     if HAS_ANTIGRAVITY:
         config = LocalAgentConfig(
-            system_instructions="You are an expert storyboard scriptwriter. Generate 5 scripts following the exact requested markdown format.",
+            system_instructions="""You are an expert UX storyboard director and visual narrative scriptwriter. 
+Your task is to analyze Customer Journey Map stage data and generate rich, highly detailed visual panel scripts.
+
+CRITICAL DIRECTIVES FOR SCRIPT GENERATION:
+1. Provide vivid, highly descriptive details for EVERY single section. Do NOT use bullet points or brief summaries.
+2. Background: Describe the physical setting, lighting, environment architecture, exact background color wash (e.g. warm yellow #FFF3D4), camera angle, shot type, and framing in rich detail.
+3. Character(s): Describe character demographics, exact facial expression, posture, hand gestures, facial reaction matching the emotion score, and modern outfit with solid black clothing elements.
+4. Object(s): List all touchpoints, physical/digital devices, props, UI elements on screen, and abstract floating icons hovering around the scene in detail.
+5. Action(s): Write a detailed step-by-step visual narrative of the physical and digital actions the character performs in chronological order.
+6. Dialogue/Thinking: Write engaging inner monologue thoughts (in quote marks), speech bubble dialogue, or narrative scene captions that capture the user's mindset, motivations, and pain points.
+""",
             capabilities=CapabilitiesConfig()
         )
     
@@ -156,13 +166,13 @@ Goal: {stage_info.get('goal', '')}
 Touchpoints: {stage_info.get('touchpoints', '')}
 Actions: {stage_info.get('actions', '')}
 Pain Points: {stage_info.get('pain points', '')}
-Emotion: {stage_info.get('emotion', '')}
-Opportunities: {stage_info.get('opportunities', '')}
-Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {visual_config.get('shot_type', '')}
+Emotion Score & Level: {stage_info.get('emotion', '')}
+Opportunities & Metrics: {stage_info.get('opportunities', '')}
+Visual Config: Color Wash = {visual_config.get('color_wash', '')}, Shot Type = {visual_config.get('shot_type', '')}
 """
 
     prompt = f"""
-    Generate panel scripts for ALL 5 STAGES below in a SINGLE response.
+    Generate rich, highly detailed storyboard panel scripts for ALL 5 STAGES below in a SINGLE response.
     
     {stages_prompt_data}
     
@@ -172,14 +182,15 @@ Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {vi
     FORMAT REQUIREMENT:
     Separate each stage script with a clear delimiter line: `=== STAGE: [key] ===` (where [key] is awareness, consideration, decision-making, usage, advocacy).
     
-    For each stage, output the script EXACTLY like this template:
+    For each stage, output the script EXACTLY like this template, filling in RICH, EXTENSIVE DETAILS for each field:
+
     === STAGE: [key] ===
     [ Stage: [Stage Name] ]
-    Background: [Detailed setting description, location, background color wash, framing, shot type]
-    Character(s): [Character description, appearance, expression, posture/gesture, outfit]
-    Object(s): [Key touchpoints, props, floating iconography]
-    Action(s): [Step-by-step user actions and behaviors]
-    Dialogue/Thinking: [Speech bubbles, internal thoughts, or narrative captions]
+    Background: [Provide extensive setting details: physical location, room layout, ambient lighting, specific pastel background color wash, camera angle, perspective, and shot type]
+    Character(s): [Provide extensive character details: age, posture, hand gestures, facial expression reflecting emotion, hairstyle, and modern outfit with solid black clothing elements]
+    Object(s): [Provide extensive item details: specific touchpoint devices, UI screens, physical props, paper documents, and abstract floating icons hovering around]
+    Action(s): [Provide extensive step-by-step visual narrative of character's physical and digital interactions in chronological sequence]
+    Dialogue/Thinking: [Provide detailed inner monologue thoughts, direct speech bubbles, or narrative captions capturing character's exact mindset and feelings]
     """
     
     retries = 3
@@ -206,14 +217,20 @@ Visual Config: Color Wash: {visual_config.get('color_wash', '')}, Shot Type: {vi
             name = stage["name"]
             stage_info = stages_data.get(key, {})
             vis = STAGE_VISUAL_CONFIG.get(key, {})
+            
+            tp_clean = stage_info.get('touchpoints', '').replace('<br>', ', ')
+            act_clean = stage_info.get('actions', '').replace('<br>', '; ')
+            pp_clean = stage_info.get('pain points', '').replace('<br>', '; ')
+            opp_clean = stage_info.get('opportunities', '').replace('<br>', ', ')
+            
             full_text += f"""
 === STAGE: {key} ===
 [ Stage: {name} ]
-Background: Modern everyday setting during {name} stage. Color Wash: {vis.get('color_wash', '')}. Framing: {vis.get('shot_type', '')}.
-Character(s): User interacting with mobile banking app. Expression reflecting emotion score: {stage_info.get('emotion', '')}. Wearing modern attire with solid black clothing accents.
-Object(s): Touchpoints & props: {stage_info.get('touchpoints', '')}. Key opportunities & icons: {stage_info.get('opportunities', '')}.
-Action(s): {stage_info.get('actions', '')}
-Dialogue/Thinking: "{stage_info.get('goal', '')}"
+Background: Modern everyday environment during the {name} phase. The scene utilizes a flat pastel background color wash of {vis.get('color_wash', '')} with receding architectural lines. Framed as a {vis.get('shot_type', '')} with clean vector line art aesthetics.
+Character(s): A young adult customer interacting with mobile banking services. Expresses a clear emotion score of {stage_info.get('emotion', '')}. Dressed in modern, casual attire featuring prominent solid black clothing elements for high contrast.
+Object(s): Primary touchpoint devices including smartphone and laptop. Key props: {tp_clean}. Abstract floating iconography surrounding the character: {opp_clean}.
+Action(s): Step 1: Character initiates action by {act_clean}. Step 2: Character encounters key experience details: {pp_clean}. Step 3: Character completes the primary stage goal of {stage_info.get('goal', '')}.
+Dialogue/Thinking: "My primary goal here is to {stage_info.get('goal', '')}. I need this process to be seamless and intuitive."
 """
                 
     script_files = []
