@@ -31,9 +31,17 @@ Generates a comic-style storyboard visualization from the journey-map.md, produc
 
 ## Custom Instructions
 1. Parse `journey-map.md` from `<folder_path>/Journey Map/` into structured data (5 stages × 6 dimensions)
-2. Generate 5 story scripts using the built-in Antigravity AI — each script describes a comic panel scene with: scene description, character design, actions, environment, camera framing, floating iconography, dialogue/captions, and emotion indicators
-3. Load ALL reference images from the skill's `Storyboard References/` folder and upload them via Gemini Files API
-4. For each stage, use the story script + full art style guide + reference images to generate a comic panel via `client.interactions.create()` with model `gemini-3-pro-image-preview`
+2. Generate 5 story scripts in a single batch AI call using the built-in Antigravity AI. Each phase script MUST strictly follow the exact template format below:
+   ```markdown
+   [ Stage: <Phase Name> ]
+   Background: <Location, setting details, color wash, camera framing>
+   Character(s): <Description, appearance, expression, posture/gesture, outfit>
+   Object(s): <Touchpoints, key props, floating iconography>
+   Action(s): <User steps and behaviors>
+   Dialogue/Thinking: <Speech bubbles, internal thoughts, or narrative caption>
+   ```
+3. Load ALL reference images from the skill's `Storyboard References/` folder (using local `.cache.json` to prevent duplicate uploads) and upload them via Gemini Files API
+4. Generate the 5 comic panel illustrations via Gemini Image API / Nano Banana Pro (`gemini-3-pro-image-preview`) using the scripts + full art style guide + reference images
 5. Composite 5 panels into a single storyboard grid (3 top + 2 bottom centered) using PIL/Pillow with:
    - White canvas ~3600×2400px
    - Thin black panel borders with 20px white gutters
