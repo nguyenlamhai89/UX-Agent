@@ -260,3 +260,31 @@ sequenceDiagram
 **Category 4: 🛡️ Reliability & Error Handling**
 - [x] Implement a wrapper script or orchestrator hook to enforce retries programmatically rather than relying purely on LLM instruction following. *(Retry Success Rate: 7/10)*
 
+---
+
+### 2026-07-22 Analysis
+
+**Category 1: ⚡ Execution Efficiency**
+- [ ] Replace the undeclared `invoke_subagent` step in `SKILL.md` with the orchestrator's actual bounded-concurrency mechanism and record per-transcript completion before the merge barrier. *(Execution Time: 7/10)*
+- [ ] Invoke `scripts/chunk_transcript.py` before AI mapping for transcripts over the configured limit, pass only the relevant questionnaire rows plus a compact cross-chunk mapping ledger, and document how chunk results are reconciled. *(Token Usage: 6/10)*
+- [ ] Put chunk-directory cleanup in a `finally` path that runs even when mapping or merging fails, and avoid loading every full file with `read()` or `readlines()` where streaming is sufficient. *(Resource Consumption: 7/10)*
+
+**Category 2: 🎯 Output Quality & Accuracy**
+- [ ] Extend `scripts/validate_mapping.py` to validate the exact five-column header, every questionnaire row key and order, response-cell presence, and Mapping Summary totals instead of checking row count alone. *(Output Completeness: 7/10)*
+- [ ] Resolve the contradictory Mapping Summary/no-extra-content rules in `SKILL.md`, require literal pipes in transcript content to be encoded as `&#124;`, and make validation reject malformed row widths before merge. *(Format Compliance: 5/10)*
+- [ ] Remove the positional fallback in `scripts/map_transcript.py`; fail validation when questionnaire row keys do not match exactly so a response cannot be silently attached to the wrong question. *(Content Accuracy: 7/10)*
+- [ ] Generate a review manifest with answered/N/A totals plus unmapped and overlapping timestamp ranges so the approval gate can verify coverage without manually auditing every table cell. *(Human Approval Rate: 7/10)*
+
+**Category 3: 🔗 Workflow Fit**
+- [ ] Move transcript-set and modification-time validation into `ORCHESTRATOR.md` before incremental skip decisions, and rebuild the combined file whenever a source transcript is added, changed, or removed. *(Skip-Logic Compatibility: 5/10)*
+- [ ] Fail closed or return an explicit `partial` result when any expected transcript is missing or malformed; do not silently merge a subset that downstream insight generation can mistake for complete data. *(Pipeline Passthrough Rate: 5/10)*
+
+**Category 4: 🛡️ Reliability & Error Handling**
+- [ ] Add preflight and merge checks for malformed headers, uneven row widths, duplicate aliases/row keys, raw pipe characters, unreadable encodings, and permission failures, with stable documented error codes. *(Error Rate: 6/10)*
+- [ ] Preserve the last valid per-interviewee output until a replacement has been written atomically and validated, and clean chunk artifacts in `finally` blocks on every exit path. *(Error Recoverability: 7/10)*
+- [ ] Implement a real retry controller: retry transient AI/tool failures with bounded exponential backoff, retry validation failures with the validator diagnostics, and never retry terminal input/schema errors. *(Retry Success Rate: 5/10)*
+- [ ] Reopen completed checklist items whose mechanisms are absent, especially pipe escaping and programmatic retry enforcement, and require a regression test or implementation reference before marking future items complete. *(Known Bug Recurrence: 5/10)*
+
+**Category 5: 💰 Cost & Scalability**
+- [ ] Replace the repeated normalized-prefix reconstruction in `scripts/chunk_transcript.py` with a one-pass normalized-to-original offset map, and cap concurrent mapping workers to prevent memory and rate-limit spikes. *(Scaling Behavior: 5/10)*
+- [ ] Add direct tests for `validate_mapping.py`, malformed/partial mapped files, pipe-containing responses, duplicate row keys, atomic failure cleanup, and stale combined outputs; expand the workflow E2E test to start from source transcripts rather than pre-mapped fixtures. *(Unit Test Coverage & Pass Rate: 7/10)*
