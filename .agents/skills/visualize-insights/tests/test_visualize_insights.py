@@ -155,16 +155,18 @@ class TestDataParsing:
 
 
 class TestFullTranscriptDrawer:
-    def test_discover_full_transcripts_prefers_dash_and_supports_legacy_underscore(self, tmp_path):
-        mapped_path = tmp_path / "mapped-transcript.md"
-        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
+    def test_match_full_transcript_inputs_requires_non_empty_list(self):
+        with pytest.raises(ValueError, match="must be a non-empty list"):
+            visualize_insights.match_full_transcript_inputs([], ["Anh A"])
+
+    def test_match_full_transcript_inputs_covers_every_interviewee(self, tmp_path):
         preferred = tmp_path / "transcript-Anh-A.md"
         preferred.write_text("# Preferred", encoding="utf-8")
         legacy = tmp_path / "transcript_Chị-B.md"
         legacy.write_text("# Legacy", encoding="utf-8")
 
-        matched = visualize_insights.discover_full_transcripts(
-            mapped_path,
+        matched = visualize_insights.match_full_transcript_inputs(
+            [str(preferred), str(legacy)],
             ["Anh A", "Chị B"],
         )
 
@@ -186,20 +188,24 @@ Xin chào <script>alert('x')</script>
         assert "<script>" not in rendered
 
     def test_build_full_transcript_ui_adds_one_action_per_interviewee(self, tmp_path):
-        mapped_path = tmp_path / "mapped-transcript.md"
-        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
-        (tmp_path / "transcript-Anh-A.md").write_text(
+        transcript_a = tmp_path / "transcript-Anh-A.md"
+        transcript_a.write_text(
             "# Interview A\n\n**[00:01] [speaker_0]** <br>\nXin chào A.",
             encoding="utf-8",
         )
-        (tmp_path / "transcript-Chị-B.md").write_text(
+        transcript_b = tmp_path / "transcript-Chị-B.md"
+        transcript_b.write_text(
             "# Interview B\n\n**[00:02] [speaker_1]** <br>\nXin chào B.",
             encoding="utf-8",
         )
 
+        transcript_files = visualize_insights.match_full_transcript_inputs(
+            [str(transcript_a), str(transcript_b)],
+            ["Anh A", "Chị B"],
+        )
         footer, drawer = visualize_insights.build_full_transcript_ui(
             ["Anh A", "Chị B"],
-            mapped_path,
+            transcript_files,
         )
 
         assert footer.count("Xem tất cả") == 2
@@ -211,15 +217,26 @@ Xin chào <script>alert('x')</script>
         assert "Xin chào B." in drawer
         assert 'id="full-transcript-drawer"' in drawer
 
-    def test_build_full_transcript_ui_disables_missing_source(self, tmp_path):
-        mapped_path = tmp_path / "mapped-transcript.md"
-        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
+    def test_match_full_transcript_inputs_rejects_missing_interviewee(self, tmp_path):
+        only_transcript = tmp_path / "transcript-Anh-A.md"
+        only_transcript.write_text("# Interview A", encoding="utf-8")
 
-        footer, drawer = visualize_insights.build_full_transcript_ui(["Anh A"], mapped_path)
+        with pytest.raises(ValueError, match="Missing full transcript input for: Chị B"):
+            visualize_insights.match_full_transcript_inputs(
+                [str(only_transcript)],
+                ["Anh A", "Chị B"],
+            )
 
-        assert "Xem tất cả" in footer
-        assert 'disabled aria-disabled="true"' in footer
-        assert "Không có tệp nguồn" in drawer
+    def test_match_full_transcript_inputs_rejects_invalid_filename(self, tmp_path):
+        invalid_transcript = tmp_path / "interview-Anh-A.md"
+        invalid_transcript.write_text("# Interview A", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=r"must match transcript-\*\.md"):
+            visualize_insights.match_full_transcript_inputs(
+                [str(invalid_transcript)],
+                ["Anh A"],
+            )
+
 
 class TestDeterministicStats:
     @patch('visualize_insights.shutil.which', return_value=None)
