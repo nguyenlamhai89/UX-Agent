@@ -83,6 +83,21 @@ def run_script(skill_name, date, analysis_json_str, output_dir):
     return result
 
 
+def run_script_file(skill_name, date, analysis_json_file, output_dir):
+    """Run the CLI with a JSON file to avoid shell-quoting large payloads."""
+    return subprocess.run(
+        [
+            sys.executable, SCRIPT_PATH,
+            "--skill-name", skill_name,
+            "--date", date,
+            "--analysis-json-file", analysis_json_file,
+            "--output-dir", output_dir,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
 class TestCLIIntegration:
     """End-to-end tests running manage_report.py as a subprocess."""
 
@@ -157,6 +172,27 @@ class TestCLIIntegration:
 
         assert result.returncode != 0
         assert "Invalid JSON" in result.stderr
+
+    def test_accepts_analysis_json_file(self, tmp_path):
+        """Long analysis payloads can be read from a UTF-8 JSON file."""
+        output_dir = str(tmp_path / "reports")
+        analysis_path = tmp_path / "analysis.json"
+        analysis_path.write_text(
+            json.dumps(_build_sample_analysis(), ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        result = run_script_file(
+            "visualize-insights",
+            "2026-07-22",
+            str(analysis_path),
+            output_dir,
+        )
+
+        assert result.returncode == 0
+        assert os.path.isfile(
+            os.path.join(output_dir, "analysis-visualize-insights.md")
+        )
 
     def test_missing_criteria_fills_with_na(self, tmp_path):
         """Test that missing criteria keys in the JSON produce N/A values."""

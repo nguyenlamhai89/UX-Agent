@@ -41,10 +41,14 @@ def main():
         required=True,
         help="Date string for the column header (YYYY-MM-DD).",
     )
-    parser.add_argument(
+    analysis_source = parser.add_mutually_exclusive_group(required=True)
+    analysis_source.add_argument(
         "--analysis-json",
-        required=True,
         help="JSON string containing the analysis data.",
+    )
+    analysis_source.add_argument(
+        "--analysis-json-file",
+        help="Path to a UTF-8 JSON file containing the analysis data.",
     )
     parser.add_argument(
         "--output-dir",
@@ -54,9 +58,22 @@ def main():
 
     args = parser.parse_args()
 
-    # Parse the analysis JSON
+    # Read and parse the analysis JSON. A file input avoids shell-quoting
+    # failures for long reports with punctuation-heavy analysis text.
+    analysis_json = args.analysis_json
+    if args.analysis_json_file:
+        try:
+            with open(args.analysis_json_file, "r", encoding="utf-8") as f:
+                analysis_json = f.read()
+        except OSError as e:
+            print(
+                f"ERROR: Could not read --analysis-json-file: {e}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     try:
-        analysis = json.loads(args.analysis_json)
+        analysis = json.loads(analysis_json)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in --analysis-json: {e}", file=sys.stderr)
         sys.exit(1)

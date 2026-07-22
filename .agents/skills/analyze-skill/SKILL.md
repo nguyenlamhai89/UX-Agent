@@ -194,6 +194,9 @@ The orchestrator should trigger this skill when:
        --analysis-json '<JSON string>' \
        --output-dir ".agents/workflows/ux-transcribe/Analysis"
      ```
+     For long or punctuation-heavy payloads, write the analysis object to a
+     workspace-local UTF-8 JSON file and pass
+     `--analysis-json-file "<path>"` instead of `--analysis-json`.
   7. **Update the target skill's SKILL.md** — Take all the actionable solutions generated in the analysis (where score < 8) and append or update a `## Performance Improvement Solutions` section at the end of the target skill's `SKILL.md` file. Format them as a checklist (`- [ ]`) grouped by category so they can be easily tracked.
   8. **Report the result and Suggest Solutions** — Return the path to the created/updated report file and a summary of average scores per category. Crucially, you MUST present the actionable solutions to the user and explicitly ask if they would like you to implement those solutions to fix the target skill.
   9. **Implement and Update Report** — If the user approves the improvements, implement the fixes in the target skill's code. After successfully implementing the fixes, you MUST manually edit the `Analysis/analysis-<skill_name>.md` report to append ` • **Solution**: <description of fix>` to the corresponding criteria cells in the latest date column, and mark the checklist item in the target skill's `SKILL.md` as `[x]`.
@@ -331,6 +334,7 @@ sequenceDiagram
 
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
+| `INVALID_JSON` while generating a long analysis report | A large punctuation-heavy JSON object was passed as a shell-quoted `--analysis-json` value and quoting corruption made the payload invalid before the CLI parsed it. | Added mutually exclusive `--analysis-json-file` support, documented it for long payloads, and added a CLI regression test that creates a report from a UTF-8 JSON file. |
 
 ## Performance Improvement Solutions
 

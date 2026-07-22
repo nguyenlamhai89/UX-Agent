@@ -165,3 +165,29 @@ sequenceDiagram
 - [x] **Unit Test Coverage**: Add test for `extract_chart_data()` validating label and data extraction from the saturation matrix.
 - [x] **Unit Test Coverage**: Add integration test that runs the full template assembly and validates the output HTML contains expected elements.
 - [x] **Unit Test Coverage**: Add test with multi-interviewee sample data to verify column handling scales correctly.
+
+### 2026-07-22 Analysis
+
+#### Execution Efficiency
+- [ ] **Resource Consumption (7/10)**: Add an input-size budget and warning, and render embedded transcript payloads on demand so large studies do not inflate initial DOM and memory usage.
+
+#### Output Quality & Accuracy
+- [ ] **Output Completeness (7/10)**: Require `project_name`, reject empty interviewee, saturation, and transcript parse results, and fail when required template placeholders remain unresolved before writing output.
+- [ ] **Format Compliance (6/10)**: Update the base template and loader to use the canonical module filenames, keep Persona directly below Insights and Journey Map directly below Persona, and remove all `Coming soon` or `Soon` UI.
+- [ ] **Content Accuracy (5/10)**: Convert new-insight counts into a cumulative chart series and use its final value as total insights; escape all Markdown-derived table, quote, heading, and project fields before controlled inline formatting.
+- [ ] **Human Approval Rate (7/10)**: Add a representative end-to-end HTML fixture plus browser-based visual and accessibility checks for navigation order, drawers, searches, empty states, and wide tables.
+
+#### Workflow Fit
+- [ ] **I/O Contract Adherence (5/10)**: Register `visualize-insights` in the appropriate orchestrator flow with explicit upstream path mapping, enforce the documented required fields, and resolve `output_file` to an absolute path inside `output_dir`.
+- [ ] **Skip-Logic Compatibility (4/10)**: Add an input signature manifest covering Markdown, transcript, journey, and template files, then define orchestrator skip logic that accepts only a complete current output.
+- [ ] **Pipeline Passthrough Rate (6/10)**: Use one guarded template-loading path and stable error codes for input read, parse, template, journey, browser, and output failures; document matching orchestrator handling for every code.
+- [ ] **Idempotency (7/10)**: Make browser opening an explicit opt-in flag and replace implicit output-directory audio discovery with declared media inputs or a documented deterministic source.
+
+#### Reliability & Error Handling
+- [ ] **Error Rate (6/10)**: Refactor `main()` into validated stages, remove unreachable exception blocks, constrain the output filename to `output_dir`, and return schema-validated failures for malformed or empty inputs.
+- [ ] **Error Recoverability (6/10)**: Write to a sibling temporary file and atomically replace the prior report only after validation; expose optional-section degradation in the structured result or fail according to the declared contract.
+- [ ] **Known Bug Recurrence (7/10)**: Add regression tests for full `main()` success and each failure code, cumulative chart totals, atomic replacement, safe output paths, unresolved placeholders, and required navigation order.
+
+#### Cost & Scalability
+- [ ] **Scaling Behavior (6/10)**: Store escaped transcript content in inert serialized payloads and hydrate only the active drawer, add large-study warnings, and test performance with 20 or more interviewees and long transcripts.
+- [ ] **Unit Test Coverage & Pass Rate (7/10)**: Add success-path and failure-path integration tests around `main()` with browser and `ffprobe` mocked, plus assertions for generated structure, safe escaping, chart math, and output containment.
