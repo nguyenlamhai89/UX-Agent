@@ -3,20 +3,31 @@ import sys
 import json
 import asyncio
 import re
-import glob
-import subprocess
 import html
+import hashlib
+import tempfile
 import unicodedata
 from pathlib import Path
 import webbrowser
-
-try:
-    from google.antigravity import Agent, LocalAgentConfig
-except Exception:
-    Agent = None
-    LocalAgentConfig = None
-
 import shutil
+from urllib.parse import urlparse
+
+
+DEFAULT_MAX_INPUT_BYTES = 50 * 1024 * 1024
+INPUT_WARNING_RATIO = 0.8
+LARGE_STUDY_INTERVIEWEE_COUNT = 20
+MANIFEST_SCHEMA_VERSION = 1
+RENDERER_VERSION = "2.0.0"
+MEDIA_EXTENSIONS = {".mp3", ".wav", ".m4a", ".qta", ".mp4", ".mkv", ".ogg", ".flac"}
+
+
+class SkillError(Exception):
+    """Structured terminal failure returned to the orchestrator."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 async def get_audio_duration(f):
     try:
@@ -32,22 +43,9 @@ async def get_audio_duration(f):
     except Exception:
         return 0.0
 
-async def get_folder_stats(output_dir):
-    exts = ['*.mp3', '*.wav', '*.m4a', '*.qta', '*.mp4', '*.mkv', '*.ogg', '*.flac']
-    audio_files = []
-    
-    audio_dir = output_dir
-    if os.path.basename(output_dir) == "Interview":
-        audio_dir = os.path.dirname(output_dir)
-        
-    for ext in exts:
-        audio_files.extend(glob.glob(os.path.join(audio_dir, ext)))
-        audio_files.extend(glob.glob(os.path.join(audio_dir, ext.upper())))
-    
-    unique_files = sorted(list(set(audio_files)))
-    total_interviewees = len(unique_files)
-    audio_names = [os.path.splitext(os.path.basename(f))[0] for f in unique_files]
-    
+async def get_media_stats(media_paths):
+    """Return duration stats for explicitly declared media inputs."""
+    unique_files = sorted({str(path) for path in media_paths})
     total_duration_sec = 0.0
     if unique_files:
         if shutil.which('ffprobe') is None:
@@ -62,20 +60,58 @@ async def get_folder_stats(output_dir):
     total_time_html = f"{mins} <span class='text-sm font-normal text-slate-400 mx-1'>mins</span> {secs} <span class='text-sm font-normal text-slate-400 ml-1'>secs</span>"
 
     return {
-        "total_interviewees": total_interviewees,
         "total_time_html": total_time_html,
-        "audio_names": audio_names
+        "media_count": len(unique_files),
     }
 
+
+async def get_folder_stats(media_paths):
+    """Backward-compatible alias; inputs must now be explicit media paths."""
+    return await get_media_stats(media_paths)
+
+
+def _safe_link(url):
+    parsed = urlparse(html.unescape(url).strip())
+    return parsed.scheme.casefold() in {"http", "https", "mailto"}
+
+
 def render_inline_markdown(text):
-    if not text or text == "N/A": return ""
+    if not text or text == "N/A":
+        return ""
+    rendered = html.escape(str(text), quote=False)
+    rendered = re.sub(
+        r'&lt;mark\s+style="background-color:\s*yellow;?"&gt;(.*?)&lt;/mark&gt;',
+        r'<mark class="bg-yellow-200 text-slate-900 rounded px-0.5">\1</mark>',
+        rendered,
+        flags=re.IGNORECASE,
+    )
+    rendered = re.sub(r"&lt;br\s*/?&gt;", "<br>", rendered, flags=re.IGNORECASE)
+    rendered = re.sub(
+        r'\[(.*?)\]\((.*?)\)',
+        lambda match: (
+            f'<a href="{html.escape(html.unescape(match.group(2)), quote=True)}" '
+            'class="text-blue-600 hover:underline hover:text-blue-800" '
+            f'target="_blank" rel="noopener noreferrer">{match.group(1)}</a>'
+            if _safe_link(match.group(2))
+            else match.group(1)
+        ),
+        rendered,
+    )
     # Bold
-    text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+    rendered = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', rendered)
     # Italic
-    text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-    # Links
-    text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" class="text-blue-600 hover:underline hover:text-blue-800" target="_blank">\1</a>', text)
-    return text
+    rendered = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<em>\1</em>', rendered)
+    return rendered
+
+
+def json_for_html(value):
+    """Serialize JSON safely for embedding in an HTML script element."""
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
 
 
 def extract_transcript_headers(md_text, audio_names=None):
@@ -246,6 +282,7 @@ def build_full_transcript_ui(interviewee_names, transcript_files):
 
         transcript_md = transcript_file.read_text(encoding='utf-8')
         transcript_html = render_full_transcript_markdown(transcript_md)
+        transcript_payload = json_for_html({"html": transcript_html})
         source_label = html.escape(transcript_file.name)
 
         panels.append(
@@ -270,7 +307,9 @@ def build_full_transcript_ui(interviewee_names, transcript_files):
             f'</button>'
             f'</div>'
             f'</div>'
-            f'<div class="transcript-document" data-full-transcript-document>{transcript_html}</div>'
+            f'<script type="application/json" data-full-transcript-payload>{transcript_payload}</script>'
+            f'<div class="transcript-document" data-full-transcript-document '
+            f'aria-live="polite"></div>'
             '</article>'
         )
 
@@ -315,9 +354,9 @@ def parse_transcript_to_html(md_text, audio_names=None):
                 num = cols[0]
                 while len(cols) < 5:
                     cols.append("")
-                theme = cols[1]
-                question = cols[2]
-                obs = cols[3]
+                theme = render_inline_markdown(cols[1])
+                question = render_inline_markdown(cols[2])
+                obs = render_inline_markdown(cols[3])
                 
                 tds = ""
                 for i in range(len(headers)):
@@ -343,12 +382,13 @@ def parse_transcript_to_html(md_text, audio_names=None):
                                         <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-48">Observed Variable</th>
 """
     for user in headers:
-        initial = user[0].upper() if user else "U"
+        escaped_user = html.escape(user)
+        initial = html.escape(user[0].upper()) if user else "U"
         transcript_thead += f"""
                                         <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider min-w-[300px]">
                                             <div class="flex items-center">
                                                 <div class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs mr-2">{initial}</div>
-                                                {user}
+                                                {escaped_user}
                                             </div>
                                         </th>
 """
@@ -484,6 +524,7 @@ def parse_insights_to_html(md_text, audio_names=None):
                 for i in range(len(headers)):
                     col_idx = i + 1
                     marker = cols[col_idx] if col_idx < len(cols) else ""
+                    escaped_marker = html.escape(marker)
 
                     user_name = headers[i] if i < len(headers) else ""
                     # Look up the quote from the per-interviewee section
@@ -494,9 +535,9 @@ def parse_insights_to_html(md_text, audio_names=None):
                             tds += f"""
                         <td class="p-0 align-top">
                             <button onclick="toggleQuote('insight-{unique_id}')" class="w-full h-full min-h-[60px] flex flex-col items-center justify-start p-3 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50">
-                                <div id="icon-insight-{unique_id}" class="text-blue-500 text-xl transition-all duration-300">{marker}</div>
+                                <div id="icon-insight-{unique_id}" class="text-blue-500 text-xl transition-all duration-300">{escaped_marker}</div>
                                 <div id="quote-insight-{unique_id}" class="hidden w-full mt-2 text-left text-[14px] text-slate-700 italic bg-blue-50 p-3 rounded-md border-l-2 border-blue-400 shadow-sm relative before:absolute before:-top-2 before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-b-blue-400">
-                                    {quote_text}
+                                    {render_inline_markdown(quote_text)}
                                 </div>
                             </button>
                         </td>"""
@@ -504,7 +545,7 @@ def parse_insights_to_html(md_text, audio_names=None):
                             # Marker exists but no quote found
                             tds += f"""
                         <td class="px-4 py-4 align-top text-center">
-                            <span class="text-xl">{marker}</span>
+                            <span class="text-xl">{escaped_marker}</span>
                         </td>"""
                         unique_id += 1
                     else:
@@ -514,7 +555,7 @@ def parse_insights_to_html(md_text, audio_names=None):
                 rows.append(f"""
                 <tr class="hover:bg-slate-100 transition-colors group">
                     <td class="px-2 py-4 whitespace-nowrap text-sm text-slate-500 font-medium align-top text-center w-1">{row_num}</td>
-                    <td class="px-4 py-4 text-sm text-slate-800 font-medium leading-relaxed align-top">{insight}</td>
+                    <td class="px-4 py-4 text-sm text-slate-800 font-medium leading-relaxed align-top">{render_inline_markdown(insight)}</td>
                     {tds}
                 </tr>
                 """)
@@ -532,12 +573,13 @@ def parse_insights_to_html(md_text, audio_names=None):
                                         <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-full min-w-[300px]">Insight</th>
 """
     for user in headers:
-        initial = user[0].upper() if user else "U"
+        escaped_user = html.escape(user)
+        initial = html.escape(user[0].upper()) if user else "U"
         saturation_thead += f"""
                                         <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider min-w-[200px]">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold mb-1 shadow-sm">{initial}</div>
-                                                {user}
+                                                {escaped_user}
                                             </div>
                                         </th>
 """
@@ -545,7 +587,7 @@ def parse_insights_to_html(md_text, audio_names=None):
 
 def extract_chart_data(insights_md, audio_names=None):
     lines = insights_md.split('\n')
-    data = []
+    new_insight_counts = []
     saturation_headers = []
     in_saturation = False
     header_found = False
@@ -567,10 +609,16 @@ def extract_chart_data(insights_md, audio_names=None):
             cols = [c.strip() for c in line.strip().strip('|').split('|')]
             for val in cols[1:]:
                 try:
-                    data.append(int(val))
+                    new_insight_counts.append(int(val))
                 except ValueError:
                     pass
             break
+
+    data = []
+    cumulative_total = 0
+    for count in new_insight_counts:
+        cumulative_total += count
+        data.append(cumulative_total)
 
     labels = []
     if audio_names:
@@ -586,7 +634,7 @@ def extract_chart_data(insights_md, audio_names=None):
 
     if not data:
         data = [0]
-    return json.dumps(labels), json.dumps(data), max(data) if data else 0
+    return json_for_html(labels), json_for_html(data), data[-1] if data else 0
 
 def extract_summary_insights(insights_md):
     lines = insights_md.split('\n')
@@ -644,7 +692,7 @@ def parse_journey_map(md_text):
             
             if len(cols) > 0:
                 dimension = cols[0]
-                dimension = dimension.replace('**', '').strip()
+                dimension = render_inline_markdown(dimension.replace('**', '').strip())
                 if not dimension:
                     continue
                     
@@ -713,176 +761,417 @@ def parse_journey_map(md_text):
                 
     return "\n".join(rows)
 
-async def main():
-    input_str = ""
+def _read_payload():
+    input_text = ""
     if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        if arg.endswith('.json') and os.path.exists(arg):
-            with open(arg, "r", encoding="utf-8") as f:
-                input_str = f.read()
+        argument = sys.argv[1]
+        payload_path = Path(argument).expanduser()
+        if argument.endswith(".json") and payload_path.is_file():
+            try:
+                input_text = payload_path.read_text(encoding="utf-8")
+            except OSError as error:
+                raise SkillError("INPUT_READ_ERROR", f"Failed to read input JSON file: {error}") from error
         else:
-            input_str = arg
-    else:
-        if not sys.stdin.isatty():
-            input_str = sys.stdin.read()
-            
-    if not input_str:
-        print(json.dumps({"status": "error", "message": "Missing input JSON from arguments, file, or stdin"}))
-        sys.exit(1)
-        
-    try:
-        input_data = json.loads(input_str)
-    except json.JSONDecodeError:
-        print(json.dumps({"status": "error", "message": "Invalid input JSON"}))
-        sys.exit(1)
-        
-    insights_path = input_data.get("insights_path")
-    transcript_path = input_data.get("transcript_path")
-    full_transcript_paths = input_data.get("full_transcript_paths")
-    output_dir = input_data.get("output_dir")
-    project_name = input_data.get("project_name", "Insights_Dashboard")
-    journey_path = input_data.get("journey_path")
-    
-    if not all([insights_path, transcript_path, output_dir, full_transcript_paths]):
-        print(json.dumps({
-            "status": "error",
-            "code": "INVALID_INPUT",
-            "message": "Missing required fields (insights_path, transcript_path, full_transcript_paths, output_dir)",
-        }))
-        sys.exit(1)
-        
-    try:
-        with open(insights_path, "r", encoding="utf-8") as f:
-            insights_md = f.read()
-        with open(transcript_path, "r", encoding="utf-8") as f:
-            transcript_md = f.read()
-    except Exception as e:
-        print(json.dumps({"status": "error", "message": f"Failed to read input files: {str(e)}"}))
-        sys.exit(1)
-        
-    skill_dir = Path(__file__).parent.parent
-    template_dir = skill_dir / "template"
-    try:
-        with open(template_dir / "insights-template.html", "r", encoding="utf-8") as f:
-            base_template = f.read()
-        with open(template_dir / "modules" / "overview.html", "r", encoding="utf-8") as f:
-            overview_module = f.read()
-        with open(template_dir / "modules" / "saturation.html", "r", encoding="utf-8") as f:
-            saturation_module = f.read()
-    except Exception:
-        # Fallback to older name if it exists
-        try:
-            with open(template_dir / "modules" / "insights-saturation.html", "r", encoding="utf-8") as f:
-                saturation_module = f.read()
-        except Exception:
-            saturation_module = ""
-            
-    try:
-        with open(template_dir / "modules" / "transcript.html", "r", encoding="utf-8") as f:
-            transcript_module = f.read()
-        with open(template_dir / "modules" / "journey-map.html", "r", encoding="utf-8") as f:
-            journey_module = f.read()
-    except Exception as e:
-        # If journey module is missing, it's fine for backward compatibility, but we should capture the rest
-        try:
-            journey_module = ""
-        except Exception:
-            pass
-    except Exception as e:
-        print(json.dumps({"status": "error", "message": f"Failed to read HTML templates: {str(e)}"}))
-        sys.exit(1)
+            input_text = argument
+    elif not sys.stdin.isatty():
+        input_text = sys.stdin.read()
 
-    # 1. Fetch stats and audio names first
-    stats = await get_folder_stats(output_dir)
-    audio_names = stats.get("audio_names", [])
+    if not input_text:
+        raise SkillError("INVALID_INPUT", "Missing input JSON from arguments, file, or stdin")
+    try:
+        payload = json.loads(input_text)
+    except json.JSONDecodeError as error:
+        raise SkillError("INVALID_JSON", f"Invalid input JSON: {error.msg}") from error
+    if not isinstance(payload, dict):
+        raise SkillError("INVALID_INPUT", "Input JSON must be an object")
+    return payload
 
-    # 2. Deterministic Python Parsing for Zero Data Loss
-    insights_html_rows, saturation_thead, headers = parse_insights_to_html(insights_md, audio_names)
-    transcript_html_rows, transcript_thead = parse_transcript_to_html(transcript_md, audio_names)
+
+def _require_string(payload, key):
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise SkillError("INVALID_INPUT", f"{key} must be a non-empty string")
+    return value.strip()
+
+
+def _resolve_input_file(value, label):
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise SkillError("INVALID_INPUT", f"{label} must be an absolute path: {value}")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise SkillError("INPUT_READ_ERROR", f"{label} is not readable: {value}") from error
+    if not resolved.is_file():
+        raise SkillError("INPUT_READ_ERROR", f"{label} is not a file: {value}")
+    return resolved
+
+
+def _validate_payload(payload):
+    insights_path = _resolve_input_file(_require_string(payload, "insights_path"), "insights_path")
+    transcript_path = _resolve_input_file(_require_string(payload, "transcript_path"), "transcript_path")
+    output_value = _require_string(payload, "output_dir")
+    output_dir = Path(output_value).expanduser()
+    if not output_dir.is_absolute():
+        raise SkillError("INVALID_INPUT", f"output_dir must be an absolute path: {output_value}")
+    output_dir = output_dir.resolve(strict=False)
+
+    project_name = _require_string(payload, "project_name")
+    if (
+        project_name in {".", ".."}
+        or Path(project_name).name != project_name
+        or "/" in project_name
+        or "\\" in project_name
+        or any(ord(character) < 32 for character in project_name)
+        or len(project_name) > 120
+    ):
+        raise SkillError("OUTPUT_PATH_INVALID", "project_name must be a safe filename stem of 1-120 characters")
+
+    full_transcript_values = payload.get("full_transcript_paths")
+    if not isinstance(full_transcript_values, list) or not full_transcript_values:
+        raise SkillError("INVALID_INPUT", "full_transcript_paths must be a non-empty list")
+    full_transcript_paths = []
+    for value in full_transcript_values:
+        if not isinstance(value, str) or not value.strip():
+            raise SkillError(
+                "INVALID_INPUT",
+                "Every full_transcript_paths item must be a non-empty string",
+            )
+        full_transcript_paths.append(
+            _resolve_input_file(value, "full_transcript_paths item")
+        )
+
+    journey_value = payload.get("journey_path")
+    journey_path = None
+    if journey_value is not None:
+        if not isinstance(journey_value, str) or not journey_value.strip():
+            raise SkillError("INVALID_INPUT", "journey_path must be a non-empty absolute path when provided")
+        journey_path = _resolve_input_file(journey_value, "journey_path")
+
+    media_values = payload.get("media_paths", [])
+    if not isinstance(media_values, list):
+        raise SkillError("INVALID_INPUT", "media_paths must be a list")
+    media_paths = []
+    for value in media_values:
+        if not isinstance(value, str) or not value.strip():
+            raise SkillError("INVALID_INPUT", "Every media_paths item must be a non-empty string")
+        media_path = _resolve_input_file(value, "media_paths item")
+        if media_path.suffix.casefold() not in MEDIA_EXTENSIONS:
+            raise SkillError("INVALID_INPUT", f"Unsupported media file extension: {media_path.name}")
+        media_paths.append(media_path)
+
+    max_input_bytes = payload.get("max_input_bytes", DEFAULT_MAX_INPUT_BYTES)
+    if isinstance(max_input_bytes, bool) or not isinstance(max_input_bytes, int) or max_input_bytes <= 0:
+        raise SkillError("INVALID_INPUT", "max_input_bytes must be a positive integer")
+    open_browser = payload.get("open_browser", False)
+    force = payload.get("force", False)
+    if not isinstance(open_browser, bool) or not isinstance(force, bool):
+        raise SkillError("INVALID_INPUT", "open_browser and force must be booleans")
+
+    output_file = (output_dir / f"{project_name}.html").resolve(strict=False)
+    manifest_file = (output_dir / f"{project_name}.visualize-manifest.json").resolve(strict=False)
+    if output_file.parent != output_dir or manifest_file.parent != output_dir:
+        raise SkillError("OUTPUT_PATH_INVALID", "Output files must remain inside output_dir")
+
+    return {
+        "insights_path": insights_path,
+        "transcript_path": transcript_path,
+        "full_transcript_paths": full_transcript_paths,
+        "journey_path": journey_path,
+        "media_paths": media_paths,
+        "output_dir": output_dir,
+        "output_file": output_file,
+        "manifest_file": manifest_file,
+        "project_name": project_name,
+        "max_input_bytes": max_input_bytes,
+        "open_browser": open_browser,
+        "force": force,
+    }
+
+
+def _read_text(path, code="INPUT_READ_ERROR"):
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise SkillError(code, f"Failed to read {path}: {error}") from error
+
+
+def _sha256_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+
+def _file_fingerprint(path, hash_content=True):
+    stat = path.stat()
+    fingerprint = {
+        "path": str(path),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+    if hash_content:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        fingerprint["sha256"] = digest.hexdigest()
+    return fingerprint
+
+
+def _load_templates():
+    template_dir = Path(__file__).parent.parent / "template"
+    paths = {
+        "base": template_dir / "insights-template.html",
+        "overview": template_dir / "modules" / "overview.html",
+        "saturation": template_dir / "modules" / "saturation.html",
+        "transcript": template_dir / "modules" / "transcript.html",
+        "journey": template_dir / "modules" / "journey-map.html",
+    }
+    templates = {name: _read_text(path, "TEMPLATE_ERROR") for name, path in paths.items()}
+    required_placeholders = {
+        "base": {"overview_module", "insights_saturation_module", "transcript_module", "journey_module", "project_name"},
+        "overview": {"total_interviewees", "total_time_html", "total_insights"},
+        "saturation": {"saturation_thead", "insights_rows", "chart_labels", "chart_data", "summary_insights_html"},
+        "transcript": {"transcript_thead", "transcript_rows", "transcript_footer", "transcript_drawer"},
+        "journey": {"journey_rows"},
+    }
+    for name, placeholders in required_placeholders.items():
+        missing = [key for key in placeholders if "{{ " + key + " }}" not in templates[name]]
+        if missing:
+            raise SkillError("TEMPLATE_ERROR", f"Template {paths[name].name} is missing placeholders: {', '.join(missing)}")
+    return templates, paths
+
+
+def _build_signature(config, input_paths, template_paths):
+    signature_data = {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "renderer_version": RENDERER_VERSION,
+        "project_name": config["project_name"],
+        "inputs": [_file_fingerprint(path) for path in input_paths],
+        "templates": [_file_fingerprint(path) for path in template_paths.values()],
+        "media": [_file_fingerprint(path, hash_content=False) for path in config["media_paths"]],
+    }
+    encoded = json.dumps(signature_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return _sha256_bytes(encoded), signature_data
+
+
+def _current_output_is_valid(output_file, manifest_file, input_signature):
+    if not output_file.is_file() or not manifest_file.is_file():
+        return False
+    try:
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        output_hash = _file_fingerprint(output_file)["sha256"]
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return (
+        manifest.get("schema_version") == MANIFEST_SCHEMA_VERSION
+        and manifest.get("status") == "success"
+        and manifest.get("input_signature") == input_signature
+        and manifest.get("output", {}).get("sha256") == output_hash
+    )
+
+
+def _atomic_write_text(path, content):
+    temporary_path = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, path)
+    except OSError as error:
+        raise SkillError("OUTPUT_WRITE_ERROR", f"Failed to write {path}: {error}") from error
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _replace(template, values):
+    rendered = template
+    for key, value in values.items():
+        rendered = rendered.replace("{{ " + key + " }}", str(value))
+    return rendered
+
+
+def _open_report(output_file, warnings):
+    try:
+        if not webbrowser.open(output_file.as_uri()):
+            warnings.append({"code": "BROWSER_OPEN_ERROR", "message": "The report was generated but the browser did not open it."})
+    except Exception as error:
+        warnings.append({"code": "BROWSER_OPEN_ERROR", "message": f"The report was generated but the browser could not open it: {error}"})
+
+
+async def generate_report(payload):
+    config = _validate_payload(payload)
+    templates, template_paths = _load_templates()
+
+    text_input_paths = [config["insights_path"], config["transcript_path"], *config["full_transcript_paths"]]
+    if config["journey_path"]:
+        text_input_paths.append(config["journey_path"])
+    total_input_bytes = sum(path.stat().st_size for path in text_input_paths)
+    if total_input_bytes > config["max_input_bytes"]:
+        raise SkillError(
+            "INPUT_TOO_LARGE",
+            f"Text inputs total {total_input_bytes} bytes, exceeding max_input_bytes={config['max_input_bytes']}",
+        )
+
+    warnings = []
+    if total_input_bytes >= config["max_input_bytes"] * INPUT_WARNING_RATIO:
+        warnings.append({
+            "code": "INPUT_SIZE_WARNING",
+            "message": f"Text inputs use {total_input_bytes} of {config['max_input_bytes']} allowed bytes.",
+        })
+
+    insights_md = _read_text(config["insights_path"])
+    transcript_md = _read_text(config["transcript_path"])
     transcript_headers = extract_transcript_headers(transcript_md)
+    if not transcript_headers:
+        raise SkillError("PARSING_ERROR", "No interviewee columns were found in mapped-transcript.md")
+    if len(transcript_headers) >= LARGE_STUDY_INTERVIEWEE_COUNT:
+        warnings.append({
+            "code": "LARGE_STUDY_WARNING",
+            "message": f"The report contains {len(transcript_headers)} interviewees; wide tables will use horizontal scrolling.",
+        })
+
     try:
-        transcript_files = match_full_transcript_inputs(full_transcript_paths, transcript_headers)
-        transcript_footer, transcript_drawer = build_full_transcript_ui(transcript_headers, transcript_files)
+        transcript_files = match_full_transcript_inputs(
+            [str(path) for path in config["full_transcript_paths"]], transcript_headers
+        )
     except (ValueError, OSError, UnicodeError) as error:
+        raise SkillError("FULL_TRANSCRIPT_INVALID", str(error)) from error
+
+    ordered_inputs = [
+        config["insights_path"],
+        config["transcript_path"],
+        *[transcript_files[name] for name in transcript_headers],
+    ]
+    if config["journey_path"]:
+        ordered_inputs.append(config["journey_path"])
+    input_signature, signature_data = _build_signature(config, ordered_inputs, template_paths)
+
+    if not config["force"] and _current_output_is_valid(
+        config["output_file"], config["manifest_file"], input_signature
+    ):
+        if config["open_browser"]:
+            _open_report(config["output_file"], warnings)
+        return {
+            "status": "skipped",
+            "output_file": str(config["output_file"]),
+            "manifest_file": str(config["manifest_file"]),
+            "input_signature": input_signature,
+            "warnings": warnings,
+        }
+
+    insights_html_rows, saturation_thead, insight_headers = parse_insights_to_html(insights_md)
+    transcript_html_rows, transcript_thead = parse_transcript_to_html(transcript_md)
+    if not insights_html_rows.strip() or not insight_headers:
+        raise SkillError("PARSING_ERROR", "The Data Saturation Matrix has no renderable insight rows or interviewee headers")
+    if not transcript_html_rows.strip():
+        raise SkillError("PARSING_ERROR", "The mapped transcript has no renderable data rows")
+    if [normalize_interviewee_name(name) for name in insight_headers] != [
+        normalize_interviewee_name(name) for name in transcript_headers
+    ]:
+        raise SkillError("PARSING_ERROR", "Insight and mapped-transcript interviewee columns do not match in order")
+
+    transcript_footer, transcript_drawer = build_full_transcript_ui(
+        transcript_headers, transcript_files
+    )
+    summary_insights_html = extract_summary_insights(insights_md)
+    chart_labels, chart_data, total_insights = extract_chart_data(insights_md)
+    if total_insights == 0:
+        total_insights = insights_html_rows.count("<tr")
+
+    media_stats = await get_media_stats(config["media_paths"])
+    journey_rows = (
+        '<tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-500">'
+        'No journey map was supplied for this standalone report.</td></tr>'
+    )
+    if config["journey_path"]:
+        journey_rows = parse_journey_map(_read_text(config["journey_path"], "JOURNEY_ERROR"))
+        if not journey_rows.strip():
+            raise SkillError("JOURNEY_ERROR", "journey-map.md has no renderable dimension rows")
+
+    overview_module = _replace(templates["overview"], {
+        "total_interviewees": len(transcript_headers),
+        "total_time_html": media_stats["total_time_html"],
+        "total_insights": total_insights,
+    })
+    saturation_module = _replace(templates["saturation"], {
+        "saturation_thead": saturation_thead,
+        "insights_rows": insights_html_rows,
+        "chart_labels": chart_labels,
+        "chart_data": chart_data,
+        "total_insights": total_insights,
+        "summary_insights_html": summary_insights_html,
+    })
+    transcript_module = _replace(templates["transcript"], {
+        "transcript_thead": transcript_thead,
+        "transcript_rows": transcript_html_rows,
+        "transcript_footer": transcript_footer,
+        "transcript_drawer": transcript_drawer,
+    })
+    journey_module = _replace(templates["journey"], {"journey_rows": journey_rows})
+    final_html = _replace(templates["base"], {
+        "overview_module": overview_module,
+        "insights_saturation_module": saturation_module,
+        "transcript_module": transcript_module,
+        "journey_module": journey_module,
+        "project_name": html.escape(config["project_name"]),
+    })
+    unresolved = sorted(set(re.findall(r"{{\s*([a-zA-Z0-9_]+)\s*}}", final_html)))
+    if unresolved:
+        raise SkillError("TEMPLATE_ERROR", f"Unresolved template placeholders: {', '.join(unresolved)}")
+
+    output_hash = _sha256_bytes(final_html.encode("utf-8"))
+    manifest = {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "renderer_version": RENDERER_VERSION,
+        "status": "success",
+        "input_signature": input_signature,
+        "signature_data": signature_data,
+        "output": {
+            "path": str(config["output_file"]),
+            "sha256": output_hash,
+            "size": len(final_html.encode("utf-8")),
+        },
+    }
+    _atomic_write_text(config["output_file"], final_html)
+    _atomic_write_text(
+        config["manifest_file"],
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+
+    if config["open_browser"]:
+        _open_report(config["output_file"], warnings)
+    return {
+        "status": "success",
+        "output_file": str(config["output_file"]),
+        "manifest_file": str(config["manifest_file"]),
+        "input_signature": input_signature,
+        "warnings": warnings,
+    }
+
+
+async def main():
+    try:
+        result = await generate_report(_read_payload())
+    except SkillError as error:
+        print(json.dumps({"status": "error", "code": error.code, "message": error.message}, ensure_ascii=False))
+        raise SystemExit(1) from error
+    except Exception as error:
         print(json.dumps({
             "status": "error",
-            "code": "FULL_TRANSCRIPT_INVALID",
-            "message": str(error),
-        }))
-        sys.exit(1)
-    summary_insights_html = extract_summary_insights(insights_md)
-    chart_labels, chart_data, total_insights = extract_chart_data(insights_md, audio_names)
-
-    # Update total insights from the chart data max value
-    stats["total_insights"] = total_insights
-    
-    # If parsing found 0 insights, fallback to the parsing calculation
-    if stats["total_insights"] == 0 and len(insights_html_rows) > 0:
-        stats["total_insights"] = len(insights_html_rows.split("</tr>")) - 1
-
-    # Fix total interviewees if audio files were missing but markdown had headers
-    if stats["total_interviewees"] == 0 and headers:
-        stats["total_interviewees"] = len(headers)
-
-    # 3. Inject modules into base template
-    final_html = base_template.replace("{{ overview_module }}", overview_module)
-    final_html = final_html.replace("{{ insights_saturation_module }}", saturation_module)
-    final_html = final_html.replace("{{ transcript_module }}", transcript_module)
-    
-    # 4. Replace variables
-    final_html = final_html.replace("{{ insights_rows }}", insights_html_rows)
-    final_html = final_html.replace("{{ saturation_thead }}", saturation_thead)
-    
-    final_html = final_html.replace("{{ transcript_rows }}", transcript_html_rows)
-    final_html = final_html.replace("{{ transcript_thead }}", transcript_thead)
-    final_html = final_html.replace("{{ transcript_footer }}", transcript_footer)
-    final_html = final_html.replace("{{ transcript_drawer }}", transcript_drawer)
-    
-    final_html = final_html.replace("{{ chart_labels }}", chart_labels)
-    final_html = final_html.replace("{{ chart_data }}", chart_data)
-    
-    final_html = final_html.replace("{{ total_interviewees }}", str(stats.get("total_interviewees", 1)))
-    final_html = final_html.replace("{{ total_time_html }}", str(stats.get("total_time_html", "")))
-    final_html = final_html.replace("{{ total_insights }}", str(stats.get("total_insights", 0)))
-    final_html = final_html.replace("{{ summary_insights_html }}", summary_insights_html)
-    final_html = final_html.replace("{{ project_name }}", project_name)
-    
-    journey_nav_class = 'flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-slate-600 cursor-not-allowed'
-    journey_icon_class = 'w-5 h-5 mr-3 text-slate-300'
-    journey_nav_badge = '<span class="ml-auto bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full">Soon</span>'
-    journey_module_html = ""
-    
-    if journey_path and os.path.exists(journey_path):
-        try:
-            with open(journey_path, "r", encoding="utf-8") as f:
-                journey_md = f.read()
-            journey_rows = parse_journey_map(journey_md)
-            if journey_module:
-                journey_module_html = journey_module.replace("{{ journey_rows }}", journey_rows)
-            
-            # Activate Nav
-            journey_nav_class = 'flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:text-blue-600 hover:bg-blue-50 transition-colors'
-            journey_icon_class = 'w-5 h-5 mr-3 text-slate-400 group-hover:text-blue-500 transition-colors'
-            journey_nav_badge = ''
-        except Exception as e:
-            print(f"Warning: Failed to parse journey map: {e}")
-            
-    final_html = final_html.replace("{{ journey_nav_class }}", journey_nav_class)
-    final_html = final_html.replace("{{ journey_icon_class }}", journey_icon_class)
-    final_html = final_html.replace("{{ journey_nav_badge }}", journey_nav_badge)
-    final_html = final_html.replace("{{ journey_module }}", journey_module_html)
-    
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, f"{project_name}.html")
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(final_html)
-            
-        webbrowser.open(f'file://{output_file}')
-        print(json.dumps({"status": "success", "output_file": output_file}))
-    except Exception as e:
-        print(json.dumps({"status": "error", "message": f"Failed to write output file: {str(e)}"}))
-        sys.exit(1)
+            "code": "INTERNAL_ERROR",
+            "message": f"Unexpected visualization failure: {error}",
+        }, ensure_ascii=False))
+        raise SystemExit(1) from error
+    print(json.dumps(result, ensure_ascii=False))
 
 if __name__ == "__main__":
     asyncio.run(main())

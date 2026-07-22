@@ -60,11 +60,15 @@
                 tabTranscript.className = 'px-6 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition-all focus:outline-none';
                 contentSaturation.classList.remove('hidden');
                 contentTranscript.classList.add('hidden');
+                tabSaturation.setAttribute('aria-selected', 'true');
+                tabTranscript.setAttribute('aria-selected', 'false');
             } else {
                 tabTranscript.className = 'px-6 py-2 rounded-lg text-sm font-medium bg-white text-blue-600 shadow transition-all focus:outline-none';
                 tabSaturation.className = 'px-6 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition-all focus:outline-none';
                 contentTranscript.classList.remove('hidden');
                 contentSaturation.classList.add('hidden');
+                tabTranscript.setAttribute('aria-selected', 'true');
+                tabSaturation.setAttribute('aria-selected', 'false');
             }
         }
         function searchTranscript() {
@@ -189,6 +193,23 @@
         let lastTranscriptTrigger = null;
         let transcriptDrawerCloseTimer = null;
 
+        function hydrateFullTranscript(panel) {
+            if (!panel || panel.dataset.hydrated === 'true') return;
+            const payload = panel.querySelector('[data-full-transcript-payload]');
+            const documentEl = panel.querySelector('[data-full-transcript-document]');
+            if (!payload || !documentEl) return;
+
+            try {
+                const parsed = JSON.parse(payload.textContent || '{}');
+                documentEl.innerHTML = parsed.html || '';
+                panel.dataset.hydrated = 'true';
+                payload.remove();
+            } catch (error) {
+                documentEl.textContent = 'The full transcript could not be loaded.';
+                console.error('Failed to hydrate full transcript', error);
+            }
+        }
+
         function openTranscriptDrawer(panelId, trigger) {
             const root = document.getElementById('full-transcript-drawer-root');
             const drawer = document.getElementById('full-transcript-drawer');
@@ -200,6 +221,7 @@
             document.querySelectorAll('[data-full-transcript-panel]').forEach((item) => {
                 item.classList.toggle('hidden', item.id !== panelId);
             });
+            hydrateFullTranscript(panel);
 
             lastTranscriptTrigger = trigger || document.activeElement;
             root.classList.remove('hidden');
@@ -260,7 +282,7 @@
         <div class="p-6 border-b border-slate-200">
             <h1 class="text-xl font-bold text-blue-600 tracking-tight">{{ project_name }}</h1>
         </div>
-        <nav class="flex-1 overflow-y-auto py-4">
+        <nav class="flex-1 overflow-y-auto py-4" aria-label="Research report sections">
             <ul class="space-y-1 px-3">
                 <li>
                     <a href="#overview" class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:text-blue-600 hover:bg-blue-50 transition-colors">
@@ -275,15 +297,15 @@
                     </a>
                 </li>
                 <li>
-                    <a href="#persona" class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-400 hover:text-slate-600 cursor-not-allowed">
+                    <span class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-500" aria-disabled="true">
                         <svg class="w-5 h-5 mr-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                        Persona <span class="ml-auto bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full">Soon</span>
-                    </a>
+                        Persona
+                    </span>
                 </li>
                 <li>
-                    <a href="#journey" class="{{ journey_nav_class }}">
-                        <svg class="{{ journey_icon_class }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
-                        Journey Map {{ journey_nav_badge }}
+                    <a href="#journey" class="flex items-center px-3 py-2 text-sm font-medium rounded-md text-slate-700 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <svg class="w-5 h-5 mr-3 text-slate-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+                        Journey Map
                     </a>
                 </li>
             </ul>
@@ -304,17 +326,17 @@
                         <svg class="w-6 h-6 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
                         Insights
                     </h3>
-                    <div class="bg-slate-100 p-1 rounded-xl inline-flex shadow-inner">
-                        <button onclick="switchTab('saturation')" id="tab-saturation" class="px-6 py-2 rounded-lg text-sm font-medium bg-white text-blue-600 shadow transition-all focus:outline-none">Saturation</button>
-                        <button onclick="switchTab('transcript')" id="tab-transcript" class="px-6 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition-all focus:outline-none">Transcript</button>
+                    <div class="bg-slate-100 p-1 rounded-xl inline-flex shadow-inner" role="tablist" aria-label="Insights views">
+                        <button type="button" onclick="switchTab('saturation')" id="tab-saturation" role="tab" aria-controls="content-saturation" aria-selected="true" class="px-6 py-2 rounded-lg text-sm font-medium bg-white text-blue-600 shadow transition-all focus:outline-none">Saturation</button>
+                        <button type="button" onclick="switchTab('transcript')" id="tab-transcript" role="tab" aria-controls="content-transcript" aria-selected="false" class="px-6 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition-all focus:outline-none">Transcript</button>
                     </div>
                 </div>
                 
-                <div id="content-saturation">
+                <div id="content-saturation" role="tabpanel" aria-labelledby="tab-saturation">
                     {{ insights_saturation_module }}
                 </div>
 
-                <div id="content-transcript" class="hidden">
+                <div id="content-transcript" class="hidden" role="tabpanel" aria-labelledby="tab-transcript">
                     {{ transcript_module }}
                 </div>
             </section>
