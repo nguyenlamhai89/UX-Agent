@@ -142,11 +142,24 @@ sequenceDiagram
 - [x] Use `concurrent.futures.ThreadPoolExecutor` to process multiple audio files in parallel.
 - [x] Consider streaming audio files if the ElevenLabs API supports it, or implement chunking for very large files.
 - [ ] Implement streaming or chunked file reading for audio files larger than a configurable threshold (e.g., 100MB) to reduce peak memory usage when processing multiple large files concurrently with `ThreadPoolExecutor`.
+- [ ] Make the transcription worker count and rate-limit cap configurable, with conservative defaults for large files.
+
+**🎯 Output Quality & Accuracy**
+- [ ] Align the documented JSON output contract with the CLI's `data` envelope and partial-failure fields.
+- [ ] Reject empty transcription text before writing a completed transcript.
+
+**🔗 Workflow Fit**
+- [ ] Align API-key documentation with the actual environment-variable contract; remove or implement the stated built-in-AI fallback.
+- [ ] Validate existing transcripts before skipping them, use atomic writes, and return results in filename order.
 
 **🛡️ Reliability & Error Handling**
 - [x] Catch transcription exceptions per file and continue processing the remaining files instead of exiting immediately.
 - [x] Implement an exponential backoff retry mechanism around the ElevenLabs API call for robustness.
+- [ ] Classify retryable API failures, honor `Retry-After` where available, add jitter, and do not retry invalid credentials or requests.
+- [ ] Catch unexpected future-result failures and return documented per-file error codes.
+- [ ] Add regression tests for documented word-spacing and empty-keyterms bugs.
 
 **💰 Cost & Scalability**
 - [x] Implement concurrent execution to improve scaling behavior when processing multiple audio files.
 - [x] Add unit tests covering ElevenLabs API failure scenarios and edge cases (e.g. empty files).
+- [ ] Add tests for keyterms parsing, timestamps, diarized-word output, empty transcription content, and future-result failures.

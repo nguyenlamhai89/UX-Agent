@@ -1,6 +1,6 @@
 # Skill Performance Analysis: elevenlabs-transcribe
 
-> Last updated: 2026-07-14
+> Last updated: 2026-07-22
 
 ---
 
@@ -55,3 +55,51 @@
 | Cost per Execution | • **8/10** — Utilizes ElevenLabs API efficiently by skipping already transcribed files. | • **8/10** — ElevenLabs STT API cost is per-audio-minute. Skip logic avoids redundant calls on re-runs. No wasteful validation calls. The cost is proportional to audio duration, which is unavoidable. The keyterms feature does not add extra cost. |
 | Scaling Behavior | • **6/10** — Sequential execution scales poorly with the number of input files. <br> • **Solution**: Implemented concurrent execution using a 5-worker ThreadPoolExecutor. | • **8/10** — ThreadPoolExecutor (max_workers=5) enables concurrent processing, scaling linearly with the number of files up to 5 concurrent. For larger batches, files are queued. Memory scaling concern remains for many large files processed concurrently. API rate limits from ElevenLabs could be a bottleneck for very large batches. |
 | Unit Test Coverage & Pass Rate | • **7/10** — Unit tests cover success paths and skip logic, but lack tests for API failures. <br> • **Solution**: Added comprehensive unit tests covering API failures, retries, and partial failures. | • **8/10** — 7 test functions covering: success path, retry mechanism (2 failures then success), no audio files, invalid args, main success with mocked API, skip transcription, and partial failure. External APIs are properly mocked using unittest.mock. Tests validate both JSON output structure and specific field values. Coverage is good but could add tests for: keyterms parsing edge cases, timestamp formatting, and concurrent execution behavior. |
+
+---
+
+## 2026-07-22 Assessment
+
+### 1. ⚡ Execution Efficiency
+
+| Criteria | 2026-07-22 |
+|----------|----------|
+| Execution Time | • **7/10** — Five workers improve throughput, but the hard-coded limit cannot adapt to host capacity or API quotas. • **Solution**: Make worker count and a rate-limit cap configurable. |
+| API Call Count | • **9/10** — Existing outputs are skipped before API submission; each pending file makes one conversion request per attempt. • No improvement needed. |
+| Token Usage | • **9/10** — This is an audio STT integration, not an LLM prompt workflow; keyterms are compact. • No improvement needed. |
+| Resource Consumption | • **7/10** — No temporary files persist, but large-file upload pressure is unmanaged. • **Solution**: Add a maximum input size and lower concurrency above a documented threshold. |
+
+### 2. 🎯 Output Quality & Accuracy
+
+| Criteria | 2026-07-22 |
+|----------|----------|
+| Output Completeness | • **7/10** — SKILL.md's top-level output schema conflicts with the CLI/example data envelope. • **Solution**: Document the exact CLI schema, including partial-failure fields. |
+| Format Compliance | • **8/10** — Naming and Markdown formatting are deterministic, with a diarization fallback. • No improvement needed. |
+| Content Accuracy | • **7/10** — Empty or malformed transcription text can be saved as completed output. • **Solution**: Validate non-empty transcription text per file before writing. |
+| Human Approval Rate | • **8/10** — Prior output defects are documented and the resulting transcript is readable. • No improvement needed. |
+
+### 3. 🔗 Workflow Fit
+
+| Criteria | 2026-07-22 |
+|----------|----------|
+| I/O Contract Adherence | • **7/10** — API-key documentation conflicts and the stated built-in-AI fallback is absent. • **Solution**: Choose one key-delivery contract and remove or implement that fallback. |
+| Skip-Logic Compatibility | • **7/10** — File existence alone treats zero-byte or interrupted transcripts as valid. • **Solution**: Validate an existing transcript before returning skipped. |
+| Pipeline Passthrough Rate | • **7/10** — Per-file errors retain successes, but future.result exceptions can escape and failures collapse to API_ERROR. • **Solution**: Guard future results and emit documented, specific error codes. |
+| Idempotency | • **7/10** — Duplicate uploads are avoided, but partial files can persist and as_completed makes ordering unstable. • **Solution**: Use atomic writes, validation, and sort returned results. |
+
+### 4. 🛡️ Reliability & Error Handling
+
+| Criteria | 2026-07-22 |
+|----------|----------|
+| Error Rate | • **6/10** — Broad Exception handling masks error classes and SKILL.md omits emitted codes. • **Solution**: Classify terminal versus retryable errors and document all emitted codes. |
+| Error Recoverability | • **7/10** — Batches continue after file errors, but failed writes may leave a future-skipped partial file. • **Solution**: Write atomically via a temporary sibling file then replace. |
+| Retry Success Rate | • **6/10** — Exponential backoff exists, but invalid credentials and requests are retried without jitter or Retry-After support. • **Solution**: Retry only transient/rate-limit failures, with jitter and Retry-After handling. |
+| Known Bug Recurrence | • **6/10** — Root causes are recorded but word-spacing and empty-keyterm fixes lack regression tests. • **Solution**: Add targeted tests for both documented bugs. |
+
+### 5. 💰 Cost & Scalability
+
+| Criteria | 2026-07-22 |
+|----------|----------|
+| Cost per Execution | • **8/10** — Skip logic prevents re-billing completed files; remaining cost follows audio duration. • No improvement needed. |
+| Scaling Behavior | • **7/10** — Parallelism helps, but five simultaneous uploads ignore service backpressure and file size. • **Solution**: Expose worker and rate-limit settings with conservative defaults. |
+| Unit Test Coverage & Pass Rate | • **7/10** — Seven tests cover core flows, but omit keyterms, timestamps, diarized words, invalid output, and future failures. • **Solution**: Add parameterized and regression tests for those paths. |
