@@ -135,6 +135,22 @@ def test_multiple_complete_source_turns_are_accepted(tmp_path):
     assert validate_mapping(str(questionnaire), str(mapped), str(transcript)).valid
 
 
+def test_each_source_turn_requires_a_complete_highlight(tmp_path):
+    response = (
+        "[01:10] I think it looks useful.<br><br>"
+        '[02:10] **<mark style="background-color: yellow;">'
+        "No additional thoughts.</mark>**"
+    )
+    content = mapped_content("User").replace(
+        '[01:10] **<mark style="background-color: yellow;">'
+        "I think it looks useful.</mark>**",
+        response,
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "MISSING_CORE_HIGHLIGHT" in _codes(result)
+
+
 def test_missing_summary_is_rejected(tmp_path):
     content = mapped_content("User").split("> **Mapping Summary**:")[0]
     questionnaire, mapped, transcript = _files(tmp_path, mapped=content)

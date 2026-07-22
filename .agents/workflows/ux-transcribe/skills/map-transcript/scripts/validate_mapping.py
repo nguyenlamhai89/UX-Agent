@@ -33,6 +33,10 @@ TRANSCRIPT_INLINE_PATTERN = re.compile(
 )
 INLINE_SPEAKER_PATTERN = re.compile(r"^[^:\n]{1,80}:\s?(.*)$")
 HIGHLIGHT_OPEN = '<mark style="background-color: yellow;">'
+FULL_HIGHLIGHT_PATTERN = re.compile(
+    r'^\s*\*\*<mark style="background-color: yellow;">.*</mark>\*\*\s*$',
+    re.DOTALL,
+)
 SUMMARY_PATTERN = re.compile(
     r"^> \*\*Mapping Summary\*\*: "
     r"Total rows: (\d+) \| Answered: (\d+) \| N/A: (\d+) \| "
@@ -197,13 +201,17 @@ def parse_transcript_turns(text: str) -> list[TranscriptTurn]:
 
 def _decode_mapped_fragment(fragment: str) -> str:
     """Remove only output-format wrappers before exact source comparison."""
-    value = re.sub(r"(?:\s*<br\s*/?>\s*)+$", "", fragment, flags=re.IGNORECASE)
-    value = re.sub(r"^(?:\s*<br\s*/?>\s*)+", "", value, flags=re.IGNORECASE)
+    value = _strip_outer_breaks(fragment)
     value = value.replace(f"**{HIGHLIGHT_OPEN}", HIGHLIGHT_OPEN)
     value = value.replace("</mark>**", "</mark>")
     value = value.replace(HIGHLIGHT_OPEN, "").replace("</mark>", "")
     value = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
     return value.replace("&#124;", "|").strip()
+
+
+def _strip_outer_breaks(value: str) -> str:
+    value = re.sub(r"(?:\s*<br\s*/?>\s*)+$", "", value, flags=re.IGNORECASE)
+    return re.sub(r"^(?:\s*<br\s*/?>\s*)+", "", value, flags=re.IGNORECASE)
 
 
 def extract_mapped_fragments(response: str) -> list[TranscriptTurn]:
@@ -226,6 +234,8 @@ def _validate_verbatim_response(
     row_number: int,
     response: str,
     source_turns_by_timestamp: dict[str, set[str]],
+    *,
+    require_highlight: bool,
 ) -> None:
     timestamp_matches = list(TIMESTAMP_PATTERN.finditer(response))
     if timestamp_matches and _decode_mapped_fragment(
@@ -237,7 +247,23 @@ def _validate_verbatim_response(
             f"Row {row_number} contains text outside a timestamped source turn.",
         )
 
-    for fragment in extract_mapped_fragments(response):
+    fragments = extract_mapped_fragments(response)
+    for index, fragment in enumerate(fragments):
+        raw_end = (
+            timestamp_matches[index + 1].start()
+            if index + 1 < len(timestamp_matches)
+            else len(response)
+        )
+        raw_fragment = response[timestamp_matches[index].end() : raw_end]
+        if require_highlight and not FULL_HIGHLIGHT_PATTERN.fullmatch(
+            _strip_outer_breaks(raw_fragment)
+        ):
+            _add_issue(
+                issues,
+                "MISSING_CORE_HIGHLIGHT",
+                f"Row {row_number} at {fragment.timestamp} must place the complete "
+                "verbatim source turn inside the required yellow highlight.",
+            )
         source_contents = source_turns_by_timestamp.get(fragment.timestamp)
         if source_contents is None:
             _add_issue(
@@ -405,6 +431,7 @@ def validate_mapping(
                 index + 1,
                 response,
                 source_turns_by_timestamp,
+                require_highlight=require_highlight,
             )
         if (
             require_highlight
