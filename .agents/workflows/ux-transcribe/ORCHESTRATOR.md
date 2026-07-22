@@ -15,7 +15,7 @@ The UX Transcribe orchestrates UX research tasks, delegating user requests to th
 Routes requests here when the user mentions UX research, transcription, questionnaire tables, transcript mapping, or insights synthesis.
 
 ## Routing Logic & Execution Flow
-The orchestrator follows a sequential flow. **Incremental Execution**: Before any step, check for existing output files. If valid outputs exist, skip the step and its approval.
+The orchestrator follows a sequential flow. **Incremental Execution**: Before most steps, validate existing outputs before skipping. For `map-transcript`, file existence is never a valid skip signal: always run `mapping_pipeline.py prepare <folder_path>` first and skip only when it returns `canonical_current: true` for the complete transcript source set.
 The orchestrator creates an `Interview` folder inside the provided `folder_path` and instructs all skills to place their outputs inside this `Interview` folder.
 
 **Sequential Pipeline**:
@@ -26,7 +26,7 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
 5. **Audio Transcription** (`elevenlabs-transcribe`): Inject `ELEVENLABS_API_KEY` into the process environment, then transcribe with keyterms. **Halts workflow and returns detailed per-file error codes on failure.**
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
-7. **Transcript Mapping** (`map-transcript`): Maps transcripts to the questionnaire structure.
+7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 9. **Insights Saturation** (`saturate-insights`): Runs `saturate_insights.py` which uses the Antigravity SDK to extract insights per-interviewee via Built-in AI, consolidates them, and deterministically generates `all-insights-*.md` and `insights.md`.
 10. **Approval**: **[CRITICAL] STOP** and wait for user approval. Workflow complete.
@@ -92,15 +92,20 @@ sequenceDiagram
         UXS-->>User: 6. Ask for approval
         User->>UXS: Approve
 
-        UXS->>MT: 7. Transcript Mapping
-        MT-->>UXS: Return mapped transcripts
-        UXS-->>User: 8. Ask for approval
-        User->>UXS: Approve
+        UXS->>MT: 7. Prepare, bounded-map, validate, finalize
+        alt Partial Mapping
+            MT-->>UXS: Return PARTIAL_MAPPING; canonical unchanged
+            UXS-->>User: Halt with per-transcript failures
+        else Complete Mapping
+            MT-->>UXS: Return canonical + review outputs
+            UXS-->>User: 8. Ask for approval
+            User->>UXS: Approve
 
-        UXS->>SA: 9. Insights Saturation
-        SA-->>UXS: Return insights.md & saturation matrix
-        UXS-->>User: 10. Ask for approval
-        User->>UXS: Approve
+            UXS->>SA: 9. Insights Saturation
+            SA-->>UXS: Return insights.md & saturation matrix
+            UXS-->>User: 10. Ask for approval
+            User->>UXS: Approve
+        end
     end
     UXS-->>FO: Return result
     deactivate UXS
@@ -114,3 +119,5 @@ sequenceDiagram
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
 | `MISSING_API_KEY` | Ask user to configure `.env`. |
+| `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
+| `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |

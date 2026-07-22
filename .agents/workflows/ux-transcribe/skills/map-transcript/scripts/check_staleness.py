@@ -3,8 +3,9 @@
 check_staleness.py
 
 Checks for stale mapped-transcript files by comparing modification timestamps
-of transcript source files against their corresponding mapped output files.
-Deletes stale mapped files so they will be regenerated.
+of transcript and questionnaire sources against mapped outputs. This command is
+read-only: the stateful mapping controller preserves the last-known-good output
+until a validated candidate can replace it atomically.
 
 Usage:
     python3 check_staleness.py <folder_path>
@@ -33,7 +34,13 @@ def find_stale_mapped_files(folder_path):
     interview_dir = os.path.join(folder_path, "Interview")
     if not os.path.exists(interview_dir):
         return stale_files
-        
+    questionnaire_path = os.path.join(interview_dir, "full-questionnaire.md")
+    questionnaire_mtime = (
+        os.path.getmtime(questionnaire_path)
+        if os.path.isfile(questionnaire_path)
+        else 0.0
+    )
+
     # Find all transcript files
     transcript_pattern = os.path.join(interview_dir, "transcript_*.md")
     transcript_files = glob.glob(transcript_pattern)
@@ -46,9 +53,7 @@ def find_stale_mapped_files(folder_path):
             continue
 
         audio_name = match.group(1)
-        mapped_path = os.path.join(
-            interview_dir, f"mapped-transcript-{audio_name}.md"
-        )
+        mapped_path = os.path.join(interview_dir, f"mapped-transcript-{audio_name}.md")
 
         if not os.path.exists(mapped_path):
             continue
@@ -56,39 +61,18 @@ def find_stale_mapped_files(folder_path):
         transcript_mtime = os.path.getmtime(transcript_path)
         mapped_mtime = os.path.getmtime(mapped_path)
 
-        if transcript_mtime > mapped_mtime:
-            stale_files.append({
-                "transcript_file": transcript_path,
-                "mapped_file": mapped_path,
-                "transcript_mtime": transcript_mtime,
-                "mapped_mtime": mapped_mtime,
-            })
+        if max(transcript_mtime, questionnaire_mtime) > mapped_mtime:
+            stale_files.append(
+                {
+                    "transcript_file": transcript_path,
+                    "mapped_file": mapped_path,
+                    "transcript_mtime": transcript_mtime,
+                    "mapped_mtime": mapped_mtime,
+                    "questionnaire_mtime": questionnaire_mtime,
+                }
+            )
 
     return stale_files
-
-
-def delete_stale_files(stale_files):
-    """
-    Delete stale mapped transcript files.
-
-    Args:
-        stale_files: List of stale file dicts from find_stale_mapped_files.
-
-    Returns:
-        list[str]: List of deleted file paths.
-    """
-    deleted = []
-    for entry in stale_files:
-        mapped_path = entry["mapped_file"]
-        try:
-            os.remove(mapped_path)
-            deleted.append(mapped_path)
-        except OSError as e:
-            print(
-                f"WARNING: Could not delete stale file {mapped_path}: {e}",
-                file=sys.stderr,
-            )
-    return deleted
 
 
 if __name__ == "__main__":
@@ -110,8 +94,9 @@ if __name__ == "__main__":
 
     print(f"Found {len(stale)} stale mapped transcript file(s):")
     for entry in stale:
-        print(f"  - {os.path.basename(entry['mapped_file'])} "
-              f"(transcript is newer)")
+        print(f"  - {os.path.basename(entry['mapped_file'])} " f"(transcript is newer)")
 
-    deleted = delete_stale_files(stale)
-    print(f"Deleted {len(deleted)} stale file(s). They will be regenerated.")
+    print(
+        "No files were deleted. Run mapping_pipeline.py prepare to schedule "
+        "safe replacements."
+    )

@@ -1,48 +1,95 @@
-import os
+import json
 import shutil
 import subprocess
-import pytest
-from pathlib import Path
 import sys
-import json
+from pathlib import Path
 
-def test_e2e_pipeline(tmp_path):
+
+def _run(*args):
+    completed = subprocess.run(
+        [sys.executable, *map(str, args)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return (
+        json.loads(completed.stdout)
+        if completed.stdout.strip().startswith("{")
+        else completed
+    )
+
+
+def test_e2e_pipeline_starts_from_source_transcripts(tmp_path):
     mock_dir = Path(__file__).parent / "mock-dataset"
     workspace = tmp_path / "workspace"
-    workspace.mkdir()
     interview_dir = workspace / "Interview"
-    interview_dir.mkdir()
-    
-    # 1. Setup mock data
-    shutil.copy(mock_dir / "full-questionnaire.md", interview_dir / "full-questionnaire.md")
-    shutil.copy(mock_dir / "mapped-transcript-user1.md", interview_dir / "mapped-transcript-user1.md")
-    shutil.copy(mock_dir / "mapped-transcript-user2.md", interview_dir / "mapped-transcript-user2.md")
-    shutil.copy(mock_dir / "temp_insights.json", interview_dir / "temp_insights.json")
-    
-    # Paths to scripts
+    interview_dir.mkdir(parents=True)
+
+    for filename in (
+        "full-questionnaire.md",
+        "transcript_user1.md",
+        "transcript_user2.md",
+        "temp_insights.json",
+    ):
+        shutil.copy(mock_dir / filename, interview_dir / filename)
+
     base_dir = Path(__file__).parent.parent
-    val_script = base_dir / "skills" / "create-questionnaire-table" / "scripts" / "validate_questionnaire.py"
-    map_script = base_dir / "skills" / "map-transcript" / "scripts" / "map_transcript.py"
-    sat_script = base_dir / "skills" / "saturate-insights" / "scripts" / "saturate_insights.py"
-    
-    python_exec = sys.executable
-    
-    # Step 1: Validate Questionnaire
-    res1 = subprocess.run([python_exec, str(val_script), str(interview_dir / "full-questionnaire.md")], capture_output=True, text=True)
-    assert res1.returncode == 0, f"Validation failed: {res1.stderr}\nStdout: {res1.stdout}"
-    
-    # Step 2: Map Transcript (Merge)
-    res2 = subprocess.run([python_exec, str(map_script), str(workspace)], capture_output=True, text=True)
-    assert res2.returncode == 0, f"Map transcript failed: {res2.stderr}\nStdout: {res2.stdout}"
+    validation_script = (
+        base_dir
+        / "skills"
+        / "create-questionnaire-table"
+        / "scripts"
+        / "validate_questionnaire.py"
+    )
+    controller_script = (
+        base_dir / "skills" / "map-transcript" / "scripts" / "mapping_pipeline.py"
+    )
+    saturation_script = (
+        base_dir / "skills" / "saturate-insights" / "scripts" / "saturate_insights.py"
+    )
+
+    questionnaire_check = subprocess.run(
+        [
+            sys.executable,
+            str(validation_script),
+            str(interview_dir / "full-questionnaire.md"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert questionnaire_check.returncode == 0
+
+    prepared = _run(controller_script, "prepare", workspace, "--max-workers", "4")
+    assert prepared["counts"] == {"pending": 2}
+    batch = _run(controller_script, "next-batch", workspace)
+    assert len(batch["tasks"]) == 2
+
+    for task in batch["tasks"]:
+        source = mock_dir / f"mapped-transcript-{task['audio_name']}.md"
+        shutil.copy(source, task["candidate_file"])
+        recorded = _run(
+            controller_script,
+            "record-success",
+            workspace,
+            task["audio_name"],
+        )
+        assert recorded["status"] == "validated"
+
+    finalized = _run(controller_script, "finalize", workspace)
+    assert finalized["status"] == "success"
     assert (interview_dir / "mapped-transcript.md").exists()
-    
-    # Step 3: Saturate Insights (Generate JSON -> HTML input)
-    res3 = subprocess.run([python_exec, str(sat_script), str(workspace), "--generate-only"], capture_output=True, text=True)
-    assert res3.returncode == 0, f"Saturate insights failed: {res3.stderr}\nStdout: {res3.stdout}"
+    assert (interview_dir / "mapped-transcript-review-01.md").exists()
+    assert (interview_dir / "mapping-review-manifest.md").exists()
+
+    saturation = subprocess.run(
+        [sys.executable, str(saturation_script), str(workspace), "--generate-only"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert saturation.returncode == 0, saturation.stdout + saturation.stderr
     assert (interview_dir / "insights.md").exists()
     assert (interview_dir / "all-insights-user1.md").exists()
     assert (interview_dir / "all-insights-user2.md").exists()
-
-
-    
-

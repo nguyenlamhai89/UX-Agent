@@ -1,17 +1,19 @@
 """Tests for chunk_transcript.py"""
 
 import os
-import pytest
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
 from chunk_transcript import (
+    cleanup_chunk_directory,
     estimate_tokens,
+    normalize_with_offsets,
     parse_questionnaire_questions,
     normalize_for_search,
     find_question_positions,
     chunk_transcript,
+    write_chunks,
 )
 
 
@@ -100,6 +102,13 @@ class TestNormalizeForSearch:
     def test_strips(self):
         assert normalize_for_search("  hello  ") == "hello"
 
+    def test_offset_map_points_back_to_original_text(self):
+        text = "  Hello\n  world"
+        normalized, offsets = normalize_with_offsets(text)
+        assert normalized == "hello world"
+        world_position = normalized.index("world")
+        assert text[offsets[world_position] :].startswith("world")
+
 
 class TestFindQuestionPositions:
     def test_finds_questions_in_transcript(self):
@@ -149,6 +158,7 @@ class TestChunkTranscript:
         for chunk in chunks:
             assert chunk["content"].strip() != ""
             assert "chunk_index" in chunk
+        assert "".join(chunk["content"] for chunk in chunks) == long_transcript
 
     def test_chunk_indices_are_sequential(self):
         filler = "Word " * 500
@@ -167,3 +177,36 @@ class TestChunkTranscript:
         if chunks:
             for i, chunk in enumerate(chunks):
                 assert chunk["chunk_index"] == i
+
+    def test_fallback_without_question_anchors_loses_no_content(self):
+        transcript = "".join(
+            f"[{index:02d}:00] A long line {index}\n" for index in range(30)
+        )
+        chunks = chunk_transcript(transcript, ["not present"], max_tokens=20)
+        assert len(chunks) > 1
+        assert "".join(chunk["content"] for chunk in chunks) == transcript
+
+
+class TestChunkFiles:
+    def test_writes_and_cleans_chunk_directory(self, tmp_path):
+        transcript = tmp_path / "transcript_user.md"
+        transcript.write_text("source", encoding="utf-8")
+        chunks = [
+            {
+                "content": "first",
+                "start_question": "Q1",
+                "end_question": "Q1",
+                "chunk_index": 0,
+            },
+            {
+                "content": "second",
+                "start_question": "Q2",
+                "end_question": "Q2",
+                "chunk_index": 1,
+            },
+        ]
+        paths = write_chunks(str(tmp_path), str(transcript), chunks)
+        assert len(paths) == 2
+        assert all(os.path.isfile(path) for path in paths)
+        cleanup_chunk_directory(str(tmp_path), str(transcript))
+        assert not os.path.exists(tmp_path / ".chunks_transcript_user")

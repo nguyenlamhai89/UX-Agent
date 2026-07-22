@@ -43,36 +43,22 @@ The orchestrator should trigger this skill when:
 
 - **Type**: `dict`
 - **Format**:
-  - `status` (string) — `"success"` or `"error"`.
-  - `mapped_files` (list of objects) — One entry per transcript:
-    - `transcript_file` (string) — Original transcript filename.
-    - `output_file` (string) — Path to the generated `mapped-transcript-<audio_name>.md` file.
-  - `combined_file` (string) — Path to the final `mapped-transcript.md` file.
-  - `total` (integer) — Number of transcripts mapped.
+  - `status` (string) — `"success"`, `"partial"`, or `"error"`.
+  - `canonical_current` (boolean) — Whether `mapped-transcript.md` represents the complete current source set.
+  - `combined_file` (string) — Canonical `mapped-transcript.md` on success; `mapped-transcript.partial.md` only when explicitly requested.
+  - `review_files` (list of strings) — Review tables containing at most 5 interviewees each.
+  - `review_manifest` (string) — Coverage and duplication audit path.
+  - `manifest_file` (string) — Resumable controller state at `mapping-manifest.json`.
+  - `total_expected` / `total_mapped` (integer) — Completeness counts.
+  - `failures` (list of objects) — Per-transcript failure codes and diagnostics.
 - **Location**: `file_path` — All output files are saved in the `Interview` subfolder of the provided directory.
 - **Output File(s)**:
   - `Interview/mapped-transcript-<audio_name>.md` — Per-interviewee mapped transcript with questionnaire structure plus one interviewee column.
   - `Interview/mapped-transcript.md` — Combined mapped transcript with all interviewee columns side-by-side.
-- **Examples**:
-
-  **Example 1** — Successful mapping:
-  ```json
-  {
-    "status": "success",
-    "mapped_files": [
-      {
-        "transcript_file": "transcript_HR_Leanbase.md",
-        "output_file": "/Users/madebynham/Desktop/interviews/round-1/Interview/mapped-transcript-HR_Leanbase.md"
-      },
-      {
-        "transcript_file": "transcript_Nguyen_Thi_Dung.md",
-        "output_file": "/Users/madebynham/Desktop/interviews/round-1/Interview/mapped-transcript-Nguyen_Thi_Dung.md"
-      }
-    ],
-    "combined_file": "/Users/madebynham/Desktop/interviews/round-1/Interview/mapped-transcript.md",
-    "total": 2
-  }
-  ```
+  - `Interview/mapped-transcript-review-<batch>.md` — Human review view with at most 5 interviewees.
+  - `Interview/mapping-review-manifest.md` — Answered/N/A totals plus missing and overlapping timestamp signals.
+  - `Interview/mapping-manifest.json` — Source signatures, attempts, task status, and output state.
+  - `Interview/mapped-transcript.partial.md` — Optional explicit partial view; it never replaces the canonical output.
 
 - **Specific format output (Markdown template)**:
 
@@ -82,7 +68,9 @@ The orchestrator should trigger this skill when:
 
   | # | Theme | Question | Observed Variable | <audio_name> |
   |---|-------|----------|-------------------|--------------|
-  | 1 | Warm-up | Question text... | Variable name | Interviewee's response or N/A |
+  | 1 | Warm-up | Question text... | Variable name | [00:05] **<mark style="background-color: yellow;">Interviewee response</mark>** |
+
+  > **Mapping Summary**: Total rows: X | Answered: Y | N/A: Z | Transcript coverage: [00:00] to [45:22]
   ```
 
   **Combined file** (`mapped-transcript.md`):
@@ -94,45 +82,55 @@ The orchestrator should trigger this skill when:
   | 1 | Warm-up | Question text... | Variable name | Response or N/A | Response or N/A | ... |
   ```
 
-> **Note**: The table structure always starts with the 4 base columns (`#`, `Theme`, `Question`, `Observed Variable`) from `full-questionnaire.md`. Interviewee columns are appended to the right in the order the transcript files are processed.
+> **Note**: The table structure always starts with the 4 exact base columns (`#`, `Theme`, `Question`, `Observed Variable`) from `full-questionnaire.md`. Interviewee columns are appended in sorted transcript filename order.
 >
 > **Important**: The `#` column is the **question's order number**. All rows with the same question content MUST share the same `#` value, matching the original `full-questionnaire.md` structure exactly.
 
 
 ## Custom Instructions
 
-- **Execution Method**: This skill is executed by the Antigravity AI agent. The agent  1. **Scan the folder** at `<folder_path>/Interview` for `full-questionnaire.md`. Verify it exists.
-  2. **Context Caching**: **Read `Interview/full-questionnaire.md` ONCE** to understand the questionnaire table structure (all questions, topics, and observed variables). Keep this structure in your context for all subsequent mapping operations. Do not re-read it for each transcript.
-  3. **Identify all `transcript_<audio_name>.md` files** in the `Interview` folder. Extract the `<audio_name>` from each filename by removing the `transcript_` prefix and `.md` extension.
-  3b. **Staleness Check**: For each identified transcript file, check if a corresponding `Interview/mapped-transcript-<audio_name>.md` already exists. If it does, compare the modification timestamps: if the transcript file is **newer** than the mapped file, delete the stale mapped file so it will be regenerated. This ensures mapping always reflects the latest transcript content. Use `python3 <skill_path>/scripts/check_staleness.py <folder_path>` to automate this check.
-  4. **Parallel Execution**: If there are multiple transcript files, use the `invoke_subagent` tool to spawn subagents and map the transcripts **concurrently**. For each transcript file, perform the following:
-     a. **Extract a concise Alias** (max 2-3 words, e.g., "Anh A CEO" or "Nguyen Van A") from the `<audio_name>` to use as the column header (`<interviewee_alias>`) instead of using the raw, long filename.
-     b. Read the transcript content. **Chunking Strategy**: Estimate the transcript length. If the file is extremely long (e.g., > 15,000 tokens) and risks hitting context limits, divide it into logical segments. **CRITICAL**: When processing in chunks, you must carry the mapping context forward across chunks to ensure all information is mapped correctly and no context or data is lost.
-     c. For each row in the questionnaire table (each question + observed variable pair), carefully search the transcript (or chunk) for the section corresponding to that specific question.
-     d. **Map the entire conversational thread** — extract the full exchange between the interviewer and interviewee. This includes the main question from the questionnaire, all of the interviewee's responses, AND any follow-up questions from the interviewer (even if they are not in the questionnaire). Continue capturing this full thread into the cell until the interviewer asks the NEXT main question found in the `full-questionnaire.md`.
-     d1. **Out-of-order questions** — If the interviewer asks questions in a different order than the questionnaire, map each response to the CORRECT questionnaire row by matching the question content, not by sequential position in the transcript. Always use the questionnaire structure as the ground truth for row placement.
-     d2. **Revisited answers** — If the interviewee revisits or adds to a previously answered question later in the transcript, APPEND the additional response to the same cell with a `<br><br>` separator and include the new timestamp (e.g., `[32:15] Additional context: ...`).
-     d3. **Off-script follow-ups** — Off-script follow-up questions from the interviewer that do NOT correspond to any question in the questionnaire should be included in the cell of the PRECEDING main question, as part of the conversational thread, rather than being dropped or mapped to the next question.
-     e. **Do NOT summarize or paraphrase**; copy the relevant conversational content (both questions and answers) faithfully.
-     f. **ABSOLUTELY do not make assumptions or fabricate information** that is not in the transcript.
-     g. If a question is not addressed or the interviewee does not answer it during the interview, clearly mark it as **`N/A`** in the cell.
-     h. Write the result to `Interview/mapped-transcript-<audio_name>.md` in the provided folder. The file must contain:
-        - A level-1 heading: `# Mapped Transcript`
-        - A Markdown table with columns: `#`, `Theme`, `Question`, `Observed Variable`, `<interviewee_alias>`
-        - The table rows must match the `full-questionnaire.md` structure exactly (same number of rows, same order).
-        - **Mapping Summary** (appended after the table): Include a brief summary line: `> **Mapping Summary**: Total questions: X | Answered: Y | N/A: Z | Transcript coverage: [HH:MM] to [HH:MM]`. This helps users quickly assess mapping completeness without reading every cell.
-     i. **Programmatic Validation & Retry**: After writing, you MUST run the validation script: `python3 <skill_path>/scripts/validate_mapping.py <folder_path>/Interview/full-questionnaire.md <folder_path>/Interview/mapped-transcript-<audio_name>.md`. Do not attempt to count the rows manually. If the script returns `VALIDATION_FAILED`, you must **immediately delete** the partially-written/malformed file to prevent downstream errors. Then, retry the mapping up to 2 times.
-     j. **Post-mapping Verification**: After the mapping is complete and validated, cross-check each cell against the transcript timestamps to ensure no segment of the interview was skipped or double-counted. Verify that the timestamp range in the mapping summary covers the full interview duration (start to end of transcript).
-  5. **Merge**: **After ALL individual mapped files are created** (wait for all subagents to finish), run the merge script: `python3 <skill_path>/scripts/map_transcript.py <folder_path>` to combine all `Interview/mapped-transcript-<audio_name>.md` files into a single `Interview/mapped-transcript.md`.
+- **Execution Method**: The Antigravity parent agent performs semantic mapping with bounded asynchronous subagents, while `mapping_pipeline.py` deterministically controls discovery, chunking, caching, attempts, validation, promotion, and finalization.
 
-- If the transcript contains text in Vietnamese, preserve the original Vietnamese text in the output.
-- Do not add any extra content to the mapped transcript files beyond the heading and the table itself.
-- Do not wrap the table in code fences.
-- **Table Cell Formatting**: You MUST use HTML `<br>` or `<br><br>` tags for any newlines or paragraph breaks within the table cells. NEVER use actual newline characters (`\n`) inside the table rows, as this will break the Markdown table structure.
-- The response content in each cell should be the interviewee's actual words from the transcript, not a summary or interpretation.
-- **Timestamping**: You MUST include the exact timestamp from the transcript (e.g., `[05:22]`) at the beginning or end of the quoted response in each cell, so users can easily cross-reference the audio file.
-- **Highlighting**: In each response cell of the `mapped-transcript-<audio_name>.md` file, you MUST identify the *main response* or *core insight* of the interviewee's answer and highlight it in bold with a bright yellow background. Use Markdown/HTML to format it like this: `**<mark style="background-color: yellow;">main response text</mark>**`.
-- Clean up — Ensure that any temporary files created during processing (e.g., intermediate files, temporary copies) are deleted immediately after the skill completes its task.
+1. **Prepare before any skip decision**:
+   ```bash
+   python3 <skill_path>/scripts/mapping_pipeline.py prepare <folder_path> \
+     --max-workers 4 --max-attempts 3 --max-tokens 15000 --review-batch-size 5
+   ```
+   This compares SHA-256 source signatures, questionnaire changes, and the complete transcript filename set. It preserves stale mapped files as last-known-good outputs, chunks long transcripts, records orphans, and returns `canonical_current`.
+2. **Safe skip**: Skip mapping only when `canonical_current` is `true`. File existence alone is never sufficient.
+3. **Claim a bounded batch**:
+   ```bash
+   python3 <skill_path>/scripts/mapping_pipeline.py next-batch <folder_path>
+   ```
+   Invoke one `self` subagent per returned task and never exceed the returned batch. The default and recommended limit is 4 workers. Wait for the entire batch before claiming another batch.
+4. **Subagent isolation**: Each subagent may read only the task's `questionnaire_file` and `input_files`. When `chunked` is `true`, do not read the full `transcript_file`; process the numbered chunks sequentially. It writes only the task's hidden `candidate_file`; it MUST NOT overwrite the final mapped file or the manifest.
+5. **Chunk reconciliation**: When `input_files` contains chunks, process them in numeric order and maintain a compact ledger keyed by the exact questionnaire row (`#`, Theme, Question, Observed Variable). Append revisited evidence with `<br><br>` and deduplicate timestamps before writing the candidate.
+6. **Mapping rules**:
+   - Use a unique concise alias of at most 2-3 words.
+   - Match out-of-order questions by content, never transcript position.
+   - Capture the full conversational thread through the next questionnaire main question.
+   - Attach off-script follow-ups to the preceding main question.
+   - Copy transcript content faithfully; never summarize, infer, or fabricate.
+   - Use `N/A` only when the question is not answered.
+   - Preserve Vietnamese and other source languages.
+7. **Candidate format**: A candidate contains exactly one `# Mapped Transcript` heading, one five-column Markdown table, and one Mapping Summary. No other content or code fences are allowed.
+   - Rows and the first four columns must exactly match the questionnaire order.
+   - Use `<br>` inside response cells; never literal newlines.
+   - Encode every literal response pipe as `&#124;`.
+   - Every non-`N/A` response includes a source timestamp and one yellow core-response highlight: `**<mark style="background-color: yellow;">...</mark>**`.
+   - Summary format is exact: `> **Mapping Summary**: Total rows: X | Answered: Y | N/A: Z | Transcript coverage: [MM:SS] to [MM:SS]`.
+8. **Record completion sequentially in the parent**:
+   - On subagent completion, run `mapping_pipeline.py record-success <folder_path> <audio_name>`. The controller validates header, row widths, exact row identity/order, responses, summary totals, highlighting, and transcript coverage before atomically replacing the final file.
+   - On a transient AI/tool error, run `record-failure ... --code TRANSIENT_AI_ERROR --message "..." --transient`.
+   - On a terminal input/schema error, omit `--transient`. Terminal errors are never retried.
+9. **Programmatic retry loop**: Re-run `next-batch`. The controller enforces exponential backoff, a maximum of 3 attempts, and validator diagnostics in `last_error`. Feed those diagnostics to the retry subagent so it corrects the candidate rather than repeating it blindly.
+10. **Finalize fail-closed**:
+    ```bash
+    python3 <skill_path>/scripts/mapping_pipeline.py finalize <folder_path>
+    ```
+    The canonical `mapped-transcript.md` is updated only when every expected transcript validates. Otherwise return `partial`, retain the prior canonical file, list failures, and STOP before `saturate-insights`. Use `--allow-partial` only after explicit user approval; it creates `mapped-transcript.partial.md`, never the canonical file.
+11. **Review at scale**: Finalization creates review files with at most 5 interviewees each plus `mapping-review-manifest.md`, which reports answered/N/A totals and unmapped or overlapping timestamp signals.
+12. **Guaranteed cleanup**: In a `finally` path, run `mapping_pipeline.py cleanup <folder_path>`. It removes only controller-owned candidate and `.chunks_transcript_*` artifacts.
 
 ## Sequence Diagram
 
@@ -141,9 +139,10 @@ sequenceDiagram
     autonumber
     actor User
     participant Orchestrator
-    participant Skill as Map Transcript
+    participant Skill as Parent Agent
+    participant Controller as mapping_pipeline.py
+    participant Subagents
     participant FS as File System
-    participant Script as map_transcript.py
 
     User->>Orchestrator: Send request with folder_path
     activate Orchestrator
@@ -152,43 +151,29 @@ sequenceDiagram
     Orchestrator->>Skill: Execute ({"folder_path": "..."})
     activate Skill
 
-    Skill->>FS: Read full-questionnaire.md
-    FS-->>Skill: Return questionnaire table
-
-    Skill->>FS: Scan folder for transcript_*.md files
-    FS-->>Skill: Return list of transcript files
-
-    alt No transcript files found
-        Skill-->>Orchestrator: Return error (NO_TRANSCRIPT_FILES)
-        Orchestrator-->>User: "No transcript files found"
-    else No questionnaire file found
-        Skill-->>Orchestrator: Return error (NO_QUESTIONNAIRE)
-        Orchestrator-->>User: "full-questionnaire.md not found"
-    else Files found
-        Note over Skill: Spawn Subagents<br>for Parallel Mapping
-        loop For each transcript_<audio_name>.md (concurrently)
-            Skill->>FS: Read transcript content
-            Note over Skill: (Chunk transcript if > 15k tokens)
-            Note over Skill: Map interviewee responses<br>to questionnaire rows
-            Skill->>FS: Write mapped-transcript-<audio_name>.md
-            Note over Skill: Validate row count
-            alt Row count mismatch
-                Skill->>FS: Delete malformed file
-                Note over Skill: Retry mapping (up to 2x)
-            end
+    Skill->>Controller: prepare (hash sources, validate cache, chunk)
+    Controller-->>Skill: canonical_current + manifest
+    alt Canonical output is current
+        Skill-->>Orchestrator: Return cached success
+    else Mapping required
+        loop Batches of at most 4 tasks
+            Skill->>Controller: next-batch
+            Controller-->>Skill: Ready tasks
+            Skill->>Subagents: invoke_subagent per task
+            Subagents->>FS: Write isolated candidate files
+            Subagents-->>Skill: Results
+            Skill->>Controller: record-success / record-failure
+            Controller->>FS: Validate and atomically promote candidates
         end
-
-        Skill->>Script: Run map_transcript.py (folder_path)
-        activate Script
-        Script->>FS: Read all mapped-transcript-*.md files
-        Script->>FS: Write combined mapped-transcript.md
-        Script-->>Skill: Return success
-        deactivate Script
-
-        Skill-->>Orchestrator: Return success + file paths
-        deactivate Skill
-        Orchestrator-->>User: Respond with mapped transcript paths
-        deactivate Orchestrator
+        Skill->>Controller: finalize
+        alt Every expected transcript is valid
+            Controller->>FS: Write canonical + review batches + audit manifest
+            Controller-->>Skill: success
+        else Missing or invalid transcript
+            Controller-->>Skill: partial; canonical unchanged
+            Skill-->>Orchestrator: STOP before downstream insights
+        end
+        Skill->>Controller: cleanup in finally
     end
 ```
 
@@ -199,8 +184,18 @@ sequenceDiagram
 | `INVALID_INPUT` | The input folder path is missing or does not exist. | Return a clear validation error to the user. |
 | `NO_QUESTIONNAIRE` | No `full-questionnaire.md` file found in the specified folder. | Return an informative message asking the user to run the `create-questionnaire-table` skill first. |
 | `NO_TRANSCRIPT_FILES` | No `transcript_<audio_name>.md` files found in the specified folder. | Return an informative message asking the user to provide transcript files first. |
-| `MAPPING_ERROR` | Failed to map a transcript to the questionnaire structure. | Retry mapping up to 2 times. If it still fails, log the error, skip the problematic transcript, continue with remaining files. |
-| `MERGE_ERROR` | The merge script failed to combine individual mapped transcripts. | Return a friendly error message and suggest running the merge manually. |
+| `INVALID_QUESTIONNAIRE` | Questionnaire header, rows, or row keys are malformed. | Terminal error; fix the questionnaire before mapping. |
+| `VALIDATION_FAILED` | Candidate header, row width, identity, response format, summary, or coverage is invalid. | Retry with exact validator diagnostics until the configured limit. |
+| `NO_TRANSCRIPT_TIMESTAMPS` | The source transcript has no timestamps for grounding and coverage checks. | Terminal input error; regenerate a timestamped transcript. |
+| `TRANSIENT_AI_ERROR` | Temporary subagent/tool failure. | Retry with bounded exponential backoff. |
+| `SOURCE_CHANGED_DURING_MAPPING` | Transcript or questionnaire changed after a task was prepared. | Stop that task, preserve its prior output, and run `prepare` again to create fresh chunks and signatures. |
+| `TERMINAL_MAPPING_ERROR` | Unreadable source or non-recoverable mapping input. | Do not retry; return the per-transcript diagnostic. |
+| `RETRY_EXHAUSTED` | A transcript reached the maximum attempt count. | Mark it failed and return `partial`; preserve the prior canonical output. |
+| `PARTIAL_MAPPING` | One or more expected transcripts are missing or invalid. | Fail closed, keep `mapped-transcript.md` unchanged, and stop downstream insights. |
+| `DUPLICATE_ALIAS` | Two mapped files use the same interviewee alias. | Reject finalization and regenerate one candidate with a unique alias. |
+| `ENCODING_ERROR` | A UTF-8 source or output cannot be decoded. | Terminal error with the affected path. |
+| `PERMISSION_ERROR` / `READ_FAILURE` / `WRITE_FAILURE` | Filesystem access failed. | Preserve existing outputs, clean controller artifacts, and return the OS diagnostic. |
+| `MERGE_ERROR` | Validated outputs could not be rendered or published. | Preserve the prior canonical file and return the error. |
 
 ## Known Bugs & Resolutions
 
@@ -210,6 +205,15 @@ sequenceDiagram
 
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
+| Stale mapped files could be deleted before a replacement existed | Timestamp-based staleness handling removed the last-known-good file first. | `mapping_pipeline.py prepare` now hashes sources, preserves stale output, and promotes only validated candidates atomically. |
+| Orchestrator skip could bypass staleness detection | Skip logic checked output existence before the skill-level staleness script ran. | The orchestrator now runs controller preflight before any map-transcript skip decision. |
+| Wrong mappings passed validation | The old validator compared row counts only, and the merge used positional fallback after key mismatches. | Strict validation now checks exact headers, widths, row identity/order, responses, summary, and coverage; positional fallback was removed. |
+| Raw response pipes corrupted Markdown tables | Runtime instructions did not enforce the completed pipe-escaping checklist item. | Candidate rules require `&#124;` and strict five-column validation rejects raw pipes. |
+| Partial interview sets were published as complete | Failed or malformed mapped files were silently skipped during merge. | Finalization fails closed; explicit partial output uses a separate filename and never overwrites canonical data. |
+| Retry and concurrency controls existed only as prose | Unbounded subagent invocation and manual retries were not enforced. | The controller claims batches of at most 4, records attempts, enforces exponential backoff, and stops at 3 attempts. |
+| Long-transcript chunker was unused and rebuilt normalized prefixes repeatedly | The skill never invoked the helper and offset lookup was quadratic. | Prepare now invokes the chunker above 15,000 tokens; a one-pass normalized-to-original offset map preserves content. |
+| Twenty-user combined tables were impractical to review | Only the 24-column canonical table was generated. | Finalization keeps the canonical file for downstream use and adds review batches of at most 5 interviewees plus a coverage manifest. |
+| Questionnaire row-width preflight was accidentally skipped during controller hardening | The check was placed in the output-signature helper where its local table variable did not exist. | Restored the check to `_validate_questionnaire`, added a malformed-width regression test, and required Ruff to pass. |
 
 ## Performance Improvement Solutions
 
@@ -247,7 +251,7 @@ sequenceDiagram
 - [x] Add a mapping summary at the end of each `mapped-transcript-<audio_name>.md` showing: total questions, answered count, N/A count, and timestamp coverage (e.g., `[00:00] to [45:22] — 85% of transcript mapped`). This helps users quickly assess mapping completeness without reading every cell. *(Human Approval Rate: 7/10)*
 
 **Category 3: 🔗 Workflow Fit**
-- [x] Add a staleness check: before skipping, compare the modification timestamp of `transcript_<audio_name>.md` against `mapped-transcript-<audio_name>.md`. If the transcript is newer, delete the stale mapped file and re-map. This ensures mapping always reflects the latest, most accurate transcript. *(Skip-Logic Compatibility: 7/10)*
+- [x] Add a staleness check before skipping; the current controller improves this further by hashing the complete source set and preserving stale mapped files until validated replacements exist. *(Skip-Logic Compatibility: 7/10)*
 
 **Category 4: 🛡️ Reliability & Error Handling**
 - [x] Implement atomic writes in `map_transcript.py`: write to a temporary file first, then rename to `mapped-transcript.md` only on success. This prevents corrupted output files from downstream consumption. *(Error Recoverability: 7/10)*
@@ -265,26 +269,28 @@ sequenceDiagram
 ### 2026-07-22 Analysis
 
 **Category 1: ⚡ Execution Efficiency**
-- [ ] Replace the undeclared `invoke_subagent` step in `SKILL.md` with the orchestrator's actual bounded-concurrency mechanism and record per-transcript completion before the merge barrier. *(Execution Time: 7/10)*
-- [ ] Invoke `scripts/chunk_transcript.py` before AI mapping for transcripts over the configured limit, pass only the relevant questionnaire rows plus a compact cross-chunk mapping ledger, and document how chunk results are reconciled. *(Token Usage: 6/10)*
-- [ ] Put chunk-directory cleanup in a `finally` path that runs even when mapping or merging fails, and avoid loading every full file with `read()` or `readlines()` where streaming is sufficient. *(Resource Consumption: 7/10)*
+- [x] Use Antigravity's current `invoke_subagent` mechanism in controller-bounded batches of at most 4 and record per-transcript completion before the merge barrier. *(Execution Time: 7/10)*
+- [x] Invoke `scripts/chunk_transcript.py` before AI mapping for transcripts over the configured limit, pass task-scoped questionnaire context plus a compact cross-chunk mapping ledger, and document reconciliation. *(Token Usage: 6/10)*
+- [x] Put controller-owned chunk/candidate cleanup in a `finally` path and stream file hashing and questionnaire parsing where practical. *(Resource Consumption: 7/10)*
 
 **Category 2: 🎯 Output Quality & Accuracy**
-- [ ] Extend `scripts/validate_mapping.py` to validate the exact five-column header, every questionnaire row key and order, response-cell presence, and Mapping Summary totals instead of checking row count alone. *(Output Completeness: 7/10)*
-- [ ] Resolve the contradictory Mapping Summary/no-extra-content rules in `SKILL.md`, require literal pipes in transcript content to be encoded as `&#124;`, and make validation reject malformed row widths before merge. *(Format Compliance: 5/10)*
-- [ ] Remove the positional fallback in `scripts/map_transcript.py`; fail validation when questionnaire row keys do not match exactly so a response cannot be silently attached to the wrong question. *(Content Accuracy: 7/10)*
-- [ ] Generate a review manifest with answered/N/A totals plus unmapped and overlapping timestamp ranges so the approval gate can verify coverage without manually auditing every table cell. *(Human Approval Rate: 7/10)*
+- [x] Extend `scripts/validate_mapping.py` to validate the exact five-column header, every questionnaire row key and order, response-cell presence, highlighting, coverage, and Mapping Summary totals. *(Output Completeness: 7/10)*
+- [x] Resolve the Mapping Summary contradiction, require literal response pipes to use `&#124;`, and reject malformed row widths before merge. *(Format Compliance: 5/10)*
+- [x] Remove the positional fallback in `scripts/map_transcript.py`; exact questionnaire row-key mismatches now fail validation. *(Content Accuracy: 7/10)*
+- [x] Generate `mapping-review-manifest.md` with answered/N/A totals plus unmapped and overlapping timestamp signals. *(Human Approval Rate: 7/10)*
 
 **Category 3: 🔗 Workflow Fit**
-- [ ] Move transcript-set and modification-time validation into `ORCHESTRATOR.md` before incremental skip decisions, and rebuild the combined file whenever a source transcript is added, changed, or removed. *(Skip-Logic Compatibility: 5/10)*
-- [ ] Fail closed or return an explicit `partial` result when any expected transcript is missing or malformed; do not silently merge a subset that downstream insight generation can mistake for complete data. *(Pipeline Passthrough Rate: 5/10)*
+- [x] Move full transcript-set and content-signature validation into `ORCHESTRATOR.md` before incremental skip decisions, rebuilding whenever a source is added, changed, or removed. *(Skip-Logic Compatibility: 5/10)*
+- [x] Fail closed or return an explicit `partial` result when any expected transcript is missing or malformed; partial output never replaces the downstream canonical file. *(Pipeline Passthrough Rate: 5/10)*
 
 **Category 4: 🛡️ Reliability & Error Handling**
-- [ ] Add preflight and merge checks for malformed headers, uneven row widths, duplicate aliases/row keys, raw pipe characters, unreadable encodings, and permission failures, with stable documented error codes. *(Error Rate: 6/10)*
-- [ ] Preserve the last valid per-interviewee output until a replacement has been written atomically and validated, and clean chunk artifacts in `finally` blocks on every exit path. *(Error Recoverability: 7/10)*
-- [ ] Implement a real retry controller: retry transient AI/tool failures with bounded exponential backoff, retry validation failures with the validator diagnostics, and never retry terminal input/schema errors. *(Retry Success Rate: 5/10)*
-- [ ] Reopen completed checklist items whose mechanisms are absent, especially pipe escaping and programmatic retry enforcement, and require a regression test or implementation reference before marking future items complete. *(Known Bug Recurrence: 5/10)*
+- [x] Add preflight and merge checks for malformed headers, uneven row widths, duplicate aliases/row keys, raw pipes, unreadable encodings, and filesystem failures, with stable error codes. *(Error Rate: 6/10)*
+- [x] Preserve last valid per-interviewee output until an atomic candidate replacement validates, and clean controller artifacts on success, terminal failure, and finalization. *(Error Recoverability: 7/10)*
+- [x] Implement a retry controller with bounded exponential backoff, validator diagnostics, transient/terminal classification, and a maximum of 3 attempts. *(Retry Success Rate: 5/10)*
+- [x] Reopen unsupported completion claims, implement the missing mechanisms, document the bugs, and add regression tests before closing the items again. *(Known Bug Recurrence: 5/10)*
 
 **Category 5: 💰 Cost & Scalability**
-- [ ] Replace the repeated normalized-prefix reconstruction in `scripts/chunk_transcript.py` with a one-pass normalized-to-original offset map, and cap concurrent mapping workers to prevent memory and rate-limit spikes. *(Scaling Behavior: 5/10)*
-- [ ] Add direct tests for `validate_mapping.py`, malformed/partial mapped files, pipe-containing responses, duplicate row keys, atomic failure cleanup, and stale combined outputs; expand the workflow E2E test to start from source transcripts rather than pre-mapped fixtures. *(Unit Test Coverage & Pass Rate: 7/10)*
+- [x] Replace repeated normalized-prefix reconstruction with a one-pass normalized-to-original offset map and cap mapping workers to prevent memory and rate-limit spikes. *(Scaling Behavior: 5/10)*
+- [x] Add direct validator, malformed/partial, raw-pipe, duplicate-key, atomic-recovery, freshness, and source-to-output workflow tests. *(Unit Test Coverage & Pass Rate: 7/10)*
+- [x] Generate human review tables in deterministic batches of at most 5 interviewees while preserving one canonical combined file for downstream use. *(20-user review scalability)*
+- [x] Add a 20-transcript capacity test proving five bounded batches of four workers, four review files, and a complete 24-column canonical table. *(20-user capacity)*

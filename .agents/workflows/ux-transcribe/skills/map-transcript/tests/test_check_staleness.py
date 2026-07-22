@@ -2,12 +2,11 @@
 
 import os
 import time
-import pytest
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 
-from check_staleness import find_stale_mapped_files, delete_stale_files
+from check_staleness import find_stale_mapped_files
 
 
 class TestFindStaleFiles:
@@ -90,32 +89,29 @@ class TestFindStaleFiles:
         stale = find_stale_mapped_files(str(tmp_path))
         assert len(stale) == 0
 
+    def test_questionnaire_change_marks_mapping_stale(self, tmp_path):
+        interview_dir = tmp_path / "Interview"
+        interview_dir.mkdir()
+        transcript = interview_dir / "transcript_A.md"
+        transcript.write_text("transcript", encoding="utf-8")
+        mapped = interview_dir / "mapped-transcript-A.md"
+        mapped.write_text("mapped", encoding="utf-8")
+        time.sleep(0.05)
+        questionnaire = interview_dir / "full-questionnaire.md"
+        questionnaire.write_text("new questionnaire", encoding="utf-8")
 
-class TestDeleteStaleFiles:
-    def test_deletes_stale_files(self, tmp_path):
-        """Stale mapped files should be deleted."""
-        mapped = tmp_path / "mapped-transcript-A.md"
-        mapped.write_text("# stale content", encoding="utf-8")
+        stale = find_stale_mapped_files(str(tmp_path))
+        assert len(stale) == 1
+        assert stale[0]["mapped_file"] == str(mapped)
 
-        stale = [{
-            "transcript_file": str(tmp_path / "transcript_A.md"),
-            "mapped_file": str(mapped),
-            "transcript_mtime": time.time(),
-            "mapped_mtime": time.time() - 100,
-        }]
+    def test_staleness_check_never_deletes_last_valid_file(self, tmp_path):
+        interview_dir = tmp_path / "Interview"
+        interview_dir.mkdir()
+        mapped = interview_dir / "mapped-transcript-A.md"
+        mapped.write_text("last valid output", encoding="utf-8")
+        time.sleep(0.05)
+        transcript = interview_dir / "transcript_A.md"
+        transcript.write_text("new transcript", encoding="utf-8")
 
-        deleted = delete_stale_files(stale)
-        assert len(deleted) == 1
-        assert not os.path.exists(str(mapped))
-
-    def test_handles_already_deleted(self, tmp_path):
-        """Should handle gracefully if file was already deleted."""
-        stale = [{
-            "transcript_file": str(tmp_path / "transcript_A.md"),
-            "mapped_file": str(tmp_path / "mapped-transcript-nonexistent.md"),
-            "transcript_mtime": time.time(),
-            "mapped_mtime": time.time() - 100,
-        }]
-
-        deleted = delete_stale_files(stale)
-        assert len(deleted) == 0
+        assert find_stale_mapped_files(str(tmp_path))
+        assert mapped.read_text(encoding="utf-8") == "last valid output"
