@@ -1,5 +1,5 @@
 ---
-name: Map Transcript
+name: map-transcript
 description: Maps interviewee responses from transcript files to the questionnaire table structure, producing per-interviewee mapped transcripts and a final combined mapped transcript.
 ---
 
@@ -68,7 +68,7 @@ The orchestrator should trigger this skill when:
 
   | # | Theme | Question | Observed Variable | <audio_name> |
   |---|-------|----------|-------------------|--------------|
-  | 1 | Warm-up | Question text... | Variable name | [00:05] **<mark style="background-color: yellow;">Interviewee response</mark>** |
+  | 1 | Warm-up | Question text... | Variable name | [00:05] **<mark style="background-color: yellow;">Complete source turn copied verbatim.</mark>** |
 
   > **Mapping Summary**: Total rows: X | Answered: Y | N/A: Z | Transcript coverage: [00:00] to [45:22]
   ```
@@ -110,17 +110,20 @@ The orchestrator should trigger this skill when:
    - Match out-of-order questions by content, never transcript position.
    - Capture the full conversational thread through the next questionnaire main question.
    - Attach off-script follow-ups to the preceding main question.
-   - Copy transcript content faithfully; never summarize, infer, or fabricate.
+   - Treat every mapped response as a verbatim quote from that interviewee's source `transcript_<audio_name>.md` file.
+   - Copy the complete timestamped source turn exactly. Preserve the timestamp, every word, punctuation mark, spelling choice, and source-language wording; never truncate, summarize, paraphrase, translate, correct, infer, or fabricate.
+   - Do not use ellipses, bracketed insertions, or rewritten connective text. Formatting wrappers required by this output contract are the only permitted additions.
+   - When one cell needs multiple turns, append each complete turn as its own `[MM:SS] **<mark ...>...</mark>**` fragment in source order with `<br><br>` between fragments. Never merge text from different timestamps into one quote.
    - Use `N/A` only when the question is not answered.
    - Preserve Vietnamese and other source languages.
 7. **Candidate format**: A candidate contains exactly one `# Mapped Transcript` heading, one five-column Markdown table, and one Mapping Summary. No other content or code fences are allowed.
    - Rows and the first four columns must exactly match the questionnaire order.
    - Use `<br>` inside response cells; never literal newlines.
    - Encode every literal response pipe as `&#124;`.
-   - Every non-`N/A` response includes a source timestamp and one yellow core-response highlight: `**<mark style="background-color: yellow;">...</mark>**`.
+   - Every non-`N/A` response includes the exact source timestamp and the complete source turn inside a yellow core-response highlight: `[MM:SS] **<mark style="background-color: yellow;">complete verbatim source turn</mark>**`.
    - Summary format is exact: `> **Mapping Summary**: Total rows: X | Answered: Y | N/A: Z | Transcript coverage: [MM:SS] to [MM:SS]`.
 8. **Record completion sequentially in the parent**:
-   - On subagent completion, run `mapping_pipeline.py record-success <folder_path> <audio_name>`. The controller validates header, row widths, exact row identity/order, responses, summary totals, highlighting, and transcript coverage before atomically replacing the final file.
+   - On subagent completion, run `mapping_pipeline.py record-success <folder_path> <audio_name>`. The controller validates header, row widths, exact row identity/order, responses, summary totals, highlighting, transcript coverage, and exact timestamp-plus-content equality against complete source turns before atomically replacing the final file.
    - On a transient AI/tool error, run `record-failure ... --code TRANSIENT_AI_ERROR --message "..." --transient`.
    - On a terminal input/schema error, omit `--transient`. Terminal errors are never retried.
 9. **Programmatic retry loop**: Re-run `next-batch`. The controller enforces exponential backoff, a maximum of 3 attempts, and validator diagnostics in `last_error`. Feed those diagnostics to the retry subagent so it corrects the candidate rather than repeating it blindly.
@@ -187,6 +190,8 @@ sequenceDiagram
 | `INVALID_QUESTIONNAIRE` | Questionnaire header, rows, or row keys are malformed. | Terminal error; fix the questionnaire before mapping. |
 | `VALIDATION_FAILED` | Candidate header, row width, identity, response format, summary, or coverage is invalid. | Retry with exact validator diagnostics until the configured limit. |
 | `NO_TRANSCRIPT_TIMESTAMPS` | The source transcript has no timestamps for grounding and coverage checks. | Terminal input error; regenerate a timestamped transcript. |
+| `SOURCE_TIMESTAMP_NOT_FOUND` | A mapped quote uses a timestamp absent from that interviewee's source transcript. | Regenerate the row from the correct transcript turn and retain its exact timestamp. |
+| `NON_VERBATIM_RESPONSE` | A mapped quote is truncated, paraphrased, translated, corrected, or otherwise differs from the complete source turn. | Replace it with the complete source turn copied exactly, including punctuation and wording. |
 | `TRANSIENT_AI_ERROR` | Temporary subagent/tool failure. | Retry with bounded exponential backoff. |
 | `SOURCE_CHANGED_DURING_MAPPING` | Transcript or questionnaire changed after a task was prepared. | Stop that task, preserve its prior output, and run `prepare` again to create fresh chunks and signatures. |
 | `TERMINAL_MAPPING_ERROR` | Unreadable source or non-recoverable mapping input. | Do not retry; return the per-transcript diagnostic. |
@@ -214,6 +219,7 @@ sequenceDiagram
 | Long-transcript chunker was unused and rebuilt normalized prefixes repeatedly | The skill never invoked the helper and offset lookup was quadratic. | Prepare now invokes the chunker above 15,000 tokens; a one-pass normalized-to-original offset map preserves content. |
 | Twenty-user combined tables were impractical to review | Only the 24-column canonical table was generated. | Finalization keeps the canonical file for downstream use and adds review batches of at most 5 interviewees plus a coverage manifest. |
 | Questionnaire row-width preflight was accidentally skipped during controller hardening | The check was placed in the output-signature helper where its local table variable did not exist. | Restored the check to `_validate_questionnaire`, added a malformed-width regression test, and required Ruff to pass. |
+| Truncated or paraphrased quotes could pass candidate validation | Validation checked timestamp presence and highlighting but did not compare response text with the originating transcript turn. | The validator now parses timestamped source turns and rejects missing timestamps or any non-verbatim content; regression tests cover truncation, paraphrasing, and punctuation changes. |
 
 ## Performance Improvement Solutions
 

@@ -107,7 +107,7 @@ def test_partial_merge_never_overwrites_canonical(sample_folder):
 def test_merge_rejects_duplicate_aliases(sample_folder):
     interview = sample_folder / "Interview"
     (interview / "mapped-transcript-user02.md").write_text(
-        mapped_content("User 1"),
+        mapped_content("User 1", source_alias="user02"),
         encoding="utf-8",
     )
     with pytest.raises(PartialMappingError) as exc:
@@ -118,7 +118,7 @@ def test_merge_rejects_duplicate_aliases(sample_folder):
 def test_merge_rejects_case_insensitive_duplicate_aliases(sample_folder):
     interview = sample_folder / "Interview"
     (interview / "mapped-transcript-user02.md").write_text(
-        mapped_content("user 1"),
+        mapped_content("user 1", source_alias="user02"),
         encoding="utf-8",
     )
     with pytest.raises(PartialMappingError) as exc:
@@ -145,6 +145,7 @@ def test_merge_rejects_raw_pipe_in_response(sample_folder):
     path.write_text(
         mapped_content(
             "User 2",
+            source_alias="user02",
             first_response='[00:05] **<mark style="background-color: yellow;">A | B</mark>**',
         ),
         encoding="utf-8",

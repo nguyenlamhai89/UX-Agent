@@ -23,6 +23,16 @@ from typing import Iterable
 
 BASE_HEADERS = ["#", "Theme", "Question", "Observed Variable"]
 TIMESTAMP_PATTERN = re.compile(r"\[(\d{1,3}):([0-5]\d)\]")
+TRANSCRIPT_HEADING_PATTERN = re.compile(
+    r"^\s*\*\*(\[\d{1,3}:[0-5]\d\])(?:\s+\[[^\]]+\])?\*\*"
+    r"\s*(?:<br\s*/?>)?\s*$",
+    re.IGNORECASE,
+)
+TRANSCRIPT_INLINE_PATTERN = re.compile(
+    r"^\s*(\[\d{1,3}:[0-5]\d\])\s*(.*?)\s*$"
+)
+INLINE_SPEAKER_PATTERN = re.compile(r"^[^:\n]{1,80}:\s?(.*)$")
+HIGHLIGHT_OPEN = '<mark style="background-color: yellow;">'
 SUMMARY_PATTERN = re.compile(
     r"^> \*\*Mapping Summary\*\*: "
     r"Total rows: (\d+) \| Answered: (\d+) \| N/A: (\d+) \| "
@@ -42,6 +52,12 @@ class ParsedTable:
 class ValidationIssue:
     code: str
     message: str
+
+
+@dataclass(frozen=True)
+class TranscriptTurn:
+    timestamp: str
+    content: str
 
 
 @dataclass
@@ -129,6 +145,117 @@ def _add_issue(issues: list[ValidationIssue], code: str, message: str) -> None:
     issues.append(ValidationIssue(code=code, message=message))
 
 
+def _trim_blank_lines(lines: list[str]) -> list[str]:
+    start = 0
+    end = len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return lines[start:end]
+
+
+def parse_transcript_turns(text: str) -> list[TranscriptTurn]:
+    """Extract complete timestamped turns from supported transcript formats."""
+    turns: list[TranscriptTurn] = []
+    current_timestamp: str | None = None
+    current_lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal current_timestamp, current_lines
+        if current_timestamp is None:
+            return
+        content = "\n".join(_trim_blank_lines(current_lines))
+        turns.append(TranscriptTurn(timestamp=current_timestamp, content=content))
+        current_timestamp = None
+        current_lines = []
+
+    for line in text.splitlines():
+        heading_match = TRANSCRIPT_HEADING_PATTERN.fullmatch(line)
+        if heading_match:
+            flush()
+            current_timestamp = heading_match.group(1)
+            continue
+
+        inline_match = TRANSCRIPT_INLINE_PATTERN.fullmatch(line)
+        if inline_match:
+            flush()
+            current_timestamp = inline_match.group(1)
+            inline_content = inline_match.group(2)
+            speaker_match = INLINE_SPEAKER_PATTERN.fullmatch(inline_content)
+            current_lines = [
+                speaker_match.group(1) if speaker_match else inline_content
+            ]
+            continue
+
+        if current_timestamp is not None:
+            current_lines.append(line)
+
+    flush()
+    return turns
+
+
+def _decode_mapped_fragment(fragment: str) -> str:
+    """Remove only output-format wrappers before exact source comparison."""
+    value = re.sub(r"(?:\s*<br\s*/?>\s*)+$", "", fragment, flags=re.IGNORECASE)
+    value = re.sub(r"^(?:\s*<br\s*/?>\s*)+", "", value, flags=re.IGNORECASE)
+    value = value.replace(f"**{HIGHLIGHT_OPEN}", HIGHLIGHT_OPEN)
+    value = value.replace("</mark>**", "</mark>")
+    value = value.replace(HIGHLIGHT_OPEN, "").replace("</mark>", "")
+    value = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
+    return value.replace("&#124;", "|").strip()
+
+
+def extract_mapped_fragments(response: str) -> list[TranscriptTurn]:
+    """Split a response cell into complete timestamped source fragments."""
+    matches = list(TIMESTAMP_PATTERN.finditer(response))
+    fragments: list[TranscriptTurn] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(response)
+        fragments.append(
+            TranscriptTurn(
+                timestamp=match.group(0),
+                content=_decode_mapped_fragment(response[match.end() : end]),
+            )
+        )
+    return fragments
+
+
+def _validate_verbatim_response(
+    issues: list[ValidationIssue],
+    row_number: int,
+    response: str,
+    source_turns_by_timestamp: dict[str, set[str]],
+) -> None:
+    timestamp_matches = list(TIMESTAMP_PATTERN.finditer(response))
+    if timestamp_matches and _decode_mapped_fragment(
+        response[: timestamp_matches[0].start()]
+    ):
+        _add_issue(
+            issues,
+            "NON_VERBATIM_RESPONSE",
+            f"Row {row_number} contains text outside a timestamped source turn.",
+        )
+
+    for fragment in extract_mapped_fragments(response):
+        source_contents = source_turns_by_timestamp.get(fragment.timestamp)
+        if source_contents is None:
+            _add_issue(
+                issues,
+                "SOURCE_TIMESTAMP_NOT_FOUND",
+                f"Row {row_number} uses {fragment.timestamp}, which is absent from the source transcript.",
+            )
+            continue
+        if not fragment.content or fragment.content not in source_contents:
+            _add_issue(
+                issues,
+                "NON_VERBATIM_RESPONSE",
+                f"Row {row_number} at {fragment.timestamp} must copy one complete source turn "
+                "exactly, including punctuation and line content; truncation and paraphrasing "
+                "are not allowed.",
+            )
+
+
 def validate_mapping(
     questionnaire_path: str,
     mapped_file_path: str,
@@ -136,7 +263,7 @@ def validate_mapping(
     *,
     require_highlight: bool = True,
 ) -> ValidationResult:
-    """Validate structure, row identity, responses, summary, and coverage."""
+    """Validate structure, source fidelity, summary, and coverage."""
     issues: list[ValidationIssue] = []
 
     for label, path in (
@@ -218,6 +345,22 @@ def validate_mapping(
             f"Expected {len(questionnaire.rows)} rows, got {len(mapped.rows)}.",
         )
 
+    source_turns_by_timestamp: dict[str, set[str]] = {}
+    if transcript_path:
+        try:
+            with open(transcript_path, "r", encoding="utf-8") as handle:
+                transcript_text = handle.read()
+            for turn in parse_transcript_turns(transcript_text):
+                source_turns_by_timestamp.setdefault(turn.timestamp, set()).add(
+                    turn.content
+                )
+        except UnicodeDecodeError as exc:
+            _add_issue(issues, "ENCODING_ERROR", str(exc))
+        except PermissionError as exc:
+            _add_issue(issues, "PERMISSION_ERROR", str(exc))
+        except OSError as exc:
+            _add_issue(issues, "READ_FAILURE", str(exc))
+
     mapped_timestamps: list[str] = []
     answered = 0
     not_applicable = 0
@@ -256,6 +399,13 @@ def validate_mapping(
                 "MISSING_RESPONSE_TIMESTAMP",
                 f"Row {index + 1} is answered but contains no timestamp.",
             )
+        elif transcript_path:
+            _validate_verbatim_response(
+                issues,
+                index + 1,
+                response,
+                source_turns_by_timestamp,
+            )
         if (
             require_highlight
             and '<mark style="background-color: yellow;">' not in response
@@ -290,16 +440,7 @@ def validate_mapping(
 
     transcript_timestamps: list[str] = []
     if transcript_path:
-        try:
-            with open(transcript_path, "r", encoding="utf-8") as handle:
-                for line in handle:
-                    transcript_timestamps.extend(extract_timestamps(line))
-        except UnicodeDecodeError as exc:
-            _add_issue(issues, "ENCODING_ERROR", str(exc))
-        except PermissionError as exc:
-            _add_issue(issues, "PERMISSION_ERROR", str(exc))
-        except OSError as exc:
-            _add_issue(issues, "READ_FAILURE", str(exc))
+        transcript_timestamps = list(source_turns_by_timestamp)
 
         unique_source = _sorted_unique_timestamps(transcript_timestamps)
         if not unique_source:
@@ -365,7 +506,7 @@ def main() -> None:
         print(json.dumps(result.to_dict(), ensure_ascii=False))
     elif result.valid:
         print(
-            "VALIDATION_PASSED: headers, rows, responses, summary, and coverage are valid."
+            "VALIDATION_PASSED: structure, verbatim source responses, summary, and coverage are valid."
         )
     else:
         for issue in result.issues:

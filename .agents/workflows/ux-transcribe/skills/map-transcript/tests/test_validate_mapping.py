@@ -52,14 +52,85 @@ def test_same_count_wrong_row_is_rejected(tmp_path):
 
 
 def test_raw_pipe_is_rejected(tmp_path):
-    content = mapped_content("User").replace("My name is User", "A | B")
+    content = mapped_content("User").replace(
+        "I think it looks useful.", "I think A | B looks useful."
+    )
     questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
     result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
     assert "MALFORMED_MAPPED_ROW" in _codes(result)
 
 
 def test_html_pipe_entity_is_accepted(tmp_path):
-    content = mapped_content("User").replace("My name is User", "A &#124; B")
+    content = mapped_content("User").replace(
+        "I think it looks useful.", "I think A &#124; B looks useful."
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    transcript.write_text(
+        transcript_content("User").replace(
+            "I think it looks useful.", "I think A | B looks useful."
+        ),
+        encoding="utf-8",
+    )
+    assert validate_mapping(str(questionnaire), str(mapped), str(transcript)).valid
+
+
+def test_truncated_source_turn_is_rejected(tmp_path):
+    content = mapped_content("User").replace(
+        "My name is User and I am 25 years old.",
+        "My name is User",
+        1,
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "NON_VERBATIM_RESPONSE" in _codes(result)
+
+
+def test_paraphrased_source_turn_is_rejected(tmp_path):
+    content = mapped_content("User").replace(
+        "I think it looks useful.", "It seems useful to me."
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "NON_VERBATIM_RESPONSE" in _codes(result)
+
+
+def test_changed_punctuation_is_rejected(tmp_path):
+    content = mapped_content("User").replace(
+        "I think it looks useful.", "I think it looks useful!"
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "NON_VERBATIM_RESPONSE" in _codes(result)
+
+
+def test_unknown_source_timestamp_is_rejected(tmp_path):
+    content = mapped_content("User").replace("[01:10]", "[01:11]", 1)
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "SOURCE_TIMESTAMP_NOT_FOUND" in _codes(result)
+
+
+def test_text_outside_timestamped_quote_is_rejected(tmp_path):
+    content = mapped_content("User").replace(
+        "[01:10]", "Paraphrased lead-in [01:10]", 1
+    )
+    questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
+    result = validate_mapping(str(questionnaire), str(mapped), str(transcript))
+    assert "NON_VERBATIM_RESPONSE" in _codes(result)
+
+
+def test_multiple_complete_source_turns_are_accepted(tmp_path):
+    response = (
+        '[01:10] **<mark style="background-color: yellow;">'
+        "I think it looks useful.</mark>**<br><br>"
+        '[02:10] **<mark style="background-color: yellow;">'
+        "No additional thoughts.</mark>**"
+    )
+    content = mapped_content("User").replace(
+        '[01:10] **<mark style="background-color: yellow;">'
+        "I think it looks useful.</mark>**",
+        response,
+    )
     questionnaire, mapped, transcript = _files(tmp_path, mapped=content)
     assert validate_mapping(str(questionnaire), str(mapped), str(transcript)).valid
 
