@@ -195,3 +195,26 @@ sequenceDiagram
 - [x] Add instruction to skip processing if `full-questionnaire.md` already exists in the folder, avoiding redundant AI vision calls.
 - [x] Add instructions for handling multi-page questionnaires: if more than one image is detected, process them in order and concatenate the tables, adjusting `#` numbering to be continuous across pages.
 - [x] Create `tests/test_validate_questionnaire.py` with test cases covering: valid 4-column table, missing columns, inconsistent numbering, empty Question/Observed Variable cells, and tables with HTML/newline artifacts.
+
+**⚡ Execution Efficiency**
+- [ ] Sort image paths deterministically and state a bounded multi-page input limit.
+- [ ] Define maximum image count and file-size limits with a clear validation error.
+
+**🎯 Output Quality & Accuracy**
+- [ ] Align the `image_file` result contract with multi-page processing and return final validator details on terminal failure.
+- [ ] Require exactly one permitted heading/table block and reject or escape unescaped pipe characters in table cells.
+- [ ] Add a self-verification checklist for page coverage, row count, question sequence, and mandatory fields.
+- [ ] Add fixtures for multi-page order, Vietnamese text, literal pipes, extra prose, and malformed separators.
+
+**🔗 Workflow Fit**
+- [ ] Align single-image prerequisites, multi-page instructions, and output schema.
+- [ ] Validate an existing `full-questionnaire.md` before skipping; delete and regenerate it if invalid.
+
+**🛡️ Reliability & Error Handling**
+- [ ] Handle validator runtime errors and bounded-input failures with cleanup and actionable error codes.
+- [ ] Retry only image interpretation or structural-validation failures; fail immediately for filesystem and input errors.
+- [ ] Add regression tests for invalid cached output and Markdown edge cases, then document confirmed fixes.
+
+**💰 Cost & Scalability**
+- [ ] Set input limits and process sorted pages in bounded batches with progress reporting.
+- [ ] Add tests for no table, invalid headers, extra content, literal pipes, duplicate tables, and CLI exit codes.

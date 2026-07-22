@@ -1,57 +1,57 @@
 # Skill Performance Analysis: create-questionnaire-table
 
-> Last updated: 2026-07-13
+> Last updated: 2026-07-22
 
 ---
 
 ## 1. ⚡ Execution Efficiency
 
-| Criteria | 2026-07-13 |
-|----------|----------|
-| Execution Time | • **8/10** — Single image processed in one AI vision call with no redundant reads. Efficient for single-image input. |
-| API Call Count | • **9/10** — No external API calls. Uses only built-in AI vision. Minimal overhead. |
-| Token Usage | • **7/10** — AI processes the full image and generates the table. No unnecessary context, but output instructions could be tighter to reduce token waste. |
-| Resource Consumption | • **8/10** — No temp files created. Image is read in-place. Cleanup instruction exists in SKILL.md. |
+| Criteria | 2026-07-13 | 2026-07-22 |
+|----------|----------|----------|
+| Execution Time | • **8/10** — Single image processed in one AI vision call with no redundant reads. Efficient for single-image input. | • **7/10** — Extraction is sequential across every image and may repeat up to three vision passes; ordering is not defined. • **Solution**: Sort images deterministically and state a bounded multi-page input limit. |
+| API Call Count | • **9/10** — No external API calls. Uses only built-in AI vision. Minimal overhead. | • **9/10** — Uses built-in vision only; no paid or redundant external calls are specified. • No improvement needed. |
+| Token Usage | • **7/10** — AI processes the full image and generates the table. No unnecessary context, but output instructions could be tighter to reduce token waste. | • **8/10** — Output is tightly constrained to a heading and table, and retries occur only after validation fails. • No improvement needed. |
+| Resource Consumption | • **8/10** — No temp files created. Image is read in-place. Cleanup instruction exists in SKILL.md. | • **7/10** — Invalid output is removed before retries, but no page-count or image-size guard is stated. • **Solution**: Define maximum image count and file-size limits with a clear validation error. |
 
 ---
 
 ## 2. 🎯 Output Quality & Accuracy
 
-| Criteria | 2026-07-13 |
-|----------|----------|
-| Output Completeness | • **7/10** — Output schema defines status, image_file, output_file. However, there is no programmatic validation that the generated table has the correct structure. |
-| Format Compliance | • **6/10** — Format is well-specified in SKILL.md with examples, but enforcement relies entirely on AI instruction-following with no automated validation. |
-| Content Accuracy | • **8/10** — Good anti-hallucination measures: preserves Vietnamese text, auto-generates # numbering, handles optional Topic column, cleans newlines and HTML tags. |
-| Human Approval Rate | • **7/10** — No bugs logged yet, but no tests exist to catch regressions. The lack of self-verification means extraction errors may reach the user. |
+| Criteria | 2026-07-13 | 2026-07-22 |
+|----------|----------|----------|
+| Output Completeness | • **7/10** — Output schema defines status, image_file, output_file. However, there is no programmatic validation that the generated table has the correct structure. | • **7/10** — The contract names one image_file while instructions support multiple images and omit terminal validator details. • **Solution**: Use an image_files array or define multi-page meaning, and return final validator details. |
+| Format Compliance | • **6/10** — Format is well-specified in SKILL.md with examples, but enforcement relies entirely on AI instruction-following with no automated validation. | • **7/10** — Validator enforces structure but accepts extra prose or tables and cannot safely handle literal pipes in cells. • **Solution**: Require exactly one permitted heading/table block and reject or escape unescaped pipes. |
+| Content Accuracy | • **8/10** — Good anti-hallucination measures: preserves Vietnamese text, auto-generates # numbering, handles optional Topic column, cleans newlines and HTML tags. | • **7/10** — Structural validation and visual review help, but no source-fidelity check detects missed or invented content. • **Solution**: Require page coverage, row-count, sequence, and mandatory-field checks during self-verification. |
+| Human Approval Rate | • **7/10** — No bugs logged yet, but no tests exist to catch regressions. The lack of self-verification means extraction errors may reach the user. | • **7/10** — Current tests cover core structure, but source-fidelity and complex Markdown cases remain untested. • **Solution**: Add fixtures for multi-page order, Vietnamese text, literal pipes, extra prose, and separators. |
 
 ---
 
 ## 3. 🔗 Workflow Fit
 
-| Criteria | 2026-07-13 |
-|----------|----------|
-| I/O Contract Adherence | • **9/10** — Output filename full-questionnaire.md matches exactly what downstream skills (map-transcript, elevenlabs-transcribe orchestrator flow) expect. |
-| Skip-Logic Compatibility | • **8/10** — Orchestrator incremental execution checks for existing full-questionnaire.md. Skill overwrites on re-run, so skip-logic works correctly. |
-| Pipeline Passthrough Rate | • **8/10** — 5 error codes defined covering all major failure modes. Orchestrator handles UNKNOWN_INTENT and SKILL_FAILURE generically. |
-| Idempotency | • **8/10** — Same image input produces same output. Uses write_to_file which overwrites. No side effects. |
+| Criteria | 2026-07-13 | 2026-07-22 |
+|----------|----------|----------|
+| I/O Contract Adherence | • **9/10** — Output filename full-questionnaire.md matches exactly what downstream skills (map-transcript, elevenlabs-transcribe orchestrator flow) expect. | • **7/10** — Output path fits the workflow, but single-image prerequisites conflict with multi-page instructions and schema. • **Solution**: Align prerequisites, schemas, and orchestrator wording around supported image counts. |
+| Skip-Logic Compatibility | • **8/10** — Orchestrator incremental execution checks for existing full-questionnaire.md. Skill overwrites on re-run, so skip-logic works correctly. | • **6/10** — Existing output causes success without validation, so corrupt or partial files block regeneration. • **Solution**: Validate existing output before skipping; delete and regenerate it if invalid. |
+| Pipeline Passthrough Rate | • **8/10** — 5 error codes defined covering all major failure modes. Orchestrator handles UNKNOWN_INTENT and SKILL_FAILURE generically. | • **8/10** — Error codes, validation retries, and cleanup prevent most malformed output from reaching downstream steps. • No improvement needed. |
+| Idempotency | • **8/10** — Same image input produces same output. Uses write_to_file which overwrites. No side effects. | • **6/10** — Invalid cached output is accepted and regenerated AI output is not deterministic. • **Solution**: Skip only after validator success and preserve deterministic image ordering. |
 
 ---
 
 ## 4. 🛡️ Reliability & Error Handling
 
-| Criteria | 2026-07-13 |
-|----------|----------|
-| Error Rate | • **7/10** — 5 error codes cover most scenarios, but missing WRITE_FAILURE for file system errors (permission denied, disk full). |
-| Error Recoverability | • **6/10** — No explicit instructions for cleaning up partially written files on failure. A malformed full-questionnaire.md could confuse downstream skills. |
-| Retry Success Rate | • **5/10** — No retry mechanism exists. If AI misreads the image on first attempt, the skill fails without retry. |
-| Known Bug Recurrence | • **6/10** — No bugs logged and no tests exist. This means bugs may exist but are undetected, and there is no regression prevention. |
+| Criteria | 2026-07-13 | 2026-07-22 |
+|----------|----------|----------|
+| Error Rate | • **7/10** — 5 error codes cover most scenarios, but missing WRITE_FAILURE for file system errors (permission denied, disk full). | • **7/10** — Common errors are handled, but validator exceptions, invalid cached output, and input-size failures are not explicit. • **Solution**: Add handling for validator runtime errors and bounded-input failures with cleanup. |
+| Error Recoverability | • **6/10** — No explicit instructions for cleaning up partially written files on failure. A malformed full-questionnaire.md could confuse downstream skills. | • **7/10** — Invalid generated output is cleaned and retried, but cached-output recovery bypasses validation. • **Solution**: Validate cached output and return final validator details on terminal failure. |
+| Retry Success Rate | • **5/10** — No retry mechanism exists. If AI misreads the image on first attempt, the skill fails without retry. | • **7/10** — Three attempts recover from vision mistakes, though retries are not tailored to failure type. • **Solution**: Retry only interpretation or structural failures; fail immediately on filesystem and input errors. |
+| Known Bug Recurrence | • **6/10** — No bugs logged and no tests exist. This means bugs may exist but are undetected, and there is no regression prevention. | • **6/10** — No bugs are documented and tests miss parsing and skip-logic regressions. • **Solution**: Add regression tests for invalid cached output and Markdown edge cases; document confirmed fixes. |
 
 ---
 
 ## 5. 💰 Cost & Scalability
 
-| Criteria | 2026-07-13 |
-|----------|----------|
-| Cost per Execution | • **7/10** — No paid APIs. Uses built-in AI vision. But no skip logic within the skill itself to avoid redundant AI calls if output already exists. |
-| Scaling Behavior | • **6/10** — Limited to exactly 1 image. Multi-page questionnaires require manual splitting. No instructions for handling multi-page scenarios. |
-| Unit Test Coverage & Pass Rate | • **4/10** — No tests directory, no test files, no validation script. This is the lowest coverage of any skill in the workflow. |
+| Criteria | 2026-07-13 | 2026-07-22 |
+|----------|----------|----------|
+| Cost per Execution | • **7/10** — No paid APIs. Uses built-in AI vision. But no skip logic within the skill itself to avoid redundant AI calls if output already exists. | • **8/10** — No external paid APIs and valid existing output avoids repeat vision work. • No improvement needed. |
+| Scaling Behavior | • **6/10** — Limited to exactly 1 image. Multi-page questionnaires require manual splitting. No instructions for handling multi-page scenarios. | • **6/10** — Multi-page work is linear in image count and retries can multiply cost, with no documented upper bound. • **Solution**: Set input limits and process sorted pages in bounded batches with progress reporting. |
+| Unit Test Coverage & Pass Rate | • **4/10** — No tests directory, no test files, no validation script. This is the lowest coverage of any skill in the workflow. | • **7/10** — Eight unit tests cover core table and numbering paths but omit parser edge cases and CLI behavior. • **Solution**: Add tests for no table, headers, extra content, literal pipes, duplicate tables, and CLI exits. |
