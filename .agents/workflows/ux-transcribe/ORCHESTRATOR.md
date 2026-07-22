@@ -24,7 +24,7 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from image to `full-questionnaire.md`.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`elevenlabs-transcribe`): Transcribes audio using `ELEVENLABS_API_KEY` and keyterms. **Halts workflow and returns error code on failure.**
+5. **Audio Transcription** (`elevenlabs-transcribe`): Inject `ELEVENLABS_API_KEY` into the process environment, then transcribe with keyterms. **Halts workflow and returns detailed per-file error codes on failure.**
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 7. **Transcript Mapping** (`map-transcript`): Maps transcripts to the questionnaire structure.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.

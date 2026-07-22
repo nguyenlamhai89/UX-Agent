@@ -103,3 +103,11 @@
 | Cost per Execution | • **8/10** — Skip logic prevents re-billing completed files; remaining cost follows audio duration. • No improvement needed. |
 | Scaling Behavior | • **7/10** — Parallelism helps, but five simultaneous uploads ignore service backpressure and file size. • **Solution**: Expose worker and rate-limit settings with conservative defaults. |
 | Unit Test Coverage & Pass Rate | • **7/10** — Seven tests cover core flows, but omit keyterms, timestamps, diarized words, invalid output, and future failures. • **Solution**: Add parameterized and regression tests for those paths. |
+
+### Implementation update — 2026-07-22
+
+- **Execution efficiency / scalability**: Implemented configurable `--max-workers`, `--max-file-size-mb`, and `--max-retries`; files above the configured limit fail safely before upload.
+- **Output quality / workflow fit**: Implemented empty-response rejection, valid-output checks before skip, atomic writes, stable filename ordering, and a single environment-injected API-key contract.
+- **Reliability**: Implemented classified terminal versus transient errors, jittered exponential backoff with `Retry-After` support, and guarded worker-result collection with per-file error codes.
+- **Test coverage**: Added tests for keyterm filtering, timestamps, diarized word spacing, empty transcripts, retry classification, large-file rejection, atomic recovery, and ordered partial failures.
+- **Deferred**: True chunked/streamed transcription remains unchecked because the current SDK integration does not provide a safe chunked STT contract; the configurable size ceiling prevents unbounded uploads in the meantime.
