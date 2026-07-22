@@ -1,6 +1,6 @@
 ---
 name: visualize-insights
-description: Converts insights.md, mapped-transcript.md, all interviewee transcript-*.md files, and optional journey-map.md into an interactive Ant Design-like HTML research report with saturation, transcript, full-transcript drawer, and journey views.
+description: Converts insights.md, mapped-transcript.md, all interviewee transcript-*.md files, and optional journey-map.md into an interactive Ant Design-like HTML research report with saturation, transcript, searchable full-transcript drawer, and journey views.
 ---
 
 # visualize-insights
@@ -70,6 +70,7 @@ The orchestrator should trigger this skill after the `saturate-insights` skill h
 - Populate the `transcript.html` module with the structured transcript data.
 - Require `full_transcript_paths` and validate that it contains exactly one existing `transcript-*.md` file for every interviewee column in `mapped-transcript.md`. Match filenames using Unicode-insensitive normalized names and fail before HTML generation when any interviewee is missing, duplicated, or unmatched.
 - Render a footer row in the Transcript table with one enabled `Xem tất cả` button per interviewee. Open the matching full transcript in an accessible right-side drawer and support Escape-to-close and focus restoration.
+- Place a search field directly below each full-transcript headline using the same UI treatment as the Transcript tab search. Scope matching to the active interviewee's transcript, highlight all matches without rewriting source markup, scroll to the first match, and provide a clear button that restores the original content.
 - Escape full transcript source content before applying the supported Markdown presentation so embedded transcript text cannot inject executable HTML.
 - Inject the populated modules into the `insights-template.html` to form a complete, single HTML file.
 - Save the final file as `<project_name>.html` in the specified `output_dir`.
@@ -90,7 +91,7 @@ sequenceDiagram
     Orchestrator->>Skill: Execute (insights_path, transcript_path, full_transcript_paths)
     activate Skill
     Skill->>Skill: Parse Markdown and populate templates deterministically
-    Skill->>Skill: Validate and embed every full interview transcript
+    Skill->>Skill: Validate and embed every searchable full interview transcript
     Skill->>Skill: Save as <project_name>.html
     Skill-->>Orchestrator: Return success & file path
     deactivate Skill

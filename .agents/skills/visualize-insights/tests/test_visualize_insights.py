@@ -216,6 +216,26 @@ Xin chào <script>alert('x')</script>
         assert "Xin chào A." in drawer
         assert "Xin chào B." in drawer
         assert 'id="full-transcript-drawer"' in drawer
+        assert drawer.count('placeholder="Search in full transcript..."') == 2
+        assert drawer.count('oninput="searchFullTranscript') == 2
+        assert 'id="full-transcript-search-0"' in drawer
+        assert 'id="full-transcript-search-1"' in drawer
+        assert drawer.count('data-full-transcript-document') == 2
+
+    def test_base_template_supports_scoped_full_transcript_search(self):
+        template_path = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "../template/insights-template.html",
+            )
+        )
+        with open(template_path, "r", encoding="utf-8") as template_file:
+            template = template_file.read()
+
+        assert "function searchFullTranscript(input, panelId)" in template
+        assert "function clearFullTranscriptSearch(inputId, panelId)" in template
+        assert "data-full-transcript-match" in template
+        assert "NodeFilter.SHOW_TEXT" in template
 
     def test_match_full_transcript_inputs_rejects_missing_interviewee(self, tmp_path):
         only_transcript = tmp_path / "transcript-Anh-A.md"

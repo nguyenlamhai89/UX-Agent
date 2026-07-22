@@ -122,6 +122,70 @@
             input.focus();
         }
 
+        function clearFullTranscriptHighlights(panel) {
+            const documentEl = panel?.querySelector('[data-full-transcript-document]');
+            if (!documentEl) return;
+
+            documentEl.querySelectorAll('mark[data-full-transcript-match]').forEach((match) => {
+                match.replaceWith(document.createTextNode(match.textContent || ''));
+            });
+            documentEl.normalize();
+        }
+
+        function searchFullTranscript(input, panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel || !input) return;
+
+            const clearButton = panel.querySelector('[id^="full-transcript-clear-"]');
+            const documentEl = panel.querySelector('[data-full-transcript-document]');
+            if (!documentEl) return;
+
+            clearFullTranscriptHighlights(panel);
+            const query = input.value.trim().toLowerCase();
+            clearButton?.classList.toggle('hidden', input.value.length === 0);
+            if (!query) return;
+
+            const walker = document.createTreeWalker(documentEl, NodeFilter.SHOW_TEXT);
+            const textNodes = [];
+            while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+            let firstMatch = null;
+            textNodes.forEach((textNode) => {
+                const originalText = textNode.nodeValue || '';
+                const searchableText = originalText.toLowerCase();
+                let matchIndex = searchableText.indexOf(query);
+                if (matchIndex === -1) return;
+
+                const fragment = document.createDocumentFragment();
+                let cursor = 0;
+                while (matchIndex !== -1) {
+                    fragment.append(document.createTextNode(originalText.slice(cursor, matchIndex)));
+                    const mark = document.createElement('mark');
+                    mark.dataset.fullTranscriptMatch = 'true';
+                    mark.textContent = originalText.slice(matchIndex, matchIndex + query.length);
+                    fragment.append(mark);
+                    if (!firstMatch) firstMatch = mark;
+                    cursor = matchIndex + query.length;
+                    matchIndex = searchableText.indexOf(query, cursor);
+                }
+                fragment.append(document.createTextNode(originalText.slice(cursor)));
+                textNode.replaceWith(fragment);
+            });
+
+            firstMatch?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function clearFullTranscriptSearch(inputId, panelId) {
+            const input = document.getElementById(inputId);
+            const panel = document.getElementById(panelId);
+            if (!input || !panel) return;
+
+            input.value = '';
+            clearFullTranscriptHighlights(panel);
+            panel.querySelector('[id^="full-transcript-clear-"]')?.classList.add('hidden');
+            input.focus();
+        }
+
         let lastTranscriptTrigger = null;
         let transcriptDrawerCloseTimer = null;
 
