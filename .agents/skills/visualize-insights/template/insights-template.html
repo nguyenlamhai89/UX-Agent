@@ -121,6 +121,72 @@
             searchTranscript();
             input.focus();
         }
+
+        let lastTranscriptTrigger = null;
+        let transcriptDrawerCloseTimer = null;
+
+        function openTranscriptDrawer(panelId, trigger) {
+            const root = document.getElementById('full-transcript-drawer-root');
+            const drawer = document.getElementById('full-transcript-drawer');
+            const closeButton = document.getElementById('full-transcript-drawer-close');
+            const panel = document.getElementById(panelId);
+            if (!root || !drawer || !panel) return;
+
+            window.clearTimeout(transcriptDrawerCloseTimer);
+            document.querySelectorAll('[data-full-transcript-panel]').forEach((item) => {
+                item.classList.toggle('hidden', item.id !== panelId);
+            });
+
+            lastTranscriptTrigger = trigger || document.activeElement;
+            root.classList.remove('hidden');
+            root.setAttribute('aria-hidden', 'false');
+            window.requestAnimationFrame(() => {
+                drawer.classList.remove('translate-x-full');
+                if (closeButton) closeButton.focus();
+            });
+        }
+
+        function closeTranscriptDrawer() {
+            const root = document.getElementById('full-transcript-drawer-root');
+            const drawer = document.getElementById('full-transcript-drawer');
+            if (!root || !drawer || root.classList.contains('hidden')) return;
+
+            drawer.classList.add('translate-x-full');
+            root.setAttribute('aria-hidden', 'true');
+            transcriptDrawerCloseTimer = window.setTimeout(() => {
+                root.classList.add('hidden');
+                if (lastTranscriptTrigger && typeof lastTranscriptTrigger.focus === 'function') {
+                    lastTranscriptTrigger.focus();
+                }
+            }, 300);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const root = document.getElementById('full-transcript-drawer-root');
+            const drawer = document.getElementById('full-transcript-drawer');
+            if (!root || root.classList.contains('hidden')) return;
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeTranscriptDrawer();
+                return;
+            }
+
+            if (event.key !== 'Tab' || !drawer) return;
+            const focusable = Array.from(drawer.querySelectorAll(
+                'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
     </script>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased flex h-screen overflow-hidden">

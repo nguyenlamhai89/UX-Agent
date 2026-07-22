@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 # Mock google.antigravity to avoid protobuf import errors on the system
 sys.modules['google.antigravity'] = MagicMock()
@@ -146,18 +146,89 @@ class TestDataParsing:
         assert "Phase 1" in rows
         assert "User X" in thead
 
+    def test_extract_transcript_headers_with_audio_name_override(self):
+        headers = visualize_insights.extract_transcript_headers(
+            SAMPLE_MAPPED_TRANSCRIPT,
+            audio_names=["Audio A", "Audio B"],
+        )
+        assert headers == ["Audio A", "Audio B"]
+
+
+class TestFullTranscriptDrawer:
+    def test_discover_full_transcripts_prefers_dash_and_supports_legacy_underscore(self, tmp_path):
+        mapped_path = tmp_path / "mapped-transcript.md"
+        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
+        preferred = tmp_path / "transcript-Anh-A.md"
+        preferred.write_text("# Preferred", encoding="utf-8")
+        legacy = tmp_path / "transcript_Chị-B.md"
+        legacy.write_text("# Legacy", encoding="utf-8")
+
+        matched = visualize_insights.discover_full_transcripts(
+            mapped_path,
+            ["Anh A", "Chị B"],
+        )
+
+        assert matched["Anh A"] == preferred
+        assert matched["Chị B"] == legacy
+
+    def test_render_full_transcript_markdown_is_safe_and_readable(self):
+        transcript_md = """# Interview
+
+**[00:01] [speaker_0]** <br>
+Xin chào <script>alert('x')</script>
+"""
+        rendered = visualize_insights.render_full_transcript_markdown(transcript_md)
+
+        assert "<h2" in rendered
+        assert "text-blue-700" in rendered
+        assert "<strong>[00:01] [speaker_0]</strong>" in rendered
+        assert "&lt;script&gt;alert('x')&lt;/script&gt;" in rendered
+        assert "<script>" not in rendered
+
+    def test_build_full_transcript_ui_adds_one_action_per_interviewee(self, tmp_path):
+        mapped_path = tmp_path / "mapped-transcript.md"
+        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
+        (tmp_path / "transcript-Anh-A.md").write_text(
+            "# Interview A\n\n**[00:01] [speaker_0]** <br>\nXin chào A.",
+            encoding="utf-8",
+        )
+        (tmp_path / "transcript-Chị-B.md").write_text(
+            "# Interview B\n\n**[00:02] [speaker_1]** <br>\nXin chào B.",
+            encoding="utf-8",
+        )
+
+        footer, drawer = visualize_insights.build_full_transcript_ui(
+            ["Anh A", "Chị B"],
+            mapped_path,
+        )
+
+        assert footer.count("Xem tất cả") == 2
+        assert footer.count("openTranscriptDrawer") == 2
+        assert 'colspan="4"' in footer
+        assert "Bản ghi đầy đủ — Anh A" in drawer
+        assert "Bản ghi đầy đủ — Chị B" in drawer
+        assert "Xin chào A." in drawer
+        assert "Xin chào B." in drawer
+        assert 'id="full-transcript-drawer"' in drawer
+
+    def test_build_full_transcript_ui_disables_missing_source(self, tmp_path):
+        mapped_path = tmp_path / "mapped-transcript.md"
+        mapped_path.write_text(SAMPLE_MAPPED_TRANSCRIPT, encoding="utf-8")
+
+        footer, drawer = visualize_insights.build_full_transcript_ui(["Anh A"], mapped_path)
+
+        assert "Xem tất cả" in footer
+        assert 'disabled aria-disabled="true"' in footer
+        assert "Không có tệp nguồn" in drawer
+
 class TestDeterministicStats:
-    @pytest.mark.asyncio
+    @patch('visualize_insights.shutil.which', return_value=None)
     @patch('visualize_insights.glob.glob')
-    @patch('visualize_insights.asyncio.create_subprocess_exec')
-    async def test_get_folder_stats(self, mock_create, mock_glob):
-        mock_glob.side_effect = lambda path: ['/path/to/UserA.m4a'] if 'm4a' in path and '*' not in path.split('/')[-1] else []
+    def test_get_folder_stats(self, mock_glob, mock_which):
+        import asyncio
 
-        mock_proc = MagicMock()
-        mock_proc.communicate = AsyncMock(return_value=(b"600.5\n", b""))
-        mock_create.return_value = mock_proc
-
-        stats = await visualize_insights.get_folder_stats('/path')
+        mock_glob.return_value = []
+        stats = asyncio.run(visualize_insights.get_folder_stats('/path'))
         # Basic structure validation
         assert "total_interviewees" in stats
         assert "total_time_html" in stats
