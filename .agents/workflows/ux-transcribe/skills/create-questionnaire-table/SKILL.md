@@ -1,13 +1,13 @@
 ---
 name: Create Questionnaire Table
-description: Extracts a question table from an image (PNG/JPG) in a folder and outputs a structured full-questionnaire.md file with fully expanded rows.
+description: Extracts one or more question-table images (PNG/JPG) and outputs a validated, structured full-questionnaire.md file with fully expanded rows.
 ---
 
 # Create Questionnaire Table
 
 ## Description
 
-This skill extracts a question table from a single image file (PNG or JPG) located in a folder and converts it into a structured Markdown table saved as `full-questionnaire.md`. The agent uses its built-in vision capability to read the image and identify table rows, then formats them into a 4-column expanded table.
+This skill extracts question tables from one or more image files (PNG or JPG) and converts them into a validated Markdown table saved as `full-questionnaire.md`. The agent uses its built-in vision capability to read the images in deterministic filename order and formats them into a 4-column expanded table.
 
 The orchestrator should trigger this skill when:
 - The user wants to convert a question table image into a Markdown file.
@@ -15,7 +15,8 @@ The orchestrator should trigger this skill when:
 - Keywords such as "questionnaire", "question table", "extract table from image", "convert table image to markdown" are detected.
 
 **Prerequisites:**
-- The input folder must exist, and its `Interview` subfolder must contain exactly one image file (`.png` or `.jpg`/`.jpeg`).
+- The input folder must exist, and its `Interview` subfolder must contain 1–20 image files (`.png`, `.jpg`, or `.jpeg`).
+- Each image must be 20 MB or smaller. Larger inputs return `INPUT_LIMIT_EXCEEDED` before extraction.
 
 ## Input
 
@@ -24,7 +25,7 @@ The orchestrator should trigger this skill when:
   - `folder_path` (string, **required**) — Absolute path to a local directory (e.g., project root).
 - **Location**: `request_body`
 - **Input File(s)**:
-  - `Interview/<image>.png` / `Interview/<image>.jpg` / `Interview/<image>.jpeg` — A single question table image file in the `Interview` subfolder.
+  - `Interview/<image>.png` / `Interview/<image>.jpg` / `Interview/<image>.jpeg` — One or more question table images in the `Interview` subfolder.
 - **Supported file types**: `.png`, `.jpg`, `.jpeg` only. Other files in the folder are ignored.
 - **Examples**:
 
@@ -40,7 +41,7 @@ The orchestrator should trigger this skill when:
 - **Type**: `dict`
 - **Format**:
   - `status` (string) — `"success"` or `"error"`.
-  - `image_file` (string) — Original image filename that was processed.
+  - `image_files` (string[]) — Image filenames processed, in deterministic filename order.
   - `output_file` (string) — Absolute path to the generated `full-questionnaire.md` file.
 - **Location**: `file_path` — The `full-questionnaire.md` file is saved inside an `Interview` subfolder within the folder the user provided.
 - **Output File(s)**:
@@ -51,7 +52,7 @@ The orchestrator should trigger this skill when:
   ```json
   {
     "status": "success",
-    "image_file": "question-table.png",
+    "image_files": ["question-table-01.png", "question-table-02.png"],
     "output_file": "/Users/madebynham/Desktop/questionnaire-images/Interview/full-questionnaire.md"
   }
   ```
@@ -84,18 +85,19 @@ The orchestrator should trigger this skill when:
 ## Custom Instructions
 
 - **Execution Method**: This skill is executed entirely by the Antigravity AI agent — no external scripts or API calls. The agent follows these steps directly:
-  1. **Check for existing file**: Check if `Interview/full-questionnaire.md` already exists in `folder_path`. If it does, skip processing and return success to save time and API costs.
-  2. **Scan the folder** at the provided `folder_path/Interview` for image files (`.png`, `.jpg`, `.jpeg`). 
-  3. **Process images**: If there are multiple images (multi-page questionnaire), view them in order. 
-  4. **Extract all table data** from the images. Identify each topic, its questions, and their observed variables. If multiple pages, concatenate the tables.
+  1. **Validate any existing output before skipping**: If `Interview/full-questionnaire.md` exists, run `scripts/validate_questionnaire.py` on it. Return success only when the validator exits 0. If validation fails, delete the invalid file and continue with extraction.
+  2. **Scan and bound inputs** at `<folder_path>/Interview`: collect only `.png`, `.jpg`, and `.jpeg` files; sort filenames in ascending natural order; reject more than 20 files or any file larger than 20 MB with `INPUT_LIMIT_EXCEEDED`.
+  3. **Process bounded batches**: Process the sorted images in batches of up to 5 and report completed page ranges for inputs with more than 5 images.
+  4. **Extract all table data** from each image. Identify each topic, its questions, and their observed variables. Concatenate pages in the sorted order.
   5. **Assign the `#` (order number) by question** — all rows with the same question content share the same number. The number increments only when the question changes. For multi-page, ensure numbering is continuous across pages.
   6. **Expand all rows** so that every unique combination of (number, topic, question, observed variable) is a separate row. Never merge cells.
-  7. **Format as a Markdown table** with exactly 4 columns: `#`, `Theme`, `Question`, `Observed Variable`. Limit output entirely to the `# Questionnaire` heading and the table — absolutely no preamble, explanations, or markdown code fences.
+  7. **Format strictly**: Output exactly one `# Questionnaire` heading followed by exactly one Markdown table with 4 columns: `#`, `Theme`, `Question`, `Observed Variable`. Do not add prose, extra tables, or code fences. Escape literal pipe characters inside cell values as `\\|`; remove `<br>` tags and line breaks from cells.
   8. **Write the result** to `<folder_path>/Interview/full-questionnaire.md` using the `write_to_file` tool.
-  9. **Self-verify**: Re-read the generated `Interview/full-questionnaire.md` and visually verify it against the original image.
+  9. **Self-verify**: Re-read the generated file against every source image. Confirm each page was included, the row count matches the extracted rows, questions remain in page order, and every row has non-empty Question and Observed Variable values.
   10. **Automated Validation**: Run the Python script `scripts/validate_questionnaire.py <folder_path>/Interview/full-questionnaire.md`. 
       - If the script returns success (exit code 0), return success.
-      - If the script returns an error (exit code 1), delete the partially written/invalid `Interview/full-questionnaire.md` file immediately to prevent downstream errors. Read the image again and retry up to 2 times. If it still fails, return the `UNREADABLE_IMAGE` error.
+      - If validation fails because of image interpretation or table structure, delete the invalid file and retry extraction up to 2 times. If it still fails, return `UNREADABLE_IMAGE` with the final validator error code and message.
+      - Do not retry `INVALID_INPUT`, `INPUT_LIMIT_EXCEEDED`, `WRITE_FAILURE`, `READ_FAILURE`, or other filesystem failures. Clean up any partial output and return the actionable error immediately.
 - If the image contains text in Vietnamese, preserve the original Vietnamese text in the output.
 - Do not add any extra content to the markdown file beyond a level-1 heading (`# Questionnaire`) and the table itself.
 - Do not wrap the table in code fences.
@@ -163,6 +165,9 @@ sequenceDiagram
 | `UNREADABLE_IMAGE` | The image could not be interpreted, does not contain a recognizable table, or failed validation after 3 attempts. | Return a friendly error asking the user to provide a clearer image. |
 | `STRUCTURE_MISMATCH` | The image does not contain recognizable columns for Question and Observed Variable. | Remind the user to check the image structure and upload it again. |
 | `WRITE_FAILURE` | Could not write to the file system. | Check permissions or disk space and alert user. |
+| `INPUT_LIMIT_EXCEEDED` | More than 20 images were supplied or an image exceeds 20 MB. | Ask the user to split or reduce the input set. |
+| `READ_FAILURE` | The existing output or an input image could not be read. | Clean up any partial output and report the OS error. |
+| `VALIDATION_FAILURE` | A generated or existing output failed structural validation. | Delete the invalid output; retry only extraction/structure errors and include validator details on terminal failure. |
 
 ## Known Bugs & Resolutions
 
@@ -172,6 +177,7 @@ sequenceDiagram
 
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
+| Invalid cached output was skipped as successful; complex Markdown could bypass validation. | Skip logic did not validate existing output and the parser accepted prose or multiple table blocks. | Validate cached output before skipping; replace the parser with a canonical one-heading/one-table validator and add regression tests. |
 
 ## Performance Improvement Solutions
 
@@ -197,24 +203,24 @@ sequenceDiagram
 - [x] Create `tests/test_validate_questionnaire.py` with test cases covering: valid 4-column table, missing columns, inconsistent numbering, empty Question/Observed Variable cells, and tables with HTML/newline artifacts.
 
 **⚡ Execution Efficiency**
-- [ ] Sort image paths deterministically and state a bounded multi-page input limit.
-- [ ] Define maximum image count and file-size limits with a clear validation error.
+- [x] Sort image paths deterministically and state a bounded multi-page input limit.
+- [x] Define maximum image count and file-size limits with a clear validation error.
 
 **🎯 Output Quality & Accuracy**
-- [ ] Align the `image_file` result contract with multi-page processing and return final validator details on terminal failure.
-- [ ] Require exactly one permitted heading/table block and reject or escape unescaped pipe characters in table cells.
-- [ ] Add a self-verification checklist for page coverage, row count, question sequence, and mandatory fields.
-- [ ] Add fixtures for multi-page order, Vietnamese text, literal pipes, extra prose, and malformed separators.
+- [x] Align the `image_file` result contract with multi-page processing and return final validator details on terminal failure.
+- [x] Require exactly one permitted heading/table block and reject or escape unescaped pipe characters in table cells.
+- [x] Add a self-verification checklist for page coverage, row count, question sequence, and mandatory fields.
+- [x] Add fixtures for multi-page order, Vietnamese text, literal pipes, extra prose, and malformed separators.
 
 **🔗 Workflow Fit**
-- [ ] Align single-image prerequisites, multi-page instructions, and output schema.
-- [ ] Validate an existing `full-questionnaire.md` before skipping; delete and regenerate it if invalid.
+- [x] Align single-image prerequisites, multi-page instructions, and output schema.
+- [x] Validate an existing `full-questionnaire.md` before skipping; delete and regenerate it if invalid.
 
 **🛡️ Reliability & Error Handling**
-- [ ] Handle validator runtime errors and bounded-input failures with cleanup and actionable error codes.
-- [ ] Retry only image interpretation or structural-validation failures; fail immediately for filesystem and input errors.
-- [ ] Add regression tests for invalid cached output and Markdown edge cases, then document confirmed fixes.
+- [x] Handle validator runtime errors and bounded-input failures with cleanup and actionable error codes.
+- [x] Retry only image interpretation or structural-validation failures; fail immediately for filesystem and input errors.
+- [x] Add regression tests for invalid cached output and Markdown edge cases, then document confirmed fixes.
 
 **💰 Cost & Scalability**
-- [ ] Set input limits and process sorted pages in bounded batches with progress reporting.
-- [ ] Add tests for no table, invalid headers, extra content, literal pipes, duplicate tables, and CLI exit codes.
+- [x] Set input limits and process sorted pages in bounded batches with progress reporting.
+- [x] Add tests for no table, invalid headers, extra content, literal pipes, duplicate tables, and CLI exit codes.

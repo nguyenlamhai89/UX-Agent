@@ -1,134 +1,80 @@
-import os
+import subprocess
 import sys
-import json
+from pathlib import Path
+
 import pytest
 
-# Add the parent directory to the path so we can import the script
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from scripts.validate_questionnaire import validate_questionnaire, parse_markdown_table
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from scripts.validate_questionnaire import parse_markdown_table, validate_questionnaire
 
-@pytest.fixture
-def valid_table_path(tmp_path):
-    content = """
-# Questionnaire
+
+SCRIPT_PATH = Path(__file__).parent.parent / "scripts" / "validate_questionnaire.py"
+
+
+def write_questionnaire(tmp_path, body, name="full-questionnaire.md"):
+    path = tmp_path / name
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+VALID_TABLE = """# Questionnaire
 
 | # | Theme | Question | Observed Variable |
 |---|-------|----------|-------------------|
 | 1 | Warm Up | Please introduce yourself | Name |
 | 1 | Warm Up | Please introduce yourself | Age |
-| 2 | Warm Up | How was your day today | Journey |
-| 3 | Product | What do you think | First Impression |
+| 2 | Product | Bạn thấy ứng dụng thế nào? | Ease of use |
 """
-    p = tmp_path / "full-questionnaire.md"
-    p.write_text(content)
-    return str(p)
 
-@pytest.fixture
-def missing_columns_path(tmp_path):
-    content = """
-| # | Theme | Question |
-|---|-------|----------|
-| 1 | Warm Up | Please introduce yourself |
-"""
-    p = tmp_path / "missing-cols.md"
-    p.write_text(content)
-    return str(p)
 
-@pytest.fixture
-def empty_mandatory_path(tmp_path):
-    content = """
-| # | Theme | Question | Observed Variable |
-|---|-------|----------|-------------------|
-| 1 | Warm Up |  | Name |
-"""
-    p = tmp_path / "empty-mandatory.md"
-    p.write_text(content)
-    return str(p)
+def test_valid_table(tmp_path):
+    assert validate_questionnaire(str(write_questionnaire(tmp_path, VALID_TABLE)))["status"] == "success"
 
-@pytest.fixture
-def invalid_numbering_path(tmp_path):
-    content = """
-| # | Theme | Question | Observed Variable |
-|---|-------|----------|-------------------|
-| 1 | Warm Up | Please introduce yourself | Name |
-| 2 | Warm Up | Please introduce yourself | Age |
-"""
-    p = tmp_path / "invalid-numbering.md"
-    p.write_text(content)
-    return str(p)
 
-@pytest.fixture
-def invalid_start_number_path(tmp_path):
-    content = """
-| # | Theme | Question | Observed Variable |
-|---|-------|----------|-------------------|
-| 2 | Warm Up | Please introduce yourself | Name |
-"""
-    p = tmp_path / "invalid-start.md"
-    p.write_text(content)
-    return str(p)
+@pytest.mark.parametrize(
+    ("body", "error_code"),
+    [
+        ("", "NO_TABLE_FOUND"),
+        (VALID_TABLE.replace("# Questionnaire", "# Notes", 1), "INVALID_DOCUMENT"),
+        (VALID_TABLE.replace("| # | Theme | Question | Observed Variable |", "| # | Theme | Question |", 1), "INVALID_SEPARATOR"),
+        (VALID_TABLE.replace("Observed Variable", "Variable", 1), "INVALID_HEADERS"),
+        (VALID_TABLE + "Extra explanation", "INVALID_DOCUMENT"),
+        (VALID_TABLE + "| # | Theme | Question | Observed Variable |\n|---|---|---|---|\n| 3 | X | Y | Z |", "DUPLICATE_TABLE"),
+        (VALID_TABLE.replace("Ease of use", "Use<br>learnability", 1), "INVALID_CELL_CONTENT"),
+        (VALID_TABLE.replace("| 2 | Product | Bạn thấy ứng dụng thế nào? | Ease of use |", "| 3 | Product | Bạn thấy ứng dụng thế nào? | Ease of use |", 1), "INVALID_NUMBERING"),
+        (VALID_TABLE.replace("| 1 | Warm Up | Please introduce yourself | Age |", "| 2 | Warm Up | Please introduce yourself | Age |", 1), "INVALID_NUMBERING"),
+        (VALID_TABLE.replace("| 1 | Warm Up | Please introduce yourself | Name |", "| 1 | Warm Up |  | Name |", 1), "EMPTY_QUESTION"),
+        (VALID_TABLE.replace("| 1 | Warm Up | Please introduce yourself | Name |", "| 1 | Warm Up | Please introduce yourself |  |", 1), "EMPTY_VARIABLE"),
+        (VALID_TABLE.replace("| 1 | Warm Up | Please introduce yourself | Name |", "| 1 | Warm Up | Please introduce yourself | Name | Extra |", 1), "MALFORMED_ROW"),
+    ],
+)
+def test_rejects_invalid_documents(tmp_path, body, error_code):
+    result = validate_questionnaire(str(write_questionnaire(tmp_path, body)))
+    assert result["status"] == "error"
+    assert result["error_code"] == error_code
 
-@pytest.fixture
-def skipped_number_path(tmp_path):
-    content = """
-| # | Theme | Question | Observed Variable |
-|---|-------|----------|-------------------|
-| 1 | Warm Up | Please introduce yourself | Name |
-| 3 | Warm Up | How was your day today | Journey |
-"""
-    p = tmp_path / "skipped-number.md"
-    p.write_text(content)
-    return str(p)
-
-@pytest.fixture
-def malformed_row_path(tmp_path):
-    content = """
-| # | Theme | Question | Observed Variable |
-|---|-------|----------|-------------------|
-| 1 | Warm Up | Please introduce yourself | Name | Extra |
-"""
-    p = tmp_path / "malformed-row.md"
-    p.write_text(content)
-    return str(p)
-
-def test_valid_table(valid_table_path):
-    result = validate_questionnaire(valid_table_path)
-    assert result["status"] == "success"
 
 def test_missing_file():
-    result = validate_questionnaire("does-not-exist.md")
-    assert result["status"] == "error"
-    assert result["error_code"] == "FILE_NOT_FOUND"
+    assert validate_questionnaire("does-not-exist.md")["error_code"] == "FILE_NOT_FOUND"
 
-def test_missing_columns(missing_columns_path):
-    result = validate_questionnaire(missing_columns_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "INVALID_COLUMNS"
 
-def test_empty_mandatory(empty_mandatory_path):
-    result = validate_questionnaire(empty_mandatory_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "EMPTY_QUESTION"
+def test_escaped_pipe_is_preserved(tmp_path):
+    path = write_questionnaire(
+        tmp_path,
+        VALID_TABLE.replace("Ease of use", "Useful \\| easy to learn", 1),
+    )
+    headers, rows = parse_markdown_table(str(path))
+    assert headers == ["#", "Theme", "Question", "Observed Variable"]
+    assert rows[-1][-1] == "Useful | easy to learn"
+    assert validate_questionnaire(str(path))["status"] == "success"
 
-def test_invalid_numbering(invalid_numbering_path):
-    result = validate_questionnaire(invalid_numbering_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "INVALID_NUMBERING"
-    assert "same question but number changed" in result["message"]
 
-def test_invalid_start_number(invalid_start_number_path):
-    result = validate_questionnaire(invalid_start_number_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "INVALID_NUMBERING"
-    assert "must start with # 1" in result["message"]
-
-def test_skipped_number(skipped_number_path):
-    result = validate_questionnaire(skipped_number_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "INVALID_NUMBERING"
-    assert "expected # 2" in result["message"]
-
-def test_malformed_row(malformed_row_path):
-    result = validate_questionnaire(malformed_row_path)
-    assert result["status"] == "error"
-    assert result["error_code"] == "MALFORMED_ROW"
+def test_cli_exit_codes(tmp_path):
+    valid_path = write_questionnaire(tmp_path, VALID_TABLE)
+    invalid_path = write_questionnaire(tmp_path, "# Questionnaire", "invalid.md")
+    valid_result = subprocess.run([sys.executable, str(SCRIPT_PATH), str(valid_path)], capture_output=True, text=True, check=False)
+    invalid_result = subprocess.run([sys.executable, str(SCRIPT_PATH), str(invalid_path)], capture_output=True, text=True, check=False)
+    assert valid_result.returncode == 0
+    assert '"status": "success"' in valid_result.stdout
+    assert invalid_result.returncode == 1
+    assert '"error_code": "NO_TABLE_FOUND"' in invalid_result.stdout
