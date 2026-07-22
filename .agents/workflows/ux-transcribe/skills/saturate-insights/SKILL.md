@@ -171,9 +171,29 @@ sequenceDiagram
 
 ### 🎯 Output Quality & Accuracy
 - [x] Sanitize interviewee aliases to remove pipe `|` characters before generating Markdown tables in saturate_insights.py.
+- [ ] **Output Completeness:** Extend `validate_schema` to require non-empty unique interviewee names, non-empty `master_insights`, unique IDs, a non-empty `theme` and `insight`, and an exact participant-key set for every master insight.
+- [ ] **Format Compliance:** Escape every interviewee header with `_escape_pipe` before building the saturation table and add regression tests for aliases containing pipes and line breaks.
+- [ ] **Content Accuracy:** Reject missing themes, verify each non-absent quote against its assigned mapped transcript before consolidation, and plot participants in the declared `interviewees` order without sorting by new-insight count.
+- [ ] **Human Approval Rate:** Generate a quote-grounding review manifest with source file, interviewee, quote match result, and unresolved items, and require all checks to pass before publishing `insights.md`.
+
+### ⚡ Execution Efficiency
+- [ ] **Execution Time:** Process extraction jobs in deterministic batches of at most four subagents, record per-file completion, and resume only failed jobs before consolidation.
+- [ ] **Token Usage:** Normalize compact insight records, consolidate them in bounded batches, and perform one final merge over batch summaries.
+
+### 🔗 Workflow Fit
+- [ ] **I/O Contract Adherence:** Align this skill and `ORCHESTRATOR.md` on one contract: individual mapped transcripts feed built-in subagents, `temp_insights.json` is an internal handoff, and `saturate_insights.py` is a deterministic renderer with no SDK.
+- [ ] **Skip-Logic Compatibility:** Add a saturation manifest containing source transcript hashes, schema version, generated files, and completion status; skip only when it matches the complete current source set.
+- [ ] **Pipeline Passthrough Rate:** Define extraction timeout, invalid subagent output, partial extraction, and consolidation failure codes, with matching orchestrator halt or resume behavior.
+- [ ] **Idempotency:** Use a run manifest to identify owned outputs, atomically replace the full output set, prune stale owned reports, and preserve or reproducibly regenerate the validated JSON handoff for safe reruns.
 
 ### 🛡️ Reliability & Error Handling
 - [x] In `saturate_insights.py`, conditionally add `chart_path` to `output_files` only if `MATPLOTLIB_AVAILABLE` is true.
+- [ ] **Error Rate:** Validate every nested object, string, list, ID, and quote before access; convert all schema failures to `SCHEMA_VALIDATION_ERROR`; add a final structured top-level exception guard.
+- [ ] **Error Recoverability:** Render all artifacts into a workspace-local staging directory, validate the complete set, atomically promote it, and clean staging data in a `finally` block.
+- [ ] **Retry Success Rate:** Add per-interviewee timeouts and bounded exponential-backoff retries for transient subagent failures, persist successful extraction results, and return a partial status after exhaustion.
+- [ ] **Known Bug Recurrence:** Add regression tests for every edge case identified in this audit and link each implemented fix to its `Known Bugs & Resolutions` entry.
 
 ### 💰 Cost & Scalability
 - [x] Remove stale tests in `test_saturate_insights.py` that reference removed functions (`parse_mapped_transcript`, etc.) to fix test suite execution.
+- [ ] **Scaling Behavior:** Cap extraction concurrency at four, use resumable hierarchical consolidation, and define readable large-cohort chart behavior while preserving interview order.
+- [ ] **Unit Test Coverage & Pass Rate:** Cover malformed nested schemas, exact participant mappings, missing themes, special aliases, chart order, Matplotlib absence, failure rollback, stale-output pruning, and repeat runs in unit and end-to-end tests.
