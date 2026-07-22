@@ -30,7 +30,6 @@ def test_e2e_pipeline_starts_from_source_transcripts(tmp_path):
         "full-questionnaire.md",
         "transcript_user1.md",
         "transcript_user2.md",
-        "temp_insights.json",
     ):
         shutil.copy(mock_dir / filename, interview_dir / filename)
 
@@ -46,7 +45,7 @@ def test_e2e_pipeline_starts_from_source_transcripts(tmp_path):
         base_dir / "skills" / "map-transcript" / "scripts" / "mapping_pipeline.py"
     )
     saturation_script = (
-        base_dir / "skills" / "saturate-insights" / "scripts" / "saturate_insights.py"
+        base_dir / "skills" / "saturate-insights" / "scripts" / "insights_pipeline.py"
     )
 
     questionnaire_check = subprocess.run(
@@ -83,13 +82,95 @@ def test_e2e_pipeline_starts_from_source_transcripts(tmp_path):
     assert (interview_dir / "mapped-transcript-review-01.md").exists()
     assert (interview_dir / "mapping-review-manifest.md").exists()
 
-    saturation = subprocess.run(
-        [sys.executable, str(saturation_script), str(workspace), "--generate-only"],
-        capture_output=True,
-        text=True,
-        check=False,
+    mapped_file = interview_dir / "mapped-transcript.md"
+    prepared_insights = _run(saturation_script, "prepare", mapped_file)
+    assert prepared_insights["input_file"] == str(mapped_file)
+    extraction_batch = _run(saturation_script, "next-batch", mapped_file)
+    assert len(extraction_batch["tasks"]) == 2
+    extraction_definitions = {
+        "User 1": {
+            "timestamp": "00:30",
+            "quote": "Khá tốt",
+            "insight": "Hài lòng với ứng dụng, do trải nghiệm khá tốt",
+        },
+        "user2": {
+            "timestamp": "00:20",
+            "quote": "Nút bấm hơi khó nhìn",
+            "insight": "Khó quan sát nút bấm, do nút bấm hơi khó nhìn",
+        },
+    }
+    for task in extraction_batch["tasks"]:
+        definition = extraction_definitions[task["participant"]]
+        candidate = {
+            "participant": task["participant"],
+            "insights": [
+                {
+                    "local_id": f"{task['participant']}-001",
+                    "theme": "Trải nghiệm",
+                    "insight": definition["insight"],
+                    "evidence": [
+                        {
+                            "question_number": "2",
+                            "theme": "Trải nghiệm",
+                            "question": "Bạn nghĩ sao về ứng dụng",
+                            "observed_variable": "Tính năng dễ dùng",
+                            "timestamp": definition["timestamp"],
+                            "quote": definition["quote"],
+                        }
+                    ],
+                }
+            ],
+        }
+        Path(task["candidate_file"]).write_text(
+            json.dumps(candidate, ensure_ascii=False), encoding="utf-8"
+        )
+        recorded = _run(
+            saturation_script,
+            "record-success",
+            mapped_file,
+            task["participant"],
+        )
+        assert recorded["status"] == "validated"
+
+    prepared_consolidation = _run(
+        saturation_script, "prepare-consolidation", mapped_file
     )
-    assert saturation.returncode == 0, saturation.stdout + saturation.stderr
+    assert prepared_consolidation["batch_count"] == 1
+    consolidation_batch = _run(
+        saturation_script, "next-consolidation-batch", mapped_file
+    )
+    task = consolidation_batch["tasks"][0]
+    consolidation_input = json.loads(
+        Path(task["input_file"]).read_text(encoding="utf-8")
+    )
+    master_candidate = {
+        "master_insights": [
+            {
+                "theme": insight["theme"],
+                "insight": insight["insight"],
+                "evidence_ids": insight["evidence_ids"],
+            }
+            for insight in consolidation_input["local_insights"]
+        ]
+    }
+    Path(task["candidate_file"]).write_text(
+        json.dumps(master_candidate, ensure_ascii=False), encoding="utf-8"
+    )
+    assert _run(
+        saturation_script,
+        "record-consolidation-success",
+        mapped_file,
+        task["batch_id"],
+    )["status"] == "validated"
+    assert _run(
+        saturation_script, "prepare-final-consolidation", mapped_file
+    )["status"] == "validated"
+    saturation = _run(saturation_script, "finalize", mapped_file)
+    assert saturation["status"] == "success"
     assert (interview_dir / "insights.md").exists()
-    assert (interview_dir / "all-insights-user1.md").exists()
+    assert (interview_dir / "all-insights-User_1.md").exists()
     assert (interview_dir / "all-insights-user2.md").exists()
+    assert (interview_dir / "insights-data.json").exists()
+    assert (interview_dir / "insights-review-manifest.md").exists()
+    assert (interview_dir / "saturation-chart.png").exists()
+    assert not (interview_dir / "temp_insights.json").exists()

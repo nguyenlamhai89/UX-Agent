@@ -28,7 +28,7 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
-9. **Insights Saturation** (`saturate-insights`): Runs `saturate_insights.py` which uses the Antigravity SDK to extract insights per-interviewee via Built-in AI, consolidates them, and deterministically generates `all-insights-*.md` and `insights.md`.
+9. **Insights Saturation** (`saturate-insights`): Run only after `map-transcript` finalization returns `status: success`; the adjacent mapping manifest must also record `canonical_current: true`. Pass exactly `{"mapped_transcript_file": "<folder_path>/Interview/mapped-transcript.md"}`; do not pass the folder, per-interviewee mappings, partial/review files, or `temp_insights.json`. The skill verifies the adjacent mapping manifest, extracts participants in controller-bounded batches of at most 4, grounds every quote against the canonical combined table, consolidates evidence in bounded batches, and atomically publishes auditable insight outputs.
 10. **Approval**: **[CRITICAL] STOP** and wait for user approval. Workflow complete.
 
 
@@ -38,7 +38,7 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 | Audio Transcription | "transcribe", "audio", "interview transcript" | `elevenlabs-transcribe` |
 | Questionnaire Extraction | "questionnaire", "extract table" | `create-questionnaire-table` |
 | Transcript Mapping | "map transcript", "mapped transcript" | `map-transcript` |
-| Insights Saturation | "saturation", "saturate insights" | `saturate-insights` |
+| Insights Saturation | "saturation", "saturate insights" | `saturate-insights` with an absolute canonical `mapped-transcript.md` path |
 
 ## Available Skills
 - **[ElevenLabs Transcribe](./skills/elevenlabs-transcribe/SKILL.md)**
@@ -47,7 +47,7 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 - **[Saturate Insights](./skills/saturate-insights/SKILL.md)**
 
 ## Input & Output
-**Input**: Natural language request + folder path.
+**Input**: Natural language request plus a folder path for the full workflow; isolated `saturate-insights` requests require the absolute canonical `Interview/mapped-transcript.md` path.
 **Output**: Skill execution result (e.g., status, generated file paths).
 
 ## Environment Access (.env)
@@ -101,8 +101,9 @@ sequenceDiagram
             UXS-->>User: 8. Ask for approval
             User->>UXS: Approve
 
-            UXS->>SA: 9. Insights Saturation
-            SA-->>UXS: Return insights.md & saturation matrix
+            UXS->>SA: 9. Pass canonical mapped-transcript.md only
+            Note over SA: Verify mapping manifest,<br/>extract ≤4 at a time,<br/>ground and consolidate evidence
+            SA-->>UXS: Return atomic insights set + review manifest
             UXS-->>User: 10. Ask for approval
             User->>UXS: Approve
         end
@@ -121,3 +122,8 @@ sequenceDiagram
 | `MISSING_API_KEY` | Ask user to configure `.env`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
+| `UPSTREAM_MAPPING_NOT_SUCCESS` | Halt insights; only a complete current canonical mapping may continue. |
+| `UPSTREAM_SIGNATURE_MISMATCH` | Rerun map-transcript preflight; do not consume a modified or stale canonical file. |
+| `PARTIAL_EXTRACTION` / `PARTIAL_CONSOLIDATION` | Halt insights publication, preserve the last-known-good outputs, and show per-task diagnostics. |
+| `EXTRACTION_VALIDATION_FAILED` / `CONSOLIDATION_VALIDATION_FAILED` | Retry with controller diagnostics up to the configured maximum; never publish ungrounded evidence. |
+| `MISSING_DEPENDENCY` / `ATOMIC_PROMOTION_ERROR` | Preserve existing insight outputs and return the structured renderer or publication failure. |
