@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import time
 import tracemalloc
@@ -51,13 +52,20 @@ def _transcript(alias):
 """
 
 
-def _mapped(alias):
+def _mapped(alias_or_task):
+    alias = alias_or_task["audio_name"] if isinstance(alias_or_task, dict) else alias_or_task
+    r1 = f'[00:05] **<mark style="background-color: yellow;">I am {alias}.</mark>**'
+    tail = ""
+    if alias == "user20":
+        tail = "<br><br>" + ("Additional long-form context without a new timestamp. " * 80).strip()
+    r2 = f'[00:15] **<mark style="background-color: yellow;">The workflow works.{tail}</mark>**'
+
     return f"""# Mapped Transcript
 
 | # | Theme | Question | Observed Variable | {alias} |
 |---|---|---|---|---|
-| 1 | Intro | Who are you? | Identity | [00:05] **<mark style="background-color: yellow;">I am {alias}</mark>** |
-| 2 | Product | What works? | Value | [00:15] **<mark style="background-color: yellow;">The workflow works</mark>** |
+| 1 | Intro | Who are you? | Identity | {r1} |
+| 2 | Product | What works? | Value | {r2} |
 
 > **Mapping Summary**: Total rows: 2 | Answered: 2 | N/A: 0 | Transcript coverage: [00:00] to [00:15]
 """
@@ -73,7 +81,7 @@ def test_capacity_twenty_users_with_bounded_batches(tmp_path):
         if index == 20:
             content += "\n" + (
                 "Additional long-form context without a new timestamp. " * 80
-            )
+            ).strip()
         (interview / f"transcript_{alias}.md").write_text(
             content,
             encoding="utf-8",
@@ -100,13 +108,11 @@ def test_capacity_twenty_users_with_bounded_batches(tmp_path):
         )
         for task in batch["tasks"]:
             Path(task["candidate_file"]).write_text(
-                _mapped(task["audio_name"]),
+                _mapped(task),
                 encoding="utf-8",
             )
-            assert (
-                record_mapping_success(str(tmp_path), task["audio_name"])["status"]
-                == "validated"
-            )
+            res = record_mapping_success(str(tmp_path), task["audio_name"])
+            assert res["status"] == "validated", f"Failed: {res}"
 
     assert batch_sizes == [4, 4, 4, 4, 4]
     result = finalize_mapping(str(tmp_path))
