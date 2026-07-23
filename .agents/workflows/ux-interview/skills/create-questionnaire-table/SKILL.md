@@ -174,6 +174,7 @@ sequenceDiagram
 | Error Code | Message | Fallback Behavior |
 | --- | --- | --- |
 | `INVALID_INPUT` | The input folder path is missing or does not exist. | Return a clear validation error to the user. |
+| `MISSING_QUESTIONNAIRE_SOURCE` | Neither `.xlsx` file, Google Sheet URL, nor question table images were found. | Halt processing and explicitly ask the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL. |
 | `NO_IMAGE_FILES` | No `.png` or `.jpg` files found in the specified folder. | Return an informative message listing supported formats. |
 | `UNREADABLE_IMAGE` | The image could not be interpreted, does not contain a recognizable table, or failed validation after 3 attempts. | Return a friendly error asking the user to provide a clearer image. |
 | `STRUCTURE_MISMATCH` | The image does not contain recognizable columns for Question and Observed Variable. | Remind the user to check the image structure and upload it again. |

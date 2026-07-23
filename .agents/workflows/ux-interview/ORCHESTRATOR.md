@@ -24,7 +24,7 @@ never reads `.env` directly.
 **Sequential Pipeline**:
 0. **Dependency Verification**: Run the package validation script `.agents/scripts/check_libraries.py` to ensure all external dependencies (`elevenlabs`, `matplotlib`, `pytest`) are installed and up to date. Show warning/suggestions if needed.
 1. **Folder Creation & Data Preparation**: Create a folder named `Interview` inside the provided `folder_path`. Move all input files (e.g., images and audio files) from `folder_path` into this `Interview` folder. All subsequent skills MUST read their inputs from and place their outputs inside this `Interview` folder.
-2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`.
+2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`. If no Excel questionnaire file (`.xlsx`), Google Sheet URL, or question table image is found, halt and prompt the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
 5. **Audio Transcription** (`elevenlabs-transcribe`): Require the

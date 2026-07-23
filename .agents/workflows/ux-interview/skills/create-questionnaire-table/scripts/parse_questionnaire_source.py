@@ -217,10 +217,29 @@ def generate_markdown(rows: list[dict[str, str]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def find_excel_file_in_folder(folder_path: str) -> str | None:
+    """Scan folder_path and folder_path/Interview for any .xlsx or .xls file."""
+    search_dirs = [os.path.join(folder_path, "Interview"), folder_path]
+    for d in search_dirs:
+        if os.path.isdir(d):
+            for f in os.listdir(d):
+                if f.endswith(".xlsx") or f.endswith(".xls"):
+                    if not f.startswith("~$"):
+                        return os.path.join(d, f)
+    return None
+
+
 def parse_and_save(google_sheet_url: str = None, excel_file: str = None, folder_path: str = ".") -> str:
     """Parse questionnaire data and write full-questionnaire.md."""
     if not google_sheet_url and not excel_file:
-        raise ValueError("Either google_sheet_url or excel_file must be provided.")
+        excel_file = find_excel_file_in_folder(folder_path)
+
+    if not google_sheet_url and not excel_file:
+        raise ValueError(
+            "MISSING_QUESTIONNAIRE_SOURCE: No questionnaire source file (.xlsx) or Google Sheet URL provided. "
+            "Please upload an Excel questionnaire file (.xlsx) downloaded from the template into your project folder, "
+            "or provide a public Google Sheet URL."
+        )
 
     if google_sheet_url:
         csv_text = fetch_google_sheet_csv(google_sheet_url, "2. Questionnaire")
