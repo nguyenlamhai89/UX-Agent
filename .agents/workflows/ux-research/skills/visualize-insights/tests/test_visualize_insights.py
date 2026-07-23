@@ -469,7 +469,7 @@ class TestReportGeneration:
         manifest = json.loads(open(manifest_file, encoding="utf-8").read())
         assert "{{" not in html_content
         assert "Soon" not in html_content
-        assert html_content.index("Insights") < html_content.index("Persona") < html_content.index("Journey Map")
+        assert html_content.index("Insights") < html_content.index("Journey Map")
         assert 'role="tablist"' in html_content
         assert "function hydrateFullTranscript(panel)" in html_content
         assert "data-full-transcript-payload" in html_content

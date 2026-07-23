@@ -73,7 +73,7 @@ You MUST use the `read_url_content` tool to read the contents of the following o
 Whenever the user requests to visualize HTML, all future templates must strictly follow the Ant Design system and the structure defined in `.agents/workflows/ux-research/skills/visualize-insights/template/insights-template.html`. When this template is changed, ensure that the files generating it or following it are also updated accordingly.
 - Keep exactly the Overview, Insights, and Journey Map templates (defined in `overview.html`, `insights-saturation.html` / `saturation.html`, and `journey-map.html`) and their sections in the future when compiling the final HTML file.
 Additionally, for the Customer Journey Map visualization:
-- The Persona navigation tab MUST always be placed right under the Insights tab, and the Journey Map navigation tab right under the Persona tab in the sidebar navigation (without any "Coming soon" section).
+- The Journey Map navigation tab MUST always be placed right under the Insights tab in the sidebar navigation (without any "Coming soon" section).
 - The Stage Emotion (1-5) dimension cells MUST always be rendered as a custom visual component featuring 5 horizontal parallel lines representing ratings from 1 (bottom) to 5 (top) with matching scale label indicators (`1`, `3`, `5`) on both the left and right sides. The corresponding emotion description badge (e.g. `Neutral 😐`, `Positive 🙂`, `Slightly Negative 🙁`) must be centered horizontally on the corresponding line (e.g., at `top: 50%` for a rating of 3), styled with emotion-specific premium borders and background color highlights (without overriding `bg-white`).
 
 

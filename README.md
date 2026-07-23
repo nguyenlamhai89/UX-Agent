@@ -154,7 +154,7 @@ sequenceDiagram
 | 5 | 🗺️ **extract-phases** | Trích xuất dữ liệu theo 5 giai đoạn hành trình: *Awareness, Consideration, Decision Making, Usage, Advocacy*. |
 | 6 | 🗺️ **interpret-phases** | Diễn giải từng giai đoạn thành bảng chi tiết: mục tiêu, touchpoint, hành động, pain point, cảm xúc, cơ hội. |
 | 7 | 🗺️ **extract-map** | Ghép các giai đoạn thành `journey-map.md` hoàn chỉnh bằng script Python (không dùng AI, đảm bảo 100% chính xác). |
-| 8 | 📊 **visualize-insights** | Tạo báo cáo HTML tương tác, hiện đại với Overview, Insights, Persona, và Customer Journey Map. |
+| 8 | 📊 **visualize-insights** | Tạo báo cáo HTML tương tác, hiện đại với Overview, Insights, và Customer Journey Map. |
 | 9 | ✉️ **send-email** | Gửi báo cáo HTML đính kèm qua Gmail SMTP sau khi người dùng phê duyệt bằng token bảo mật. |
 
 ### Công cụ hỗ trợ

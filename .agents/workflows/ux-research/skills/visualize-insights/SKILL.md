@@ -103,7 +103,7 @@ invoked independently without a journey map.
 - Write HTML and manifest files with sibling temporary files and atomic replacement so the last-known-good report is never partially overwritten.
 - Skip generation only when the manifest input signature and recorded output hash both match. File existence alone is not a valid skip signal.
 - Ensure that the final HTML strictly adheres to the provided Tailwind CSS styling and interactive layout.
-- Keep Overview, Insights, Persona navigation, and Journey Map in the required order with no `Soon` or `Coming soon` UI. Persona is a non-interactive navigation label until a persona artifact is defined.
+- Keep Overview, Insights, and Journey Map navigation in the required order with no `Soon` or `Coming soon` UI.
 - Open the report only when `open_browser` is explicitly `true`; browser failure is returned as a non-fatal structured warning.
 
 ## Sequence Diagram
@@ -216,7 +216,7 @@ sequenceDiagram
 
 #### Output Quality & Accuracy
 - [x] **Output Completeness (7/10)**: Require `project_name`, reject empty interviewee, saturation, and transcript parse results, and fail when required template placeholders remain unresolved before writing output.
-- [x] **Format Compliance (6/10)**: Update the base template and loader to use the canonical module filenames, keep Persona directly below Insights and Journey Map directly below Persona, and remove all `Coming soon` or `Soon` UI.
+- [x] **Format Compliance (6/10)**: Update the base template and loader to use the canonical module filenames, keep Journey Map directly below Insights, and remove all `Coming soon` or `Soon` UI.
 - [x] **Content Accuracy (5/10)**: Convert new-insight counts into a cumulative chart series and use its final value as total insights; escape all Markdown-derived table, quote, heading, and project fields before controlled inline formatting.
 - [x] **Human Approval Rate (7/10)**: Add a representative end-to-end HTML fixture plus browser-based visual and accessibility checks for navigation order, drawers, searches, empty states, and wide tables.
 
