@@ -13,11 +13,11 @@ Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên c�
 - Dán vào khung chat của AI IDE (ví dụ: Google Antigravity, Claude Code, Cursor, Codex,...) và nhờ AI tự động cài đặt.
 - Tạo file `.env` tại thư mục gốc với các API key:
   ```env
-  # Ít nhất 1 trong 2 key chuyển âm là BẮT BUỘC
+  # Bắt buộc có 1 trong 2 key để sử dụng transcribe-audios
   ELEVENLABS_API_KEY=your_key_here
   GEMINI_API_KEY=your_key_here
 
-  # Thông tin Gmail (bắt buộc để gửi email)
+  # Bắt buộc có cả 2 để sử dụng send-email
   GMAIL_APP_USERNAME=your_gmail@gmail.com
   GMAIL_APP_PASSWORD=your_gmail_app_password
   ```
