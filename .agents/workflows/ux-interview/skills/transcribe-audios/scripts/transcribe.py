@@ -24,7 +24,7 @@ SUPPORTED_PATTERNS = ("*.mp3", "*.m4a", "*.qta")
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_MAX_FILE_SIZE_MB = 200
 DEFAULT_MAX_RETRIES = 3
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TRANSCRIPT_PROMPT = """Transcribe this audio file completely and accurately.
 
 Rules:
