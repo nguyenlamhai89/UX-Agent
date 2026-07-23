@@ -1,6 +1,6 @@
 ---
 name: UX Research Report
-description: Coordinates the complete UX research pipeline from transcription through customer journey mapping and visualization, then prepares and sends the approved HTML report through Apple Mail.
+description: Coordinates the complete UX research pipeline from transcription through customer journey mapping and visualization, then prepares and sends the approved HTML report via Gmail SMTP.
 ---
 
 # UX Research Report
@@ -11,13 +11,13 @@ This parent workflow coordinates the complete research sequence:
 `ux-interview` → `ux-map-journey` → `visualize-insights` → `send-email`. It
 preserves each child workflow's approval gates, passes only canonical successful
 outputs to the next stage, produces an atomic freshness-aware HTML report, and
-offers BCC-only Apple Mail delivery after a separate final-draft approval.
+offers BCC-only Gmail SMTP delivery after a separate final-draft approval.
 
 The parent orchestrator owns coordination, environment access, and its final
 delivery stages. It reads the workspace-root `.env` once, passes only the API
-keys required by each child orchestrator, invokes its workflow-owned
-`visualize-insights` skill, and finishes with its workflow-owned `send-email`
-skill. Child orchestrators and skills never read `.env` directly.
+keys and credentials required by each child orchestrator or skill, invokes its
+workflow-owned `visualize-insights` skill, and finishes with its workflow-owned
+`send-email` skill. Child orchestrators and skills never read `.env` directly.
 
 ## Routing Logic & Execution Flow
 
@@ -29,7 +29,8 @@ workflow-owned skill.
 0. **Dependency verification and environment loading** — Run
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
    packages, but halt only when the dependency required by the next step is
-   unavailable. Read the workspace-root `.env` once and resolve the API keys
+   unavailable. Read the workspace-root `.env` once and resolve the API keys and
+   credentials (`ELEVENLABS_API_KEY`, `GMAIL_APP_USERNAME`, `GMAIL_APP_PASSWORD`)
    required by this run. Never log, persist in artifacts, or expose key values.
 1. **Run `ux-interview`** — Pass the absolute `folder_path`, required keyterms,
    and only the `ELEVENLABS_API_KEY` loaded by the parent. The child orchestrator
@@ -71,17 +72,17 @@ workflow-owned skill.
    the current HTML file. File existence alone is never a valid skip signal.
 8. **Ask for recipients and draft the email** — Always ask who should receive
    the report. Place every recipient in BCC and keep To and CC empty. Pass the
-   exact visualization `output_file` unchanged to `send-email`. The skill sends
-   from `nguyenlamhai89@gmail.com` and deterministically generates a formal
-   Vietnamese email with instructions for opening the attached HTML report.
+   exact visualization `output_file` unchanged and `sender_email` (`GMAIL_APP_USERNAME`)
+   to `send-email`. The skill deterministically generates a formal Vietnamese email
+   with instructions for opening the attached HTML report.
 9. **Show the final draft and pause** — Call `prepare_email_draft()`, then show
-   the complete draft: fixed From address, empty To and CC, all BCC recipients,
+   the complete draft: configured From address, empty To and CC, all BCC recipients,
    subject, body, attachment path, and content-bound approval token. Stop with
    `awaiting_approval` until the user repeats that exact token. Any edit requires
    a newly prepared draft and token; `yes` or `approved` alone is insufficient.
-10. **Send once through Apple Mail** — Call `send_approved_email()` only after
-    the exact current token is supplied. Never retry a timeout or uncertain
-    result because Apple Mail may already have accepted the message.
+10. **Send once through Gmail SMTP** — Call `send_approved_email()` with `gmail_app_username`
+    and `gmail_app_password` read by parent only after the exact current token is supplied.
+    Never retry a timeout or uncertain result because Gmail SMTP may already have accepted the message.
 11. **Return the final result** — Return the absolute HTML and manifest paths,
     child workflow artifacts, input signature, structured warnings, and nested
     `email` result. Email cancellation or failure does not invalidate the
@@ -100,8 +101,8 @@ next stage. A partial or stale child result halts the pipeline.
 - **[visualize-insights](./skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
 - **[send-email](./skills/send-email/SKILL.md)** — Prepares a formal BCC-only
-  draft from `nguyenlamhai89@gmail.com` and sends the exact HTML report through
-  Apple Mail after exact-token approval.
+  draft from the configured Gmail sender and sends the exact HTML report through
+  Gmail SMTP after exact-token approval.
 
 The local `skills/` directory contains skills owned directly by this parent
 workflow. Shared cross-workflow skills remain under `.agents/skills/`.
@@ -142,13 +143,14 @@ workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 - **Allowed to access the workspace-root `.env`**: `true`
 - **Environment owner**: `ux-research` is the only workflow in the complete
   pipeline allowed to read `.env`.
-- **Delegation rule**: Pass only the specific key required by a child
-  orchestrator. Child orchestrators may inject a received key into a skill that
-  requires it, but neither child orchestrators nor skills may read `.env`.
+- **Delegation rule**: Pass only the specific keys required by a child
+  orchestrator or skill. Neither child orchestrators nor skills may read `.env` directly.
 
 | Key Name | Purpose | Delegation path |
 | --- | --- | --- |
 | `ELEVENLABS_API_KEY` | Interview audio transcription | `.env` → `ux-research` → `ux-interview` → `elevenlabs-transcribe` process environment |
+| `GMAIL_APP_USERNAME` | Gmail sender address / account username | `.env` → `ux-research` → `send-email` parameter |
+| `GMAIL_APP_PASSWORD` | Gmail App Password for SMTP authentication | `.env` → `ux-research` → `send-email` parameter |
 
 ## Sequence Diagram
 
@@ -162,11 +164,11 @@ sequenceDiagram
     participant UXM as UX Map Journey
     participant VIS as visualize-insights
     participant EMAIL as send-email
-    participant Mail as Apple Mail
+    participant SMTP as Gmail SMTP Server
 
     User->>Parent: folder_path and project_name
-    Parent->>Env: Read required API keys once
-    Env-->>Parent: ELEVENLABS_API_KEY
+    Parent->>Env: Read required API keys & credentials once
+    Env-->>Parent: ELEVENLABS_API_KEY, GMAIL_APP_USERNAME, GMAIL_APP_PASSWORD
     Parent->>UXI: Run with folder_path and required API key
     UXI-->>Parent: Canonical transcripts, mapping, and insights
     Parent-->>User: Approve journey mapping
@@ -183,14 +185,14 @@ sequenceDiagram
     end
     Parent->>User: Ask for BCC recipients
     User-->>Parent: Recipient addresses
-    Parent->>EMAIL: Prepare exact report draft
+    Parent->>EMAIL: Prepare exact report draft with GMAIL_APP_USERNAME
     EMAIL-->>Parent: Complete draft and approval token
     Parent-->>User: Review full draft and exact token
     alt Exact current token supplied
         User-->>Parent: APPROVE-SEND-EMAIL:<sha256>
-        Parent->>EMAIL: Send approved draft
-        EMAIL->>Mail: BCC-only message and HTML attachment
-        Mail-->>EMAIL: SENT
+        Parent->>EMAIL: Send approved draft with GMAIL_APP_USERNAME & GMAIL_APP_PASSWORD
+        EMAIL->>SMTP: Connect TLS smtp.gmail.com:587, auth, sendmail
+        SMTP-->>EMAIL: OK
         EMAIL-->>Parent: success
     else Cancelled, edited, or ambiguous
         User-->>Parent: No exact token
@@ -213,12 +215,11 @@ sequenceDiagram
 | `BROWSER_OPEN_ERROR` | Return success with a structured warning because the report itself remains valid. |
 | `INVALID_VISUALIZATION_HANDOFF`, `INVALID_ATTACHMENT`, `ATTACHMENT_OUTSIDE_REPORT_DIR` from `send-email` | Halt email drafting, preserve the successful report, and identify the handoff to repair. |
 | `INVALID_RECIPIENTS` | Ask for corrected BCC recipients and prepare a new content-bound token. |
-| `SENDER_ACCOUNT_NOT_CONFIGURED` | Add or enable `nguyenlamhai89@gmail.com` in Apple Mail, then prepare a fresh draft. |
-| `NOT_APPROVED` | Return email status `cancelled`; never invoke Apple Mail and preserve the report. |
-| `OSASCRIPT_NOT_FOUND` | Preserve the report and explain that Apple Mail sending requires macOS. |
-| `SEND_TIMEOUT`, `UNEXPECTED_OSASCRIPT_OUTPUT` | Do not retry; preserve the report and ask the user to check Apple Mail Sent and Drafts. |
-| `MAIL_AUTOMATION_DENIED` | Preserve the report and ask the user to grant macOS automation permission before preparing a fresh approval. |
-| `MAIL_SEND_FAILED` | Preserve the report and return the safe nested email error. |
+| `GMAIL_CONFIG_MISSING` | Prompt user to provide `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` in root `.env`. |
+| `NOT_APPROVED` | Return email status `cancelled`; never invoke Gmail SMTP and preserve the report. |
+| `SMTP_AUTH_FAILED` | Ask user to verify `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` in `.env`. |
+| `SEND_TIMEOUT` | Do not retry; preserve the report and ask the user to check Sent folder. |
+| `SMTP_SEND_FAILED` | Preserve the report and return the safe nested email error. |
 | `INTERNAL_ERROR` | Halt and return the stable code without exposing a stack trace. |
 
 ## Known Bugs & Resolutions

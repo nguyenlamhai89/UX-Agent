@@ -1,8 +1,12 @@
-"""Prepare and send approved BCC-only Apple Mail messages from a fixed sender."""
+"""Prepare and send approved BCC-only Gmail SMTP messages from a configured sender."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from email.utils import parseaddr
 import hashlib
 import hmac
@@ -10,44 +14,14 @@ import json
 import math
 import os
 from pathlib import Path
-import subprocess
+import smtplib
+import socket
 from typing import Any
 
 
 APPROVAL_PREFIX = "APPROVE-SEND-EMAIL:"
-OSASCRIPT_PATH = "/usr/bin/osascript"
-SUCCESS_MARKER = "SENT"
-SENDER_EMAIL = "nguyenlamhai89@gmail.com"
-
-STATIC_APPLESCRIPT = r'''
-on run argv
-    if (count of argv) < 5 then error "Missing email arguments"
-
-    set senderAddress to item 1 of argv
-    set subjectText to item 2 of argv
-    set bodyText to item 3 of argv
-    set attachmentPath to item 4 of argv
-    set bccAddresses to items 5 thru -1 of argv
-
-    tell application "Mail"
-        set outgoingMessage to make new outgoing message with properties ¬
-            {sender:senderAddress, subject:subjectText, content:bodyText, visible:false}
-
-        tell outgoingMessage
-            repeat with addressText in bccAddresses
-                make new bcc recipient at end of bcc recipients with properties ¬
-                    {address:(contents of addressText)}
-            end repeat
-
-            make new attachment with properties ¬
-                {file name:(POSIX file attachmentPath)} at after last paragraph
-            send
-        end tell
-    end tell
-
-    return "SENT"
-end run
-'''.strip()
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
 
 class ValidationError(ValueError):
@@ -74,6 +48,30 @@ def _validate_folder_path(folder_path: str) -> Path:
     if not path.is_absolute():
         raise ValidationError("INVALID_INPUT", "folder_path must be an absolute path.")
     return path.resolve(strict=False)
+
+
+def _validate_sender_email(sender_email: Any) -> str:
+    if not isinstance(sender_email, str) or not sender_email.strip():
+        raise ValidationError("INVALID_INPUT", "sender_email / GMAIL_APP_USERNAME is required.")
+    address = sender_email.strip()
+    if _contains_control(address) or any(character.isspace() for character in address):
+        raise ValidationError("INVALID_INPUT", "sender_email must be a valid email address.")
+    display_name, parsed = parseaddr(address)
+    if display_name or parsed != address or address.count("@") != 1:
+        raise ValidationError("INVALID_INPUT", "sender_email must be a valid email address.")
+    local_part, domain = address.rsplit("@", 1)
+    if (
+        not local_part
+        or not domain
+        or local_part.startswith(".")
+        or local_part.endswith(".")
+        or ".." in local_part
+        or domain.startswith(".")
+        or domain.endswith(".")
+        or ".." in domain
+    ):
+        raise ValidationError("INVALID_INPUT", "sender_email must be a valid email address.")
+    return address
 
 
 def _validate_attachment(
@@ -168,7 +166,7 @@ def _validate_body(body: Any) -> str:
     return body
 
 
-def build_formal_email_content(report_filename: str) -> tuple[str, str]:
+def build_formal_email_content(report_filename: str, sender_email: str = "nguyenlamhai89@gmail.com") -> tuple[str, str]:
     """Create the fixed professional Vietnamese email content for a report attachment."""
 
     report_label = (
@@ -185,8 +183,8 @@ def build_formal_email_content(report_filename: str) -> tuple[str, str]:
         "2. Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.\n"
         "3. Để có trải nghiệm tốt nhất, vui lòng sử dụng phiên bản trình duyệt mới nhất.\n\n"
         "Trân trọng,\n"
-        "Nguyen Lam Hai\n"
-        f"{SENDER_EMAIL}"
+        "UX Research Team\n"
+        f"{sender_email}"
     )
     return subject, body
 
@@ -218,6 +216,7 @@ def prepare_email_draft(
     *,
     folder_path: str,
     bcc_recipients: Sequence[str],
+    sender_email: str = "nguyenlamhai89@gmail.com",
 ) -> dict[str, Any]:
     """Validate an email draft and return the exact approval token required to send it."""
 
@@ -235,6 +234,7 @@ def prepare_email_draft(
                 "Visualization output_file is required for email drafting.",
             )
 
+        validated_sender = _validate_sender_email(sender_email)
         project_dir = _validate_folder_path(folder_path)
         attachment_path = _validate_attachment(
             visualization_result["output_file"],
@@ -242,13 +242,14 @@ def prepare_email_draft(
         )
         recipients = _normalize_recipients(bcc_recipients)
         generated_subject, generated_body = build_formal_email_content(
-            Path(attachment_path).name
+            Path(attachment_path).name,
+            validated_sender,
         )
         validated_subject = _validate_subject(generated_subject)
         validated_body = _validate_body(generated_body)
 
         draft: dict[str, Any] = {
-            "from": SENDER_EMAIL,
+            "from": validated_sender,
             "to": [],
             "cc": [],
             "bcc": recipients,
@@ -278,11 +279,7 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
         raise ValidationError("INVALID_INPUT", "The draft payload is missing or invalid.")
     if draft.get("to") != [] or draft.get("cc") != []:
         raise ValidationError("INVALID_INPUT", "To and CC must remain empty.")
-    if draft.get("from") != SENDER_EMAIL:
-        raise ValidationError(
-            "INVALID_INPUT",
-            "The sender must remain the configured Apple Mail address.",
-        )
+    sender = _validate_sender_email(draft.get("from"))
 
     recipients = _normalize_recipients(draft.get("bcc"))
     if recipients != draft.get("bcc"):
@@ -292,7 +289,7 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
     attachment_path = _validate_attachment(draft.get("attachment_path"))
 
     validated = {
-        "from": SENDER_EMAIL,
+        "from": sender,
         "to": [],
         "cc": [],
         "bcc": recipients,
@@ -307,13 +304,82 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
     return validated, expected_token
 
 
+def _send_via_smtp(
+    draft: dict[str, Any],
+    app_username: str,
+    app_password: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    """Internal helper to dispatch email using Python smtplib."""
+    from email.header import Header
+
+    msg = MIMEMultipart()
+    msg["From"] = draft["from"]
+    msg["Subject"] = Header(draft["subject"], "utf-8")
+    msg.attach(MIMEText(draft["body"], "plain", "utf-8"))
+
+    attachment_path = Path(draft["attachment_path"])
+    try:
+        with open(attachment_path, "rb") as f:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f'attachment; filename="{attachment_path.name}"',
+        )
+        msg.attach(part)
+    except OSError:
+        return _error("INVALID_ATTACHMENT", "The HTML attachment file could not be read.")
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=timeout_seconds)
+        try:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(app_username, app_password)
+            # Deliver to BCC list without setting To/Bcc headers in msg
+            server.sendmail(app_username, draft["bcc"], msg.as_string())
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                pass
+    except smtplib.SMTPAuthenticationError:
+        return _error(
+            "SMTP_AUTH_FAILED",
+            "Gmail authentication failed. Please check GMAIL_APP_USERNAME and GMAIL_APP_PASSWORD.",
+        )
+    except (socket.timeout, TimeoutError):
+        return _error(
+            "SEND_TIMEOUT",
+            "Gmail SMTP server connection timed out; the message was not retried.",
+        )
+    except (smtplib.SMTPException, OSError) as e:
+        return _error(
+            "SMTP_SEND_FAILED",
+            f"Failed to send email via Gmail SMTP: {e}",
+        )
+
+    return {
+        "status": "success",
+        "sent": True,
+        "sender": draft["from"],
+        "recipient_count": len(draft["bcc"]),
+        "attachment_path": draft["attachment_path"],
+    }
+
+
 def send_approved_email(
     draft_result: Mapping[str, Any],
     *,
     approval_token: str | None,
+    gmail_app_username: str | None = None,
+    gmail_app_password: str | None = None,
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
-    """Send an intact draft exactly once after its content-bound token is approved."""
+    """Send an intact draft exactly once via Gmail SMTP after its content-bound token is approved."""
 
     try:
         draft, expected_token = _validate_draft_result(draft_result)
@@ -327,62 +393,16 @@ def send_approved_email(
         ):
             raise ValidationError("INVALID_INPUT", "timeout_seconds must be a positive finite number.")
 
-        command = [
-            OSASCRIPT_PATH,
-            "-e",
-            STATIC_APPLESCRIPT,
-            "--",
-            draft["from"],
-            draft["subject"],
-            draft["body"],
-            draft["attachment_path"],
-            *draft["bcc"],
-        ]
-        try:
-            completed = subprocess.run(
-                command,
-                shell=False,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=float(timeout_seconds),
-            )
-        except FileNotFoundError:
-            return _error("OSASCRIPT_NOT_FOUND", "AppleScript is not available on this system.")
-        except subprocess.TimeoutExpired:
-            return _error(
-                "SEND_TIMEOUT",
-                "Apple Mail did not confirm the send before the timeout; the message was not retried.",
-            )
-        except OSError:
-            return _error("MAIL_SEND_FAILED", "Apple Mail could not be started.")
+        username = (gmail_app_username or draft["from"]).strip()
+        password = (gmail_app_password or "").strip()
 
-        if completed.returncode != 0:
-            diagnostic = f"{completed.stderr}\n{completed.stdout}".casefold()
-            if any(marker in diagnostic for marker in ("-1743", "not authorized", "not permitted", "automation denied")):
-                return _error(
-                    "MAIL_AUTOMATION_DENIED",
-                    "macOS denied permission to control Apple Mail. Allow automation access and try again.",
-                )
-            if "sender" in diagnostic or SENDER_EMAIL.casefold() in diagnostic:
-                return _error(
-                    "SENDER_ACCOUNT_NOT_CONFIGURED",
-                    "Apple Mail does not have the required sender account configured.",
-                )
-            return _error("MAIL_SEND_FAILED", "Apple Mail did not send the message.")
-        if completed.stdout.strip() != SUCCESS_MARKER:
+        if not username or not password:
             return _error(
-                "UNEXPECTED_OSASCRIPT_OUTPUT",
-                "Apple Mail did not return an unambiguous send confirmation; the message was not retried.",
+                "GMAIL_CONFIG_MISSING",
+                "Both GMAIL_APP_USERNAME and GMAIL_APP_PASSWORD must be configured in .env to send emails.",
             )
 
-        return {
-            "status": "success",
-            "sent": True,
-            "sender": draft["from"],
-            "recipient_count": len(draft["bcc"]),
-            "attachment_path": draft["attachment_path"],
-        }
+        return _send_via_smtp(draft, username, password, float(timeout_seconds))
     except ValidationError as error:
         return _error(error.code, error.message)
     except Exception:

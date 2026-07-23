@@ -286,16 +286,23 @@ def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
     assert draft["draft"]["attachment_path"] == skipped["output_file"]
     assert "Hướng dẫn mở báo cáo" in draft["draft"]["body"]
 
-    mocked_send = subprocess.CompletedProcess([], 0, stdout="SENT\n", stderr="")
-    with patch("send_email.subprocess.run", return_value=mocked_send) as run:
-        cancelled = send_approved_email(draft, approval_token=None)
+    mock_server = MagicMock()
+    with patch("smtplib.SMTP", return_value=mock_server) as mock_smtp:
+        cancelled = send_approved_email(
+            draft,
+            approval_token=None,
+            gmail_app_username="nguyenlamhai89@gmail.com",
+            gmail_app_password="test-password",
+        )
         assert cancelled["status"] == "cancelled"
         assert cancelled["error"]["code"] == "NOT_APPROVED"
-        run.assert_not_called()
+        mock_smtp.assert_not_called()
 
         email_result = send_approved_email(
             draft,
             approval_token=draft["approval_token"],
+            gmail_app_username="nguyenlamhai89@gmail.com",
+            gmail_app_password="test-password",
         )
 
     assert email_result == {
@@ -305,4 +312,4 @@ def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
         "recipient_count": 1,
         "attachment_path": skipped["output_file"],
     }
-    run.assert_called_once()
+    mock_smtp.assert_called_once()

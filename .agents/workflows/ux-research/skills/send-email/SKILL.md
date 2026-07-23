@@ -1,19 +1,13 @@
 ---
 name: send-email
-description: Prepares a formal Vietnamese BCC-only Apple Mail draft from nguyenlamhai89@gmail.com for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
+description: Prepares a formal Vietnamese BCC-only draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
 ---
 
 # Send Email
 
 ## Description
 
-Prepare and send the final UX research HTML report through Apple Mail from
-`nguyenlamhai89@gmail.com`. Use the deterministic `scripts/send_email.py` helper
-to generate a formal Vietnamese subject and body, validate the visualization
-handoff, enforce approval, and send the message. Always keep To and CC empty,
-place every recipient in BCC, attach the exact `output_file` returned by
-`visualize-insights`, and never send before the user reviews the complete draft
-and repeats its exact approval token.
+Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gmail.com:587`) using the sender account configured in `.env` (`GMAIL_APP_USERNAME`). Use the deterministic `scripts/send_email.py` helper to generate a formal Vietnamese subject and body, validate the visualization handoff, enforce approval, and send the message. Always keep To and CC empty, place every recipient in BCC, attach the exact `output_file` returned by `visualize-insights`, and never send before the user reviews the complete draft and repeats its exact approval token.
 
 ## Input
 
@@ -27,6 +21,9 @@ and repeats its exact approval token.
     report directory is `<folder_path>/Interview/Research Report`.
   - `bcc_recipients` (array of strings, required) — Runtime recipients supplied
     by the user. At least one valid address is required.
+  - `sender_email` (string, optional) — Configured sender address passed by the parent orchestrator (default `GMAIL_APP_USERNAME`).
+  - `gmail_app_username` (string, required for sending) — Gmail account username passed from `.env` by parent orchestrator.
+  - `gmail_app_password` (string, required for sending) — Gmail App Password passed from `.env` by parent orchestrator.
   - `approval_token` (string, required only for sending) — Exact token returned
     for the unchanged draft and repeated by the user.
 - **Input File(s)**:
@@ -41,7 +38,8 @@ and repeats its exact approval token.
       "output_file": "/project/Interview/Research Report/Example.html"
     },
     "folder_path": "/project",
-    "bcc_recipients": ["research@example.com"]
+    "bcc_recipients": ["research@example.com"],
+    "sender_email": "nguyenlamhai89@gmail.com"
   }
   ```
 
@@ -53,13 +51,13 @@ and repeats its exact approval token.
   - Draft phase:
     - `status`: `awaiting_approval`
     - `sent`: `false`
-    - `draft`: Complete immutable draft with `draft_id`, fixed `from` address,
+    - `draft`: Complete immutable draft with `draft_id`, configured `from` address,
       empty `to` and `cc`, BCC recipients, formal subject and body, and attachment path.
     - `approval_token`: Content-bound token that must be repeated exactly.
   - Send phase:
     - `status`: `success`, `cancelled`, or `error`
     - `sent`: Boolean send confirmation.
-    - `sender`: Fixed From address on success: `nguyenlamhai89@gmail.com`.
+    - `sender`: Configured From address on success: `nguyenlamhai89@gmail.com`.
     - `recipient_count`: Number of BCC recipients on success.
     - `attachment_path`: Exact report path on success.
     - `error`: Stable `code` and safe `message` for cancelled or failed sends.
@@ -87,23 +85,21 @@ and repeats its exact approval token.
 
 - Ask who should receive the report every time this skill runs. Never reuse or
   infer recipients from a prior run.
-- Use `nguyenlamhai89@gmail.com` as the fixed sender. Do not accept a sender
-  address from the user or switch to a different Apple Mail account.
+- Use `GMAIL_APP_USERNAME` supplied via parent orchestrator delegation as the sender. Do not accept an unauthorized sender address from the user.
 - Generate a formal Vietnamese subject and plain-text body from the exact HTML
   filename returned by `visualize-insights`. Include instructions to download
   the attachment and open it in Chrome, Edge, or Safari.
 - Call `prepare_email_draft()` with the exact visualization result, absolute
-  project folder, and BCC recipients.
-- Show the user the entire returned draft: fixed From address, empty To and CC,
+  project folder, BCC recipients, and sender email.
+- Show the user the entire returned draft: configured From address, empty To and CC,
   all BCC recipients, subject, body, exact attachment, and approval token.
 - Pause with `awaiting_approval`. Treat `yes`, `approved`, ambiguous responses,
   edits, or a non-matching token as not approved.
 - If the user changes any recipient or attachment, prepare and show a new draft
   with a new token. The sender, formal subject, and formal body remain fixed.
-- Call `send_approved_email()` only after the user repeats the exact current
-  token. Never call the sender speculatively.
-- Never retry a timeout or uncertain Apple Mail result because the first send
-  may already have been accepted.
+- Call `send_approved_email()` with `gmail_app_username` and `gmail_app_password` passed from the parent orchestrator only after the user repeats the exact current token. Never call the SMTP server speculatively.
+- Never retry a timeout or uncertain SMTP response because the first send
+  may already have been accepted by the remote mail server.
 - Preserve the generated report if drafting is cancelled or sending fails.
 - Clean up temporary files immediately after completion. This skill creates no
   temporary email or report copies.
@@ -117,7 +113,7 @@ sequenceDiagram
     participant Orchestrator as UX Research
     participant AI as Built-in AI
     participant Skill as send-email
-    participant Mail as Apple Mail
+    participant SMTP as Gmail SMTP Server
 
     Orchestrator->>User: Ask for BCC recipients
     User-->>Orchestrator: Recipient addresses
@@ -126,9 +122,10 @@ sequenceDiagram
     Orchestrator->>User: Show full draft and exact token
     alt Exact current token supplied
         User-->>Orchestrator: APPROVE-SEND-EMAIL:<sha256>
-        Orchestrator->>Skill: send_approved_email(...)
-        Skill->>Mail: Send from fixed account, BCC-only HTML attachment
-        Mail-->>Skill: SENT
+        Orchestrator->>Skill: send_approved_email(app_username, app_password)
+        Skill->>SMTP: TLS Connect (smtp.gmail.com:587) & Auth
+        Skill->>SMTP: BCC-only envelope send (MIME + HTML attachment)
+        SMTP-->>Skill: OK
         Skill-->>Orchestrator: success
     else Cancelled, edited, or ambiguous response
         User-->>Orchestrator: No exact token
@@ -145,19 +142,17 @@ sequenceDiagram
 | `INVALID_ATTACHMENT` | HTML report is missing, unreadable, or not a regular absolute `.html` file. | Do not send; regenerate or restore the report. |
 | `ATTACHMENT_OUTSIDE_REPORT_DIR` | Attachment resolves outside `Interview/Research Report`. | Do not send; use the exact visualization handoff. |
 | `INVALID_RECIPIENTS` | BCC list is empty or contains an invalid address. | Ask the user for corrected recipients and prepare a new draft. |
-| `SENDER_ACCOUNT_NOT_CONFIGURED` | Apple Mail cannot use `nguyenlamhai89@gmail.com` as the sender. | Add or enable that account in Apple Mail, then prepare a new draft. |
-| `NOT_APPROVED` | Exact current approval token was not supplied. | Return `cancelled`; never invoke Apple Mail. |
-| `OSASCRIPT_NOT_FOUND` | AppleScript is unavailable. | Preserve the report and explain that Apple Mail sending requires macOS. |
-| `SEND_TIMEOUT` | Mail did not confirm before the timeout. | Do not retry; ask the user to check Sent and Drafts. |
-| `MAIL_AUTOMATION_DENIED` | macOS denied Apple Mail automation. | Ask the user to allow automation access; prepare a fresh approval before retrying. |
-| `MAIL_SEND_FAILED` | Apple Mail returned a definite failure. | Preserve the report and surface the safe error. |
-| `UNEXPECTED_OSASCRIPT_OUTPUT` | Mail returned no unambiguous confirmation. | Do not retry; ask the user to check Sent and Drafts. |
+| `GMAIL_CONFIG_MISSING` | `GMAIL_APP_USERNAME` or `GMAIL_APP_PASSWORD` is missing from `.env`. | Prompt the user to configure Gmail App credentials in root `.env`. |
+| `NOT_APPROVED` | Exact current approval token was not supplied. | Return `cancelled`; never invoke Gmail SMTP. |
+| `SMTP_AUTH_FAILED` | Gmail authentication failed. | Check `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` in `.env`. |
+| `SEND_TIMEOUT` | Gmail SMTP server did not respond before timeout. | Do not retry; ask the user to check Sent folder. |
+| `SMTP_SEND_FAILED` | Gmail SMTP connection or dispatch failed. | Preserve the report and surface safe error. |
 | `INTERNAL_ERROR` | An unexpected safe failure occurred. | Preserve the report and return the stable code without a stack trace. |
 
 ## Known Bugs & Resolutions
 
 > **Agent Rule (Error Handling & Bug Documentation):** When this skill encounters
-> an error during input validation, approval, or Apple Mail execution, first
+> an error during input validation, approval, or Gmail SMTP execution, first
 > propose a solution to the user. If the user approves and the fix succeeds,
 > document the bug, cause, resolution, and regression protection here.
 
@@ -165,11 +160,10 @@ sequenceDiagram
 | --- | --- | --- |
 | Valid drafts returned `INTERNAL_ERROR` during recipient parsing | The implementation used the Python 3.13-only `parseaddr(..., strict=True)` parameter, but this workflow runs on Python 3.12. | Removed the unsupported parameter, retained explicit control-character, whitespace, parse-equality, `@`, local-part, and domain validation, and added regression coverage through all valid and invalid recipient tests. |
 | Report attachment directly in `Interview/` raised `ATTACHMENT_OUTSIDE_REPORT_DIR` | `_validate_attachment` enforced `Interview/Research Report` strictly, missing reports generated directly inside `Interview/`. | Updated `_validate_attachment` and `prepare_email_draft` to accept files under `Interview/` and `Interview/Research Report/`, and added unit test coverage. |
+| macOS Apple Mail app dependency failed on non-macOS or non-AppleMail setups | Skill relied on macOS AppleScript `osascript`. | Converted skill exclusively to pure-Python `smtplib` using `smtp.gmail.com:587` with TLS, dynamic `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` credentials passed via parent orchestrator. |
 
 ## Performance Improvement Solutions
 
-- [x] Use deterministic local validation and one AppleScript invocation only
-  after approval.
-- [x] Avoid external APIs, dependencies, retries, and temporary report copies.
-- [x] Cover approval, validation, Apple Mail failures, and the parent workflow
-  handoff with mocked tests.
+- [x] Use deterministic local validation and one Python smtplib connection only after approval.
+- [x] Avoid external OS dependencies (osascript), retries, and temporary report copies.
+- [x] Cover approval, validation, Gmail SMTP failures, and the parent workflow handoff with mocked tests.
