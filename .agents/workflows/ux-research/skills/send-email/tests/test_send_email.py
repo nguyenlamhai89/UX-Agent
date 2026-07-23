@@ -49,7 +49,7 @@ def test_prepare_email_draft_is_bcc_only_and_content_bound(tmp_path):
     assert result["draft"]["cc"] == []
     assert result["draft"]["bcc"] == ["First@example.com", "second@example.com"]
     assert result["draft"]["attachment_path"] == str(report)
-    assert "Kính gửi Quý Anh/Chị" in result["draft"]["body"]
+    assert "Kính gửi Anh/Chị" in result["draft"]["body"]
     assert "Hướng dẫn mở báo cáo" in result["draft"]["body"]
     assert "Google Chrome" in result["draft"]["body"]
     assert result["approval_token"] == f"{send_email.APPROVAL_PREFIX}{result['draft']['draft_id']}"

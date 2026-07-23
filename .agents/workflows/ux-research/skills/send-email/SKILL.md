@@ -74,7 +74,7 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
       "cc": [],
       "bcc": ["research@example.com"],
       "subject": "[Báo cáo UX Research] Example",
-      "body": "Kính gửi Quý Anh/Chị, ... Hướng dẫn mở báo cáo: tải file HTML đính kèm và mở bằng Chrome, Edge, hoặc Safari.",
+      "body": "Kính gửi Anh/Chị, ... Hướng dẫn mở báo cáo: tải file HTML đính kèm và mở bằng Chrome, Edge, hoặc Safari.",
       "attachment_path": "/project/Interview/Research Report/Example.html"
     },
     "approval_token": "APPROVE-SEND-EMAIL:<sha256>"

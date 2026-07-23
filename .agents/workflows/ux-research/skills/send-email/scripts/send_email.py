@@ -223,8 +223,8 @@ def build_formal_email_content(
             insights_block = f"📌 Một số điểm nhấn quan trọng (Top Insights):\n{formatted_items}\n\n"
 
     body = (
-        "Kính gửi Quý Anh/Chị,\n\n"
-        f"Xin gửi Quý Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “{report_label}”. "
+        "Kính gửi Anh/Chị,\n\n"
+        f"Xin gửi Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “{report_label}”. "
         "File báo cáo HTML đã được đính kèm trong email này.\n\n"
         f"{insights_block}"
         "Hướng dẫn mở báo cáo:\n"
