@@ -126,21 +126,21 @@ def _contains_control(value: str, *, allow_body_whitespace: bool = False) -> boo
     return any((ord(character) < 32 and ord(character) not in allowed) or ord(character) == 127 for character in value)
 
 
-def _normalize_recipients(recipients: Any) -> list[str]:
+def _normalize_recipients(recipients: Any, field_name: str = "cc_recipients") -> list[str]:
     if isinstance(recipients, (str, bytes)) or not isinstance(recipients, Sequence):
-        raise ValidationError("INVALID_RECIPIENTS", "bcc_recipients must be a non-empty list of email addresses.")
+        raise ValidationError("INVALID_RECIPIENTS", f"{field_name} must be a non-empty list of email addresses.")
 
     normalized: list[str] = []
     seen: set[str] = set()
     for recipient in recipients:
         if not isinstance(recipient, str):
-            raise ValidationError("INVALID_RECIPIENTS", "Every BCC recipient must be a string email address.")
+            raise ValidationError("INVALID_RECIPIENTS", "Every CC recipient must be a string email address.")
         address = recipient.strip()
         if not address or _contains_control(address) or any(character.isspace() for character in address):
-            raise ValidationError("INVALID_RECIPIENTS", "Every BCC recipient must be a valid email address.")
+            raise ValidationError("INVALID_RECIPIENTS", "Every CC recipient must be a valid email address.")
         display_name, parsed = parseaddr(address)
         if display_name or parsed != address or address.count("@") != 1:
-            raise ValidationError("INVALID_RECIPIENTS", "Every BCC recipient must be a valid email address.")
+            raise ValidationError("INVALID_RECIPIENTS", "Every CC recipient must be a valid email address.")
         local_part, domain = address.rsplit("@", 1)
         if (
             not local_part
@@ -152,14 +152,14 @@ def _normalize_recipients(recipients: Any) -> list[str]:
             or domain.endswith(".")
             or ".." in domain
         ):
-            raise ValidationError("INVALID_RECIPIENTS", "Every BCC recipient must be a valid email address.")
+            raise ValidationError("INVALID_RECIPIENTS", "Every CC recipient must be a valid email address.")
         dedupe_key = address.casefold()
         if dedupe_key not in seen:
             seen.add(dedupe_key)
             normalized.append(address)
 
     if not normalized:
-        raise ValidationError("INVALID_RECIPIENTS", "At least one BCC recipient is required.")
+        raise ValidationError("INVALID_RECIPIENTS", "At least one CC recipient is required.")
     return normalized
 
 
@@ -331,7 +331,8 @@ def prepare_email_draft(
     visualization_result: Mapping[str, Any],
     *,
     folder_path: str,
-    bcc_recipients: Sequence[str],
+    cc_recipients: Sequence[str] | None = None,
+    bcc_recipients: Sequence[str] | None = None,
     sender_email: str = "nguyenlamhai89@gmail.com",
 ) -> dict[str, Any]:
     """Validate an email draft and return the exact approval token required to send it."""
@@ -350,13 +351,16 @@ def prepare_email_draft(
                 "Visualization output_file is required for email drafting.",
             )
 
+        raw_recipients = cc_recipients if cc_recipients is not None else bcc_recipients
+        field_name = "cc_recipients" if cc_recipients is not None else ("bcc_recipients" if bcc_recipients is not None else "cc_recipients")
+
         validated_sender = _validate_sender_email(sender_email)
         project_dir = _validate_folder_path(folder_path)
         attachment_path = _validate_attachment(
             visualization_result["output_file"],
             report_dir=project_dir / "Interview",
         )
-        recipients = _normalize_recipients(bcc_recipients)
+        recipients = _normalize_recipients(raw_recipients, field_name=field_name)
         generated_subject, generated_body, generated_html_body = build_formal_email_content(
             Path(attachment_path).name,
             validated_sender,
@@ -369,8 +373,8 @@ def prepare_email_draft(
         draft: dict[str, Any] = {
             "from": validated_sender,
             "to": [],
-            "cc": [],
-            "bcc": recipients,
+            "cc": recipients,
+            "bcc": [],
             "subject": validated_subject,
             "body": validated_body,
             "html_body": generated_html_body,
@@ -396,13 +400,13 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
     draft = draft_result.get("draft")
     if not isinstance(draft, Mapping):
         raise ValidationError("INVALID_INPUT", "The draft payload is missing or invalid.")
-    if draft.get("to") != [] or draft.get("cc") != []:
-        raise ValidationError("INVALID_INPUT", "To and CC must remain empty.")
+    if draft.get("to") != [] or draft.get("bcc") != []:
+        raise ValidationError("INVALID_INPUT", "To and BCC must remain empty.")
     sender = _validate_sender_email(draft.get("from"))
 
-    recipients = _normalize_recipients(draft.get("bcc"))
-    if recipients != draft.get("bcc"):
-        raise ValidationError("INVALID_INPUT", "The BCC recipient list was modified or is not normalized.")
+    recipients = _normalize_recipients(draft.get("cc"), field_name="cc_recipients")
+    if recipients != draft.get("cc"):
+        raise ValidationError("INVALID_INPUT", "The CC recipient list was modified or is not normalized.")
     subject = _validate_subject(draft.get("subject"))
     body = _validate_body(draft.get("body"))
     attachment_path = _validate_attachment(draft.get("attachment_path"))
@@ -410,8 +414,8 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
     validated = {
         "from": sender,
         "to": [],
-        "cc": [],
-        "bcc": recipients,
+        "cc": recipients,
+        "bcc": [],
         "subject": subject,
         "body": body,
         "attachment_path": attachment_path,
@@ -437,6 +441,7 @@ def _send_via_smtp(
 
     msg = MIMEMultipart()
     msg["From"] = draft["from"]
+    msg["Cc"] = ", ".join(draft["cc"])
     msg["Subject"] = Header(draft["subject"], "utf-8")
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain="gmail.com")
@@ -471,8 +476,8 @@ def _send_via_smtp(
             server.starttls()
             server.ehlo()
             server.login(app_username, app_password)
-            # Deliver to BCC list without setting To/Bcc headers in msg
-            server.sendmail(app_username, draft["bcc"], msg.as_string())
+            # Deliver to CC list
+            server.sendmail(app_username, draft["cc"], msg.as_string())
         finally:
             try:
                 server.quit()
@@ -498,7 +503,7 @@ def _send_via_smtp(
         "status": "success",
         "sent": True,
         "sender": draft["from"],
-        "recipient_count": len(draft["bcc"]),
+        "recipient_count": len(draft["cc"]),
         "attachment_path": draft["attachment_path"],
     }
 

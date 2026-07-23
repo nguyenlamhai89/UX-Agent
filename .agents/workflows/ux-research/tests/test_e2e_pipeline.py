@@ -277,12 +277,13 @@ def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
     draft = prepare_email_draft(
         skipped,
         folder_path=str(project),
-        bcc_recipients=["stakeholder@example.com"],
+        cc_recipients=["stakeholder@example.com"],
     )
     assert draft["status"] == "awaiting_approval"
     assert draft["draft"]["from"] == "nguyenlamhai89@gmail.com"
     assert draft["draft"]["to"] == []
-    assert draft["draft"]["cc"] == []
+    assert draft["draft"]["cc"] == ["stakeholder@example.com"]
+    assert draft["draft"]["bcc"] == []
     assert draft["draft"]["attachment_path"] == skipped["output_file"]
     assert "Hướng dẫn mở báo cáo" in draft["draft"]["body"]
 

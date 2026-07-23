@@ -1,13 +1,13 @@
 ---
 name: send-email
-description: Prepares a formal Vietnamese BCC-only draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
+description: Prepares a formal Vietnamese CC draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
 ---
 
 # Send Email
 
 ## Description
 
-Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gmail.com:587`) using the sender account configured in `.env` (`GMAIL_APP_USERNAME`). Use the deterministic `scripts/send_email.py` helper to generate a formal Vietnamese subject and body, validate the visualization handoff, enforce approval, and send the message. Always keep To and CC empty, place every recipient in BCC, attach the exact `output_file` returned by `visualize-insights`, and never send before the user reviews the complete draft and repeats its exact approval token.
+Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gmail.com:587`) using the sender account configured in `.env` (`GMAIL_APP_USERNAME`). Use the deterministic `scripts/send_email.py` helper to generate a formal Vietnamese subject and body, validate the visualization handoff, enforce approval, and send the message. Always keep To and BCC empty, place every recipient in CC, attach the exact `output_file` returned by `visualize-insights`, and never send before the user reviews the complete draft and repeats its exact approval token.
 
 ## Input
 
@@ -19,7 +19,7 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
     must be passed unchanged.
   - `folder_path` (string, required) — Absolute research project folder whose
     report directory is `<folder_path>/Interview/Research Report`.
-  - `bcc_recipients` (array of strings, required) — Runtime recipients supplied
+  - `cc_recipients` (array of strings, required) — Runtime CC recipients supplied
     by the user. At least one valid address is required.
   - `sender_email` (string, optional) — Configured sender address passed by the parent orchestrator (default `GMAIL_APP_USERNAME`).
   - `gmail_app_username` (string, required for sending) — Gmail account username passed from `.env` by parent orchestrator.
@@ -38,7 +38,7 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
       "output_file": "/project/Interview/Research Report/Example.html"
     },
     "folder_path": "/project",
-    "bcc_recipients": ["research@example.com"],
+    "cc_recipients": ["research@example.com"],
     "sender_email": "nguyenlamhai89@gmail.com"
   }
   ```
@@ -52,13 +52,13 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
     - `status`: `awaiting_approval`
     - `sent`: `false`
     - `draft`: Complete immutable draft with `draft_id`, configured `from` address,
-      empty `to` and `cc`, BCC recipients, formal subject and body, and attachment path.
+      empty `to` and `bcc`, CC recipients, formal subject and body, and attachment path.
     - `approval_token`: Content-bound token that must be repeated exactly.
   - Send phase:
     - `status`: `success`, `cancelled`, or `error`
     - `sent`: Boolean send confirmation.
     - `sender`: Configured From address on success: `nguyenlamhai89@gmail.com`.
-    - `recipient_count`: Number of BCC recipients on success.
+    - `recipient_count`: Number of CC recipients on success.
     - `attachment_path`: Exact report path on success.
     - `error`: Stable `code` and safe `message` for cancelled or failed sends.
 - **Example awaiting approval**:
@@ -71,8 +71,8 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
       "draft_id": "<sha256>",
       "from": "nguyenlamhai89@gmail.com",
       "to": [],
-      "cc": [],
-      "bcc": ["research@example.com"],
+      "cc": ["research@example.com"],
+      "bcc": [],
       "subject": "[Báo cáo UX Research] Example",
       "body": "Kính gửi Anh/Chị, ... Hướng dẫn mở báo cáo: tải file HTML đính kèm và mở bằng Chrome, Edge, hoặc Safari.",
       "attachment_path": "/project/Interview/Research Report/Example.html"
@@ -83,16 +83,16 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
 
 ## Custom Instructions
 
-- Ask who should receive the report every time this skill runs. Never reuse or
+- Ask who should receive the report every time this skill runs. Prompt the user for all recipients to CC. Never reuse or
   infer recipients from a prior run.
 - Use `GMAIL_APP_USERNAME` supplied via parent orchestrator delegation as the sender. Do not accept an unauthorized sender address from the user.
 - Generate a formal Vietnamese subject and plain-text body from the exact HTML
   filename returned by `visualize-insights`. Include instructions to download
   the attachment and open it in Chrome, Edge, or Safari.
 - Call `prepare_email_draft()` with the exact visualization result, absolute
-  project folder, BCC recipients, and sender email.
-- Show the user the entire returned draft: configured From address, empty To and CC,
-  all BCC recipients, subject, body, exact attachment, and approval token.
+  project folder, CC recipients, and sender email.
+- Show the user the entire returned draft: configured From address, empty To and BCC,
+  all CC recipients, subject, body, exact attachment, and approval token.
 - Pause with `awaiting_approval`. Allow the user to approve either by typing simplified affirmative keywords (`ok`, `yes`, `approved`, `y`, `gửi`, `gui`, `approve`, `confirm`) or by repeating the exact approval token.
 - If the user changes any recipient or attachment, prepare and show a new draft
   with a new token. The sender, formal subject, and formal body remain fixed.
@@ -114,7 +114,7 @@ sequenceDiagram
     participant Skill as send-email
     participant SMTP as Gmail SMTP Server
 
-    Orchestrator->>User: Ask for BCC recipients
+    Orchestrator->>User: Ask for CC recipients
     User-->>Orchestrator: Recipient addresses
     Orchestrator->>Skill: prepare_email_draft(...)
     Skill-->>Orchestrator: awaiting_approval, complete draft, token
@@ -123,7 +123,7 @@ sequenceDiagram
         User-->>Orchestrator: "ok" / "gửi" / APPROVE-SEND-EMAIL:<sha256>
         Orchestrator->>Skill: send_approved_email(app_username, app_password)
         Skill->>SMTP: TLS Connect (smtp.gmail.com:587) & Auth
-        Skill->>SMTP: BCC-only envelope send (MIME + HTML attachment)
+        Skill->>SMTP: CC envelope send (MIME + HTML attachment)
         SMTP-->>Skill: OK
         Skill-->>Orchestrator: success
     else Cancelled, edited, or non-affirmative response
@@ -140,7 +140,7 @@ sequenceDiagram
 | `INVALID_VISUALIZATION_HANDOFF` | Visualization did not return a usable report. | Halt email drafting and preserve the report workflow result. |
 | `INVALID_ATTACHMENT` | HTML report is missing, unreadable, or not a regular absolute `.html` file. | Do not send; regenerate or restore the report. |
 | `ATTACHMENT_OUTSIDE_REPORT_DIR` | Attachment resolves outside `Interview/Research Report`. | Do not send; use the exact visualization handoff. |
-| `INVALID_RECIPIENTS` | BCC list is empty or contains an invalid address. | Ask the user for corrected recipients and prepare a new draft. |
+| `INVALID_RECIPIENTS` | CC list is empty or contains an invalid address. | Ask the user for corrected recipients and prepare a new draft. |
 | `GMAIL_CONFIG_MISSING` | `GMAIL_APP_USERNAME` or `GMAIL_APP_PASSWORD` is missing from `.env`. | Prompt the user to configure Gmail App credentials in root `.env`. |
 | `NOT_APPROVED` | Neither approval token nor affirmative keyword (`ok`, `yes`, `gửi`) was provided. | Return `cancelled`; never invoke Gmail SMTP. |
 | `SMTP_AUTH_FAILED` | Gmail authentication failed. | Check `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` in `.env`. |

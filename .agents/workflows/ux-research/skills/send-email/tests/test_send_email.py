@@ -29,25 +29,25 @@ def _prepare(tmp_path, **overrides):
     payload = {
         "visualization_result": {"status": "success", "output_file": str(report)},
         "folder_path": str(project),
-        "bcc_recipients": ["research@example.com"],
+        "cc_recipients": ["research@example.com"],
         "sender_email": "nguyenlamhai89@gmail.com",
     }
     payload.update(overrides)
     return send_email.prepare_email_draft(**payload), project, report
 
 
-def test_prepare_email_draft_is_bcc_only_and_content_bound(tmp_path):
+def test_prepare_email_draft_is_cc_and_content_bound(tmp_path):
     result, _, report = _prepare(
         tmp_path,
-        bcc_recipients=[" First@example.com ", "first@EXAMPLE.com", "second@example.com"],
+        cc_recipients=[" First@example.com ", "first@EXAMPLE.com", "second@example.com"],
     )
 
     assert result["status"] == "awaiting_approval"
     assert result["sent"] is False
     assert result["draft"]["from"] == "nguyenlamhai89@gmail.com"
     assert result["draft"]["to"] == []
-    assert result["draft"]["cc"] == []
-    assert result["draft"]["bcc"] == ["First@example.com", "second@example.com"]
+    assert result["draft"]["cc"] == ["First@example.com", "second@example.com"]
+    assert result["draft"]["bcc"] == []
     assert result["draft"]["attachment_path"] == str(report)
     assert "Kính gửi Anh/Chị" in result["draft"]["body"]
     assert "Hướng dẫn mở báo cáo" in result["draft"]["body"]
@@ -68,7 +68,7 @@ def test_prepare_accepts_valid_skipped_visualization(tmp_path):
     result = send_email.prepare_email_draft(
         {"status": "skipped", "output_file": str(report)},
         folder_path=str(project),
-        bcc_recipients=["person@example.com"],
+        cc_recipients=["person@example.com"],
     )
     assert result["status"] == "awaiting_approval"
 
@@ -83,7 +83,7 @@ def test_prepare_accepts_report_directly_in_interview(tmp_path):
     result = send_email.prepare_email_draft(
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
-        bcc_recipients=["person@example.com"],
+        cc_recipients=["person@example.com"],
     )
     assert result["status"] == "awaiting_approval"
     assert result["draft"]["attachment_path"] == str(report)
@@ -102,7 +102,7 @@ def test_prepare_accepts_report_directly_in_interview(tmp_path):
     ],
 )
 def test_prepare_rejects_invalid_recipients(tmp_path, recipients):
-    result, _, _ = _prepare(tmp_path, bcc_recipients=recipients)
+    result, _, _ = _prepare(tmp_path, cc_recipients=recipients)
     assert result["status"] == "error"
     assert result["error"]["code"] == "INVALID_RECIPIENTS"
 
@@ -117,7 +117,7 @@ def test_prepare_rejects_an_unsafe_report_filename(tmp_path):
     result = send_email.prepare_email_draft(
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
-        bcc_recipients=["person@example.com"],
+        cc_recipients=["person@example.com"],
     )
     assert result["error"]["code"] == "INVALID_SUBJECT"
 
@@ -126,7 +126,7 @@ def test_prepare_rejects_relative_missing_and_wrong_extension_attachments(tmp_pa
     project, report = _project_with_report(tmp_path)
     base = {
         "folder_path": str(project),
-        "bcc_recipients": ["person@example.com"],
+        "cc_recipients": ["person@example.com"],
     }
     for path in ("relative.html", str(report.with_name("missing.html")), str(report.with_suffix(".txt"))):
         result = send_email.prepare_email_draft(
@@ -167,7 +167,7 @@ def test_prepare_rejects_symlink_that_escapes_report_directory(tmp_path):
     result = send_email.prepare_email_draft(
         {"status": "success", "output_file": str(link)},
         folder_path=str(project),
-        bcc_recipients=["person@example.com"],
+        cc_recipients=["person@example.com"],
     )
     assert result["error"]["code"] == "ATTACHMENT_OUTSIDE_REPORT_DIR"
 
@@ -207,7 +207,6 @@ def test_send_accepts_affirmative_approval_keywords(tmp_path, keyword):
     assert result["sent"] is True
 
 
-
 def test_send_rejects_modified_draft_without_smtp_call(tmp_path):
     draft, _, _ = _prepare(tmp_path)
     modified = deepcopy(draft)
@@ -239,7 +238,7 @@ def test_send_requires_gmail_credentials(tmp_path):
 def test_successful_send_via_smtp(tmp_path):
     draft, _, report = _prepare(
         tmp_path,
-        bcc_recipients=["one@example.com", "two@example.com"],
+        cc_recipients=["one@example.com", "two@example.com"],
         sender_email="sender@example.com",
     )
 
@@ -271,7 +270,7 @@ def test_successful_send_via_smtp(tmp_path):
     assert sendmail_args[1] == ["one@example.com", "two@example.com"]
     raw_msg = sendmail_args[2]
     assert "To:" not in raw_msg
-    assert "Bcc:" not in raw_msg
+    assert "Cc: one@example.com, two@example.com" in raw_msg
     assert "From: sender@example.com" in raw_msg
     assert "Subject: =?utf-8?" in raw_msg
     mock_server.quit.assert_called_once()
@@ -323,7 +322,7 @@ def test_prepare_extracts_top_insights_from_insights_data_json(tmp_path):
     result = send_email.prepare_email_draft(
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
-        bcc_recipients=["person@example.com"],
+        cc_recipients=["person@example.com"],
     )
     assert result["status"] == "awaiting_approval"
     assert "📌 Một số điểm nhấn quan trọng (Top Insights):" in result["draft"]["body"]
