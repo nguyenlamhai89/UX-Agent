@@ -58,7 +58,8 @@ def test_prepare_accepts_custom_sender_email(tmp_path):
     result, _, _ = _prepare(tmp_path, sender_email="custom.sender@example.com")
     assert result["status"] == "awaiting_approval"
     assert result["draft"]["from"] == "custom.sender@example.com"
-    assert "custom.sender@example.com" in result["draft"]["body"]
+    assert "Nguyễn Lâm Hải (nhâm)" in result["draft"]["body"]
+    assert "UX Designer" in result["draft"]["body"]
 
 
 def test_prepare_accepts_valid_skipped_visualization(tmp_path):

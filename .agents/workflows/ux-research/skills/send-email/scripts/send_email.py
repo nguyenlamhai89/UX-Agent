@@ -191,8 +191,8 @@ def build_formal_email_content(report_filename: str, sender_email: str = "nguyen
         "2. Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.\n"
         "3. Để có trải nghiệm tốt nhất, vui lòng sử dụng phiên bản trình duyệt mới nhất.\n\n"
         "Trân trọng,\n"
-        "UX Research Team\n"
-        f"{sender_email}"
+        "Nguyễn Lâm Hải (nhâm)\n"
+        "UX Designer"
     )
     return subject, body
 
