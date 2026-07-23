@@ -20,20 +20,9 @@ Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguy�
   * `GMAIL_APP_PASSWORD`: Mật khẩu ứng dụng 16 ký tự tạo tại [Google App Passwords](https://myaccount.google.com/apppasswords) (cần bật 2FA).
 
 ### 2. Cài đặt Agent (Setup & .env)
-Sao chép URL GitHub `https://github.com/nguyenlamhai89/UX-Agent.git` dán vào AI IDE (Google Antigravity, Claude Code, Cursor...) và gửi câu lệnh mẫu:
+Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 
 > *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GEMINI_API_KEY=AIzaSy...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
-
-*Cấu hình mẫu file `.env` tại thư mục gốc:*
-```env
-# API Key chuyển âm (Cần ít nhất 1 key. Ưu tiên ElevenLabs, Gemini làm dự phòng tự động)
-ELEVENLABS_API_KEY=your_elevenlabs_key_here
-GEMINI_API_KEY=your_gemini_key_here
-
-# Thông tin Gmail gửi báo cáo (Tùy chọn)
-GMAIL_APP_USERNAME=your_gmail@gmail.com
-GMAIL_APP_PASSWORD=your_16_digit_app_password
-```
 
 ### 3. Kích hoạt Agent (Run Workflow)
 Trong khung chat với AI Agent, gõ câu lệnh:
