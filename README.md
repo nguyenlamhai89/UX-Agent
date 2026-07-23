@@ -20,16 +20,72 @@ ux-interview → ux-map-journey → visualize-insights → send-email
 ```
 
 ```mermaid
-flowchart LR
-    A[Questionnaire image and interview audio] --> B[ux-interview]
-    B --> C[full-questionnaire.md, transcripts, mapped-transcript.md, insights.md]
-    C --> D[ux-map-journey]
-    D --> E[journey-map.md]
-    C --> F[visualize-insights]
-    E --> F
-    F --> G[Interactive HTML report and freshness manifest]
-    G --> H[send-email]
-    H --> I[Approved BCC-only Apple Mail delivery]
+sequenceDiagram
+    autonumber
+    actor User
+    participant Parent as ux-research
+    participant UXI as ux-interview
+    participant CQT as create-questionnaire-table
+    participant STT as elevenlabs-transcribe
+    participant MT as map-transcript
+    participant SA as saturate-insights
+    participant UXM as ux-map-journey
+    participant EP as extract-phases
+    participant IP as interpret-phases
+    participant EM as extract-map
+    participant VIS as visualize-insights
+    participant EMAIL as send-email
+    participant Mail as Apple Mail
+
+    User->>Parent: Provide folder_path and project_name
+    Parent->>Parent: Check dependencies
+    Parent->>UXI: Start interview workflow
+    UXI->>CQT: Extract questionnaire image
+    CQT-->>UXI: full-questionnaire.md
+    UXI-->>User: Review questionnaire and approve
+    User-->>UXI: Approval
+    UXI-->>User: Request transcription keyterms
+    User-->>UXI: Provide keyterms
+    UXI->>STT: Transcribe interview audio
+    STT-->>UXI: transcript-*.md
+    UXI-->>User: Review transcripts and approve
+    User-->>UXI: Approval
+    UXI->>MT: Map complete verbatim responses
+    MT-->>UXI: mapped-transcript.md and manifest
+    UXI-->>User: Review mapping and approve
+    User-->>UXI: Approval
+    UXI->>SA: Produce grounded insights and saturation
+    SA-->>UXI: insights.md and insight artifacts
+    UXI-->>User: Review insights and approve journey mapping
+    User-->>UXI: Approval
+    UXI-->>Parent: Canonical interview artifacts
+
+    Parent->>UXM: Start journey-map workflow
+    UXM->>EP: Split mapped rows into five phases
+    EP-->>UXM: Extracted phase files
+    UXM-->>User: Review phases and approve
+    User-->>UXM: Approval
+    UXM->>IP: Interpret goals, actions, pain points, emotion
+    IP-->>UXM: Interpreted phase files
+    UXM-->>User: Review interpretation and approve
+    User-->>UXM: Approval
+    UXM->>EM: Deterministically compile journey map
+    EM-->>UXM: journey-map.md
+    UXM-->>Parent: Canonical journey map
+
+    Parent->>VIS: Generate report from canonical artifacts
+    VIS-->>Parent: HTML report and freshness manifest
+    Parent-->>User: Review report and approve delivery
+    User-->>Parent: Approval and BCC recipients
+    Parent->>EMAIL: Prepare formal email with exact HTML output_file
+    EMAIL-->>Parent: Draft from nguyenlamhai89@gmail.com and approval token
+    Parent-->>User: Review From, BCC, body, attachment, and token
+    User-->>Parent: Repeat exact approval token
+    Parent->>EMAIL: Send approved draft
+    EMAIL->>Mail: Send BCC-only email with HTML attachment
+    Mail-->>EMAIL: SENT
+    EMAIL-->>Parent: Delivery result
+    Parent-->>User: Return report artifacts and email status
 ```
 
 The parent preserves approval gates between major stages. A partial mapping,
