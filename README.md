@@ -8,10 +8,9 @@
 
 Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên cứu UX:
 
-### 1. Cài đặt môi trường
-- Copy đường link Git của dự án: `https://github.com/nguyenlamhai89/UX-Agent.git`
-- Dán vào khung chat của AI IDE (ví dụ: Google Antigravity, Claude Code, Cursor, Codex,...) và nhờ AI tự động cài đặt.
-- Tạo file `.env` tại thư mục gốc với các API key:
+### 1. Cài đặt Agent
+- Copy link git dự án vào AI IDE (Antigravity, Claude Code, Codex, …)
+- Yêu cầu AI IDE cài đặt dự án tự động
   ```env
   # Bắt buộc có 1 trong 2 key để sử dụng transcribe-audios
   ELEVENLABS_API_KEY=your_key_here
@@ -31,10 +30,15 @@ Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên c�
     - **GMAIL_APP_USERNAME**: Địa chỉ email Gmail bạn sẽ dùng để gửi.
     - **GMAIL_APP_PASSWORD**: Đăng nhập Google → Bật Xác thực 2 bước → Truy cập [App Passwords](https://myaccount.google.com/apppasswords) → Tạo mật khẩu ứng dụng 16 ký tự.
 
-### 2. Chuẩn bị tài liệu đầu vào
-Tạo 1 thư mục dự án (Ví dụ: `Chuyển tiền quốc tế`) và cho các file sau vào:
-- 🎧 **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.qta`).
-- 📋 **File bảng câu hỏi**: File Excel mẫu (`.xlsx` chứa tab `"2. Questionnaire"`) **HOẶC** **[link Google Sheet chế độ public](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114)** (duplicate file này).
+### 2. Chuẩn bị
+- [ ] **API keys**
+  - ELEVENLABS_API_KEY (cần trả phí)
+  - GEMINI_API_KEY (miễn phí)
+- [ ] **Gmail App credentials**
+  - GMAIL_APP_USERNAME
+  - GMAIL_APP_PASSWORD
+- [ ] **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.qta`)
+- [ ] **Bộ câu hỏi phỏng vấn** (template Google Sheet): [link Google Sheet chế độ public](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114) (duplicate file này).
 
 ### 3. Kích hoạt Agent
 Trong khung chat với AI Agent, gõ câu lệnh:
