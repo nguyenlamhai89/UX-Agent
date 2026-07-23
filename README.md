@@ -29,10 +29,17 @@ Trong khung chat với AI Agent, gõ câu lệnh:
 ```text
 ux-research <đường_dẫn_thư_mục_dự_án>
 ```
-*Ví dụ thực tế:*
-```text
-ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
-```
+
+* 💡 **Ví dụ 1 (Đã có sẵn file Excel `.xlsx` trong thư mục dự án):**
+  ```text
+  ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
+  ```
+
+* 💡 **Ví dụ 2 (Dùng link Google Sheet thay cho file Excel):**
+  ```text
+  ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114
+  ```
+  *(Hoặc bạn có thể dán link Google Sheet vào khung chat khi Agent yêu cầu ở bước trích xuất Bảng câu hỏi).*
 
 ---
 
