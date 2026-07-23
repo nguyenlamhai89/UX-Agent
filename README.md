@@ -214,22 +214,46 @@ orchestrator or skill only the keys required for that step. `ux-interview` then 
 the delegated `ELEVENLABS_API_KEY` only into `elevenlabs-transcribe`; child
 orchestrators and skills never read `.env` directly.
 
-## Running a research project
+## How to Use UX Agent
 
-1. Create a project folder and place questionnaire images and interview audio
-   inside it.
-2. Start `ux-research` with the absolute `folder_path` and a safe
-   `project_name`.
-3. Review and approve each gate: questionnaire extraction, transcription,
-   mapping, insights, journey map, and final report.
-4. Supply CC recipients for the completed report.
-5. Review the generated email draft, including the fixed From address, CC recipients, formal
-   message, HTML attachment, and approval token.
-6. Repeat the exact approval token or confirm with an affirmative keyword (`ok`, `gửi`, `yes`) to send once through Gmail SMTP.
+Follow these bulleted steps to set up and run a research project with UX Agent:
 
-The attached report is the exact HTML path returned by `visualize-insights`.
-Recipients can download the attachment and open it with a current browser such
-as Chrome, Edge, or Safari.
+- **1. Setup & Environment Configuration**:
+  - Clone the repository: `git clone https://github.com/nguyenlamhai89/UX-Agent.git`
+  - Verify required Python dependencies: `python3 .agents/scripts/check_libraries.py`
+  - Create a `.env` file in the workspace root with your API keys and credentials:
+    ```env
+    ELEVENLABS_API_KEY=your_elevenlabs_api_key
+    GMAIL_APP_USERNAME=your_gmail_address@gmail.com
+    GMAIL_APP_PASSWORD=your_gmail_app_password
+    ```
+
+- **2. Prepare Research Materials**:
+  - Create a project folder (e.g., `/path/to/my-project`).
+  - Place your questionnaire image(s) (e.g., `questionnaire.png`) and interview audio/media file(s) inside the project folder.
+
+- **3. Execute the End-to-End Workflow**:
+  - Ask the AI Assistant to run the parent [`ux-research`](.agents/workflows/ux-research/ORCHESTRATOR.md) workflow by specifying the absolute `folder_path` and a safe `project_name`.
+  - Alternatively, trigger specific child workflows independently:
+    - [`ux-interview`](.agents/workflows/ux-interview/ORCHESTRATOR.md): Questionnaire extraction, audio transcription, mapping, and grounded insights.
+    - [`ux-map-journey`](.agents/workflows/ux-map-journey/ORCHESTRATOR.md): Customer journey map synthesis across 5 phases (Awareness, Consideration, Decision Making, Usage, Advocacy).
+    - [`visualize-insights`](.agents/workflows/ux-research/skills/visualize-insights/SKILL.md): Interactive HTML dashboard generation.
+    - [`send-email`](.agents/workflows/ux-research/skills/send-email/SKILL.md): Formal Vietnamese email draft and SMTP delivery.
+
+- **4. Review Approval Gates**:
+  - Review and approve each stage output when prompted by the AI Assistant:
+    - **Gate 1**: Questionnaire Extraction (`full-questionnaire.md`).
+    - **Gate 2**: Audio Transcripts (`transcript-*.md`).
+    - **Gate 3**: Verbatim Mapping (`mapped-transcript.md`).
+    - **Gate 4**: Grounded Insights & Saturation (`insights.md`).
+    - **Gate 5**: Customer Journey Map (`journey-map.md`).
+    - **Gate 6**: Interactive HTML Visualization (`<project_name>.html`).
+
+- **5. Review & Deliver Email Report**:
+  - Supply the recipient email address(es) to CC when prompted.
+  - Review the complete draft payload (From address, CC recipients, formal Vietnamese body, and attached HTML report file).
+  - Confirm sending by typing an affirmative keyword (`ok`, `yes`, `gửi`, `approved`) or repeating the approval token (`APPROVE-SEND-EMAIL:<sha256>`).
+  - The report attachment can be downloaded by recipients and opened in any modern browser (Chrome, Edge, Safari).
 
 ## Testing
 
