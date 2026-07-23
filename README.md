@@ -252,22 +252,4 @@ Thực hiện theo các bước sau để thiết lập và chạy quy trình ng
   - Xác nhận gửi bằng cách gõ từ khóa đồng ý (`ok`, `yes`, `gửi`, `approved`) hoặc gõ lại token phê duyệt (`APPROVE-SEND-EMAIL:<sha256>`).
   - Người nhận có thể tải file báo cáo đính kèm và mở trên bất kỳ trình duyệt hiện đại nào (Chrome, Edge, Safari).
 
-## Kiểm thử (Testing)
 
-Chạy các bài kiểm thử unit test cho skill và workflow tương ứng sau khi thay đổi code:
-
-```bash
-python3 -m pytest .agents/workflows/ux-interview/tests/test_e2e_pipeline.py -q
-python3 -m pytest .agents/workflows/ux-map-journey/tests/test_e2e_pipeline.py -q
-python3 -m pytest .agents/workflows/ux-research/skills/send-email/tests -q
-python3 -m pytest .agents/workflows/ux-research/tests/test_e2e_pipeline.py -q
-python3 -m pytest .agents/workflows/ux-research/skills/visualize-insights/tests -q
-```
-
-Các test của `send-email` sử dụng giả lập Gmail SMTP (`smtplib.SMTP`); chúng không bao giờ gửi email thực tế.
-
-## Quy ước Repository
-
-- [`AGENTS.md`](AGENTS.md) quy định các quy tắc hành vi, an toàn, kiểm thử và đồng bộ Git cho workspace.
-- Các bộ nhớ đệm tạo tự động như `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, và `.DS_Store` là tạm thời và bị Git bỏ qua.
-- Toàn bộ code, workflow, template và các artifact phát triển thuộc về repository này để dự án luôn có tính di động cao.
