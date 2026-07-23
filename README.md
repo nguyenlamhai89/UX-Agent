@@ -54,44 +54,36 @@ sequenceDiagram
 
     User->>Parent: Gõ "ux-research <thư_mục_dự_án>"
     
-    rect rgb(240, 245, 255)
-        Note over Parent, CQT: 1. Trích xuất Bảng câu hỏi
-        Parent->>CQT: Đọc file Excel (.xlsx) / Google Sheet
-        CQT-->>Parent: full-questionnaire.md
-        Parent-->>User: 🛡️ Gate 1: Phê duyệt Bảng câu hỏi
-    end
+    Note over Parent, CQT: 1. Trích xuất Bảng câu hỏi
+    Parent->>CQT: Đọc file Excel (.xlsx) / Google Sheet
+    CQT-->>Parent: full-questionnaire.md
+    Parent-->>User: 🛡️ Gate 1: Phê duyệt Bảng câu hỏi
 
-    rect rgb(250, 240, 255)
-        Note over Parent, MT: 2. Chuyển âm & Ánh xạ Phỏng vấn
-        Parent-->>User: Yêu cầu cung cấp từ khóa (keyterms)
-        User-->>Parent: Cung cấp từ khóa
-        Parent->>STT: Chuyển âm ghi âm thành văn bản
-        STT-->>Parent: transcript-*.md
-        Parent-->>User: 🛡️ Gate 2: Phê duyệt Bản chuyển âm
-        Parent->>MT: Ánh xạ câu trả lời nguyên văn
-        MT-->>Parent: mapped-transcript.md
-        Parent-->>User: 🛡️ Gate 3: Phê duyệt Bảng ánh xạ
-    end
+    Note over Parent, MT: 2. Chuyển âm & Ánh xạ Phỏng vấn
+    Parent-->>User: Yêu cầu cung cấp từ khóa (keyterms)
+    User-->>Parent: Cung cấp từ khóa
+    Parent->>STT: Chuyển âm ghi âm thành văn bản
+    STT-->>Parent: transcript-*.md
+    Parent-->>User: 🛡️ Gate 2: Phê duyệt Bản chuyển âm
+    Parent->>MT: Ánh xạ câu trả lời nguyên văn
+    MT-->>Parent: mapped-transcript.md
+    Parent-->>User: 🛡️ Gate 3: Phê duyệt Bảng ánh xạ
 
-    rect rgb(240, 255, 245)
-        Note over Parent, SA: 3. Phân tích Insight & Hành trình
-        Parent->>SA: Tổng hợp Insight & Bão hòa dữ liệu
-        SA-->>Parent: insights.md
-        Parent-->>User: 🛡️ Gate 4: Phê duyệt Insights
-        Parent->>UXM: Phân tích 5 giai đoạn & Tạo hành trình
-        UXM-->>Parent: journey-map.md
-        Parent-->>User: 🛡️ Gate 5: Phê duyệt Hành trình khách hàng
-    end
+    Note over Parent, SA: 3. Phân tích Insight & Hành trình
+    Parent->>SA: Tổng hợp Insight & Bão hòa dữ liệu
+    SA-->>Parent: insights.md
+    Parent-->>User: 🛡️ Gate 4: Phê duyệt Insights
+    Parent->>UXM: Phân tích 5 giai đoạn & Tạo hành trình
+    UXM-->>Parent: journey-map.md
+    Parent-->>User: 🛡️ Gate 5: Phê duyệt Hành trình khách hàng
 
-    rect rgb(255, 250, 240)
-        Note over Parent, EMAIL: 4. Báo cáo HTML & Gửi Email
-        Parent->>VIS: Tổng hợp tất cả thành Báo cáo HTML
-        VIS-->>Parent: <project_name>.html
-        Parent-->>User: 🛡️ Gate 6: Xem báo cáo HTML & Nhập email CC
-        User-->>Parent: Xác nhận gửi (gõ "ok" / token)
-        Parent->>EMAIL: Gửi email kèm file HTML đính kèm
-        EMAIL-->>User: ✉️ Báo cáo đã gửi thành công!
-    end
+    Note over Parent, EMAIL: 4. Báo cáo HTML & Gửi Email
+    Parent->>VIS: Tổng hợp tất cả thành Báo cáo HTML
+    VIS-->>Parent: <project_name>.html
+    Parent-->>User: 🛡️ Gate 6: Xem báo cáo HTML & Nhập email CC
+    User-->>Parent: Xác nhận gửi (gõ "ok" / token)
+    Parent->>EMAIL: Gửi email kèm file HTML đính kèm
+    EMAIL-->>User: ✉️ Báo cáo đã gửi thành công!
 ```
 
 ### Các tính năng cốt lõi:
