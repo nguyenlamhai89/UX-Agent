@@ -1,227 +1,193 @@
 # UX Agent
 
-UX Agent is an intelligent agentic workspace built on the **Google Antigravity SDK**. It automates complex UX research workflows, from transcribing raw interview audio and extracting questionnaires to mapping transcripts, synthesizing insights, and generating interactive visualization dashboards and Customer Journey Maps (CJMs).
+UX Agent is an agentic workspace for turning UX interview material into a
+traceable research report. It extracts a questionnaire, transcribes and maps
+interviews, synthesizes grounded insights, builds a customer journey map, and
+produces an interactive HTML report that can be sent through Apple Mail after
+explicit approval.
 
----
+The workflow favors canonical artifacts, deterministic validation, and
+user-controlled approval gates. A file merely existing is not treated as proof
+that it is current.
 
-## 🚀 Workflows
+## End-to-end workflow
 
-The workspace is organized into two primary agentic workflows under `.agents/workflows/`:
+[`ux-research`](.agents/workflows/ux-research/ORCHESTRATOR.md) is the parent
+workflow:
 
-### 1. UX Interview (`ux-interview`)
-Orchestrates raw user research transcription, response mapping, and quantitative insights synthesis.
-- **Dependency Check**: Verifies workspace environment dependencies using `check_libraries.py`.
-- **Questionnaire Extraction (`create-questionnaire-table`)**: Programmatically extracts question tables from images (e.g., screenshots or forms) and structures them into `full-questionnaire.md`.
-- **Audio Transcription (`elevenlabs-transcribe`)**: Converts audio recordings into markdown interview transcripts using ElevenLabs' speech-to-text API, tailored with custom keyterms.
-- **Transcript Mapping (`map-transcript`)**: Maps raw transcript responses onto the structured questionnaire.
-- **Insights Saturation (`saturate-insights`)**: Analyzes mapped interview response datasets with built-in AI, consolidates them, and computes a **Data Saturation Matrix** along with `insights.md`.
+```text
+ux-interview → ux-map-journey → visualize-insights → send-email
+```
 
-### 2. UX Map Journey (`ux-map-journey`)
-Automates the analysis of user experience phases to compile a comprehensive Customer Journey Map.
-- **Phase Extraction (`extract-phases`)**: Programmatically categorizes transcript answers into 5 journey phases (Awareness, Consideration, Decision Making, Usage, Advocacy).
-- **Phase Interpretation (`interpret-phases`)**: Leverages built-in AI to summarize goals, actions, touchpoints, pain points, emotion ratings (1-5), and opportunities for each journey phase.
-- **Phase Mapping (`extract-map`)**: Programmatically builds the final `journey-map.md` markdown report.
-
-### 📊 Workflow Sequence Diagrams
-
-#### UX Interview Flow
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Orchestrator as UX Interview Orchestrator
-    participant CQT as create-questionnaire-table
-    participant STT as elevenlabs-transcribe
-    participant MT as map-transcript
-    participant SA as saturate-insights
-
-    User->>Orchestrator: Run interview workflow (audio files, questionnaire image)
-    activate Orchestrator
-    
-    Orchestrator->>CQT: 1. Extract table from image
-    CQT-->>Orchestrator: Return full-questionnaire.md
-    Orchestrator-->>User: Pause for approval
-    User->>Orchestrator: Approve
-    
-    Orchestrator-->>User: Ask for transcription keyterms
-    User->>Orchestrator: Provide keyterms
-    
-    Orchestrator->>STT: 2. Transcribe audio files using keyterms
-    STT-->>Orchestrator: Return raw interview transcripts
-    Orchestrator-->>User: Pause for approval
-    User->>Orchestrator: Approve
-    
-    Orchestrator->>MT: 3. Map transcripts to questionnaire
-    MT-->>Orchestrator: Return mapped-transcript.md
-    Orchestrator-->>User: Pause for approval
-    User->>Orchestrator: Approve
-    
-    Orchestrator->>SA: 4. Extract insights & compute saturation
-    SA-->>Orchestrator: Return insights.md & saturation matrix
-    
-    Orchestrator-->>User: Complete (Return insights and transcript mapping)
-    deactivate Orchestrator
+flowchart LR
+    A[Questionnaire image and interview audio] --> B[ux-interview]
+    B --> C[full-questionnaire.md, transcripts, mapped-transcript.md, insights.md]
+    C --> D[ux-map-journey]
+    D --> E[journey-map.md]
+    C --> F[visualize-insights]
+    E --> F
+    F --> G[Interactive HTML report and freshness manifest]
+    G --> H[send-email]
+    H --> I[Approved BCC-only Apple Mail delivery]
 ```
 
-#### UX Map Journey Flow
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Orchestrator as UX Map Journey Orchestrator
-    participant EP as extract-phases
-    participant IP as interpret-phases
-    participant EM as extract-map
+The parent preserves approval gates between major stages. A partial mapping,
+stale canonical artifact, or invalid handoff stops downstream processing rather
+than producing a report from incomplete data.
 
-    User->>Orchestrator: Run CJM workflow (mapped-transcript.md)
-    activate Orchestrator
-    
-    Orchestrator->>EP: 1. Categorize rows by journey theme
-    EP-->>Orchestrator: Return 5 extracted phase markdown files
-    Orchestrator-->>User: Pause for approval
-    User->>Orchestrator: Approve
-    
-    Orchestrator->>IP: 2. Interpret phase details with AI
-    IP-->>Orchestrator: Return 5 interpreted phase tables
-    Orchestrator-->>User: Pause for approval
-    User->>Orchestrator: Approve
-    
-    Orchestrator->>EM: 3. Programmatically map tables to template
-    EM-->>Orchestrator: Return journey-map.md
-    
-    Orchestrator-->>User: Complete (Return final Customer Journey Map)
-    deactivate Orchestrator
+## Workflows and skills
+
+### UX Interview
+
+[`ux-interview`](.agents/workflows/ux-interview/ORCHESTRATOR.md) prepares the
+research evidence inside `<folder_path>/Interview/`.
+
+- [`create-questionnaire-table`](.agents/workflows/ux-interview/skills/create-questionnaire-table/SKILL.md)
+  converts questionnaire-table images into `full-questionnaire.md`.
+- [`elevenlabs-transcribe`](.agents/workflows/ux-interview/skills/elevenlabs-transcribe/SKILL.md)
+  creates Markdown transcripts with the ElevenLabs Speech-to-Text API.
+- [`map-transcript`](.agents/workflows/ux-interview/skills/map-transcript/SKILL.md)
+  maps complete verbatim transcript turns to questionnaire rows and publishes a
+  canonical `mapped-transcript.md` only after validation.
+- [`saturate-insights`](.agents/workflows/ux-interview/skills/saturate-insights/SKILL.md)
+  produces grounded `insights.md`, a saturation matrix, and auditable manifests.
+
+### UX Map Journey
+
+[`ux-map-journey`](.agents/workflows/ux-map-journey/ORCHESTRATOR.md) consumes
+the canonical mapped transcript and writes `<folder_path>/Journey Map/journey-map.md`.
+
+- [`extract-phases`](.agents/workflows/ux-map-journey/skills/extract-phases/SKILL.md)
+  separates data into Awareness, Consideration, Decision Making, Usage, and
+  Advocacy.
+- [`interpret-phases`](.agents/workflows/ux-map-journey/skills/interpret-phases/SKILL.md)
+  interprets each phase into goals, touchpoints, actions, pain points, emotion,
+  and opportunities.
+- [`extract-map`](.agents/workflows/ux-map-journey/skills/extract-map/SKILL.md)
+  deterministically compiles the phase artifacts into `journey-map.md`.
+
+### UX Research report and delivery
+
+[`ux-research`](.agents/workflows/ux-research/ORCHESTRATOR.md) coordinates the
+complete pipeline and owns its final delivery skills.
+
+- [`visualize-insights`](.agents/workflows/ux-research/skills/visualize-insights/SKILL.md)
+  compiles insights, the mapped transcript, all full transcripts, and an
+  optional journey map into an accessible interactive HTML dashboard. It writes
+  `<project_name>.html` and a freshness manifest to
+  `<folder_path>/Interview/Research Report/`.
+- [`send-email`](.agents/workflows/ux-research/skills/send-email/SKILL.md)
+  creates a formal Vietnamese BCC-only email, attaches the exact HTML
+  `output_file` returned by `visualize-insights`, and sends only after the user
+  supplies the content-bound approval token. The configured sender is always
+  `nguyenlamhai89@gmail.com`; that account must be enabled in Apple Mail.
+
+### Global skill
+
+[`analyze-skill`](.agents/skills/analyze-skill/SKILL.md) is the only global
+skill. It evaluates sibling skills and produces performance-analysis reports.
+
+## Workspace structure
+
+```text
+.agents/
+├── scripts/
+│   └── check_libraries.py
+├── skills/
+│   └── analyze-skill/                     # Global quality-analysis skill
+└── workflows/
+    ├── ux-interview/
+    │   ├── ORCHESTRATOR.md
+    │   ├── skills/
+    │   │   ├── create-questionnaire-table/
+    │   │   ├── elevenlabs-transcribe/
+    │   │   ├── map-transcript/
+    │   │   └── saturate-insights/
+    │   └── tests/
+    ├── ux-map-journey/
+    │   ├── ORCHESTRATOR.md
+    │   ├── skills/
+    │   │   ├── extract-phases/
+    │   │   ├── interpret-phases/
+    │   │   └── extract-map/
+    │   └── tests/
+    └── ux-research/
+        ├── ORCHESTRATOR.md
+        ├── skills/
+        │   ├── visualize-insights/
+        │   │   ├── scripts/
+        │   │   ├── template/
+        │   │   └── tests/
+        │   └── send-email/
+        │       ├── scripts/
+        │       └── tests/
+        └── tests/
 ```
 
----
+Workflow-specific skills remain within their owning workflow. Do not copy them
+to `.agents/skills/`; only reusable cross-workflow capabilities belong there.
 
-## 🎨 Visualization Tool: Visualize Insights (`visualize-insights`)
-A specialized utility skill that programmatically parses `insights.md`, `mapped-transcript.md`, and `journey-map.md` (optional) to generate a premium, single-page interactive HTML dashboard.
-- Features dynamic charts detailing insight frequency.
-- Interactive **Data Saturation Matrix** tables showing interviewee responses on click.
-- Interactive, responsive **Customer Journey Map** featuring custom emotion-rating badges.
-- Automatically opens in your default browser upon generation.
+## Runtime requirements
 
----
+- Python 3
+- `elevenlabs`, `matplotlib`, and `pytest`
+- `ffprobe` (optional; used for media-duration statistics in reports)
+- An `ELEVENLABS_API_KEY` in the workspace `.env` when transcription is used
+- macOS with Apple Mail configured for `nguyenlamhai89@gmail.com` when email
+  delivery is used
 
-## 📁 Workspace Structure
+Check installed dependencies before running a workflow:
 
-The project is structured logically around the `.agents/` environment:
-
-* 📂 **`.agents/`** — Core agent configurations and tools
-  * 📂 **`scripts/`** — Script utilities
-    * 📄 `check_libraries.py` — Verifies external library dependencies (`elevenlabs`, `matplotlib`, `pytest`).
-  * 📂 **`skills/`** — Global utility skills
-    * 📂 `analyze-skill/` — Quality assurance suite to score skills against various criteria.
-    * 📂 `visualize-insights/` — Skill to compile Markdown results into an interactive HTML dashboard.
-  * 📂 **`workflows/`** — Domain-specific orchestration pipelines
-    * 📂 **`ux-interview/`** — Transcribes user audios and maps responses
-      * 📄 `ORCHESTRATOR.md` — Defines transcription pipeline routing logic and rules.
-      * 📂 `skills/` — Skills specific to the transcription pipeline:
-        * 📂 `create-questionnaire-table/` — Extracts question formats from images.
-        * 📂 `elevenlabs-transcribe/` — Speech-to-text transcriber using ElevenLabs API.
-        * 📂 `map-transcript/` — Programmatically aligns responses with questionnaire tables.
-        * 📂 `saturate-insights/` — Extracts insights and computes user saturation matrices.
-      * 📂 `tests/` — Pipeline end-to-end integration tests.
-    * 📂 **`ux-map-journey/`** — Generates Customer Journey Maps
-      * 📄 `ORCHESTRATOR.md` — Defines Map Journey pipeline routing logic and rules.
-      * 📂 `skills/` — Skills specific to the Map Journey pipeline:
-        * 📂 `extract-phases/` — Segregates transcript answers by journey theme.
-        * 📂 `interpret-phases/` — Evaluates user emotions, actions, and pain points per phase.
-        * 📂 `extract-map/` — Compiles phase tables into a unified journey matrix.
-      * 📂 `tests/` — Pipeline end-to-end integration tests.
-
-* 📄 **`AGENTS.md`** — Defines global agent constraints, behavior rules, testing criteria, and Git synchronization.
-* 📄 **`generate_demo.py`** — Generates a mocked 6-user data visualization to preview dashboard layouts locally.
-
----
-
-## ⚙️ Installation & Usage
-
-Follow these step-by-step instructions to set up and run the UX Agent workflows in your local environment.
-
-### 🛠️ Step 1: Clone the Repository
-Clone the repository and navigate to the project root directory:
 ```bash
-git clone https://github.com/nguyenlamhai89/UX-Agent.git
-cd UX-Agent
+python3 .agents/scripts/check_libraries.py
 ```
 
-### 🐍 Step 2: Setup Python Virtual Environment (Recommended)
-Create and activate a virtual environment to manage dependencies safely:
-```bash
-# Create virtual environment
-python3 -m venv venv
+For transcription, configure the key in `.env`:
 
-# Activate environment (macOS/Linux)
-source venv/bin/activate
-
-# Activate environment (Windows)
-venv\Scripts\activate
-```
-
-### 📦 Step 3: Install Dependencies
-Install python packages required for transcription, charts generation, and testing:
-```bash
-pip install -r requirements.txt  # If requirements.txt is available
-# Or install directly:
-pip install elevenlabs matplotlib pytest
-```
-*Note: Make sure `ffprobe` is installed on your system (e.g., via `brew install ffmpeg` on macOS or `choco install ffmpeg` on Windows) if you want the visualization dashboard to display audio track durations.*
-
-### 🔑 Step 4: Configure API Keys
-Create a `.env` file in the root folder of the project:
 ```env
-ELEVENLABS_API_KEY=your_actual_elevenlabs_api_key_here
+ELEVENLABS_API_KEY=your_key_here
 ```
-> 💡 **Pro Tip**: The UX Agent follows an automatic API key fallback protocol. If the `.env` file is missing or the key is not defined, the agent will prompt you to enter the API key directly in the CLI and will write it to the `.env` file for you automatically.
 
----
+Skills never read `.env` directly. The relevant orchestrator reads and passes
+the key only to the transcription step.
 
-## 🏃 Running the Workflows
+## Running a research project
 
-### Scenario A: Raw User Interview Transcription & Synthesis (`ux-interview`)
-Use this workflow when you have a folder of interview audio files and a screenshot image of the questionnaire structure.
+1. Create a project folder and place questionnaire images and interview audio
+   inside it.
+2. Start `ux-research` with the absolute `folder_path` and a safe
+   `project_name`.
+3. Review and approve each gate: questionnaire extraction, transcription,
+   mapping, insights, journey map, and final report.
+4. Supply BCC recipients for the completed report.
+5. Review the generated email draft, including the fixed From address, formal
+   message, HTML attachment, and approval token.
+6. Repeat the exact approval token to send once through Apple Mail.
 
-1. Create a workspace folder (e.g., `my_ux_project/`) and place the interview audios and questionnaire image inside it.
-2. Trigger the `ux-interview` orchestrator:
-   - The orchestrator will create an `Interview/` folder and organize your inputs.
-   - It will run `create-questionnaire-table` to extract the table layout to `full-questionnaire.md`.
-   - **Pause for Approval**: Review the extracted table and approve to proceed.
-   - **Transcription Terms**: Provide optional keyterms (e.g. product names, slang) to guide the transcriber.
-   - The orchestrator will transcribe audios via ElevenLabs, map answers to the questionnaire in `mapped-transcript.md`, and compute insights saturation in `insights.md`.
-   - **Visualization Prompt**: Finally, the agent will ask if you want to run `visualize-insights` to compile the interactive HTML dashboard.
+The attached report is the exact HTML path returned by `visualize-insights`.
+Recipients can download the attachment and open it with a current browser such
+as Chrome, Edge, or Safari.
 
-### Scenario B: Generating a Customer Journey Map (`ux-map-journey`)
-Use this workflow when you have a completed `mapped-transcript.md` file and want to map it to user journey phases.
+## Testing
 
-1. Trigger the `ux-map-journey` orchestrator, pointing it to the folder containing your `mapped-transcript.md`.
-2. The orchestrator will:
-   - Parse themes into separate markdown files for each phase (Awareness, Consideration, Decision Making, Usage, Advocacy).
-   - Interpret touchpoints, goals, actions, pain points, and opportunities with Built-in AI.
-   - Map them deterministically into `journey-map.md`.
-   - Ask if you want to generate the interactive HTML dashboard featuring the Customer Journey map.
+Run the relevant skill and workflow tests after a behavior change:
 
----
-
-## 🧪 Running E2E & Unit Tests
-To verify all pipelines and skills are functioning correctly:
 ```bash
-# Run Map Journey pipeline end-to-end tests
-pytest .agents/workflows/ux-map-journey/tests/test_e2e_pipeline.py
-
-# Run Interview pipeline end-to-end tests
-pytest .agents/workflows/ux-interview/tests/test_e2e_pipeline.py
-
-# Run all tests in the workspace (including individual skill unit tests)
-pytest
+python3 -m pytest .agents/workflows/ux-interview/tests/test_e2e_pipeline.py -q
+python3 -m pytest .agents/workflows/ux-map-journey/tests/test_e2e_pipeline.py -q
+python3 -m pytest .agents/workflows/ux-research/skills/send-email/tests -q
+python3 -m pytest .agents/workflows/ux-research/tests/test_e2e_pipeline.py -q
+python3 -m pytest .agents/workflows/ux-research/skills/visualize-insights/tests -q
 ```
 
-### 🔄 Automatic Git Sync
-Per the workspace rules, whenever changes are made during development, the agent automatically syncs files back to GitHub:
-```bash
-git add .
-git commit -m "update: [changes summary]"
-git push origin main
-```
+The `send-email` tests mock Apple Mail; they never send a real message.
 
+## Repository conventions
+
+- [`AGENTS.md`](AGENTS.md) defines workspace behavior, safety, test, and Git
+  synchronization rules.
+- Generated caches such as `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`,
+  and `.DS_Store` are disposable and ignored by Git.
+- Workspace code, workflows, templates, and temporary development artifacts
+  belong under this repository so the project stays portable.
