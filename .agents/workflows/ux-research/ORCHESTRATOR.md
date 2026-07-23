@@ -13,9 +13,9 @@ preserves each child workflow's approval gates, passes only canonical successful
 outputs to the next stage, produces an atomic freshness-aware HTML report, and
 offers BCC-only Apple Mail delivery after a separate final-draft approval.
 
-The parent orchestrator owns coordination only. It calls the sibling
-`ux-interview` and `ux-map-journey` workflows, invokes the shared
-`visualize-insights` workspace skill, and finishes with its workflow-owned
+The parent orchestrator owns coordination and its final delivery stages. It
+calls the sibling `ux-interview` and `ux-map-journey` workflows, invokes its
+workflow-owned `visualize-insights` skill, and finishes with its workflow-owned
 `send-email` skill. It never reads API keys inside a skill.
 
 ## Routing Logic & Execution Flow
@@ -23,7 +23,7 @@ The parent orchestrator owns coordination only. It calls the sibling
 Route complete UX research requests here when the user wants transcription,
 mapping, insight saturation, a journey map, and the final visualization in one
 pipeline. Isolated requests remain routed to the relevant child workflow or
-shared skill.
+workflow-owned skill.
 
 0. **Dependency verification** — Run
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
@@ -92,7 +92,7 @@ next stage. A partial or stale child result halts the pipeline.
   full transcripts, `mapped-transcript.md`, and `insights.md`.
 - **[UX Map Journey](../ux-map-journey/ORCHESTRATOR.md)** — Produces the canonical
   `Journey Map/journey-map.md` from the mapped transcript.
-- **[visualize-insights](../../skills/visualize-insights/SKILL.md)** — Produces
+- **[visualize-insights](./skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
 - **[send-email](./skills/send-email/SKILL.md)** — Prepares a BCC-only draft and
   sends the exact HTML report through Apple Mail after exact-token approval.

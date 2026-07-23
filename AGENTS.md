@@ -70,7 +70,7 @@ You MUST use the `read_url_content` tool to read the contents of the following o
 * **Support & Troubleshooting:** `https://antigravity.google/support`
 
 ## HTML Visualizations
-Whenever the user requests to visualize HTML, all future templates must strictly follow the Ant Design system and the structure defined in `skills/visualize-insights/template/insight-template.html`. When this template is changed, ensure that the files generating it or following it are also updated accordingly.
+Whenever the user requests to visualize HTML, all future templates must strictly follow the Ant Design system and the structure defined in `.agents/workflows/ux-research/skills/visualize-insights/template/insights-template.html`. When this template is changed, ensure that the files generating it or following it are also updated accordingly.
 - Keep exactly the Overview, Insights, and Journey Map templates (defined in `overview.html`, `insights-saturation.html` / `saturation.html`, and `journey-map.html`) and their sections in the future when compiling the final HTML file.
 Additionally, for the Customer Journey Map visualization:
 - The Persona navigation tab MUST always be placed right under the Insights tab, and the Journey Map navigation tab right under the Persona tab in the sidebar navigation (without any "Coming soon" section).
@@ -102,7 +102,6 @@ To ensure the workspace remains fully portable and syncs seamlessly via iCloud:
   1. The agent MUST proactively check for or create a `.env` file in the workspace root.
   2. The agent MUST ask the user directly to provide the required API key.
   3. Once the user provides the key, the agent MUST write it to the `.env` file (e.g. `ELEVENLABS_API_KEY=your_key_here`) and verify it is loaded correctly before proceeding.
-
 
 
 

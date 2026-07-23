@@ -83,7 +83,10 @@ print(f"Created {insights_path}")
 print(f"Created {transcript_path}")
 
 # Run the visualization script
-viz_script = os.path.expanduser("~/Desktop/UX Agent/.agents/skills/visualize-insights/scripts/visualize_insights.py")
+viz_script = os.path.expanduser(
+    "~/Desktop/UX Agent/.agents/workflows/ux-research/skills/"
+    "visualize-insights/scripts/visualize_insights.py"
+)
 input_json = json.dumps({
     "insights_path": insights_path,
     "transcript_path": transcript_path,
