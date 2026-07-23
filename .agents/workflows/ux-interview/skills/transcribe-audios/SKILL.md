@@ -1,13 +1,13 @@
 ---
 name: transcribe-audios
-description: Transcribes audio files in a folder into Markdown files using the ElevenLabs Speech-to-Text API.
+description: Transcribes audio files in a folder into Markdown files using ElevenLabs Speech-to-Text or Google Gemini as a fallback.
 ---
 
 # Transcribe Audios
 
 ## Description
 
-The `transcribe-audios` skill is a Python script wrapper around the ElevenLabs Python SDK. It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.wav`, `.m4a`, `.qta`), uses the ElevenLabs `speech_to_text.convert` API to generate text transcripts with speaker diarization, and outputs the result into corresponding `.md` files within the same `Interview` folder.
+The `transcribe-audios` skill transcribes interview audio files into Markdown with speaker diarization. It supports two providers: **ElevenLabs** (primary, using the `speech_to_text.convert` API with the Scribe v2 model) and **Google Gemini** (fallback). It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.wav`, `.m4a`, `.qta`) and outputs corresponding `.md` files. At least one API key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) must be provided. When both keys are available, ElevenLabs is tried first; on failure, Gemini is used automatically.
 
 The orchestrator should trigger this skill when the user requests audio transcription, converting speech to text, or generating interview transcripts.
 
@@ -21,8 +21,9 @@ The orchestrator should trigger this skill when the user requests audio transcri
   - `max_file_size_mb` (integer, optional): Per-file upload limit; defaults to 200 MB.
   - `max_retries` (integer, optional): Retries for transient API failures; defaults to 3.
 - **Environment**: The parent `ux-research` orchestrator reads `.env` and passes
-  `ELEVENLABS_API_KEY` to `ux-interview`. The child orchestrator injects that
-  received key into this skill process. The skill never reads `.env` directly.
+  `ELEVENLABS_API_KEY` and/or `GEMINI_API_KEY` to `ux-interview`. The child
+  orchestrator injects the received keys into this skill process. The skill
+  never reads `.env` directly. At least one transcription key is required.
 - **Location**: `request_body`
 - **Input File(s)**:
   - `Interview/*.mp3`, `Interview/*.wav`, `Interview/*.m4a`, `Interview/*.qta` — Raw audio files containing interviews or recordings in the `Interview` subfolder.
@@ -77,13 +78,15 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| **Key** | `ELEVENLABS_API_KEY` | Loaded by `ux-research`, delegated to `ux-interview`, and injected into this skill process. |
+| **Key** | `ELEVENLABS_API_KEY` | Primary provider. Loaded by `ux-research`, delegated to `ux-interview`, and injected into this skill process. |
+| **Key** | `GEMINI_API_KEY` | Fallback provider. Same delegation path. Used automatically when ElevenLabs fails or its key is absent. |
 
-> **Note**: Skills MUST NOT read API keys directly from `.env`. Only
+> **Note**: At least one of `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` must be
+> provided. Skills MUST NOT read API keys directly from `.env`. Only
 > `ux-research` reads the workspace `.env`; `ux-interview` receives the required
-> key and injects it into this skill process. Never hardcode, log, or write keys
-> to output files. A missing key returns `MISSING_API_KEY`; there is no built-in
-> AI transcription fallback.
+> keys and injects them into this skill process. Never hardcode, log, or write
+> keys to output files. When both keys are available, ElevenLabs is the primary
+> provider and Gemini serves as an automatic fallback on failure.
 
 ## Custom Instructions
 
@@ -99,18 +102,26 @@ sequenceDiagram
     participant Orchestrator
     participant Skill
     participant ElevenLabsAPI
+    participant GeminiAPI
 
     User->>Orchestrator: "Transcribe the audio files in the Interview folder"
     activate Orchestrator
     
-    Orchestrator->>Skill: Execute `transcribe.py` with folder_path, api_key, & optional keyterms
+    Orchestrator->>Skill: Execute `transcribe.py` with folder_path, api_keys, & optional keyterms
     activate Skill
     
     loop For each audio file
-        Skill->>ElevenLabsAPI: Send audio data
-        activate ElevenLabsAPI
-        ElevenLabsAPI-->>Skill: Return transcription text
-        deactivate ElevenLabsAPI
+        alt ElevenLabs key available
+            Skill->>ElevenLabsAPI: Send audio data
+            activate ElevenLabsAPI
+            ElevenLabsAPI-->>Skill: Return transcription text
+            deactivate ElevenLabsAPI
+        else ElevenLabs fails or key absent, Gemini key available
+            Skill->>GeminiAPI: Upload audio & prompt
+            activate GeminiAPI
+            GeminiAPI-->>Skill: Return transcription text
+            deactivate GeminiAPI
+        end
         Skill->>Skill: Write `transcript_<filename>.md`
     end
     
@@ -130,7 +141,7 @@ sequenceDiagram
 | Error Code | Message | Fallback Behavior |
 | --- | --- | --- |
 | `NO_AUDIO_FILES` | No supported audio files found in the specified folder. | Inform the user that the folder is empty or contains no supported audio files. |
-| `MISSING_API_KEY` | `ux-interview` did not inject the key delegated by `ux-research`. | Halt and ask the parent workflow to load the key from `.env` and pass it through the authorized chain. |
+| `MISSING_API_KEY` | Neither `ELEVENLABS_API_KEY` nor `GEMINI_API_KEY` was injected by `ux-interview`. | Halt and ask the parent workflow to load at least one transcription key from `.env` and pass it through the authorized chain. |
 | `INVALID_INPUT` | The supplied folder does not exist. | Return the validation error without calling the API. |
 | `INPUT_TOO_LARGE` | An audio file exceeds `--max-file-size-mb`. | Increase the configured limit only when the API account supports the upload. |
 | `EMPTY_TRANSCRIPT` | The API response contains no usable text. | Return a per-file failure and do not create a transcript. |
@@ -164,7 +175,7 @@ sequenceDiagram
 - [x] Reject empty transcription text before writing a completed transcript.
 
 **🔗 Workflow Fit**
-- [x] Align API-key documentation with the actual environment-variable contract; remove or implement the stated built-in-AI fallback.
+- [x] Align API-key documentation with the actual environment-variable contract; implement Gemini fallback when ElevenLabs is unavailable.
 - [x] Validate existing transcripts before skipping them, use atomic writes, and return results in filename order.
 
 **🛡️ Reliability & Error Handling**

@@ -27,11 +27,12 @@ never reads `.env` directly.
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`. If no Excel questionnaire file (`.xlsx`), Google Sheet URL, or question table image is found, halt and prompt the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`transcribe-audios`): Require the
-   `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it only into the skill
-   process environment, then transcribe with keyterms. Never read `.env` or
-   expose the key in logs or output artifacts. **Halts workflow and returns
-   detailed per-file error codes on failure.**
+5. **Audio Transcription** (`transcribe-audios`): Require at least one of
+   `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by `ux-research`, inject
+   them into the skill process environment, then transcribe with keyterms.
+   ElevenLabs is tried first; Gemini is used as an automatic fallback. Never
+   read `.env` or expose keys in logs or output artifacts. **Halts workflow
+   and returns detailed per-file error codes on failure.**
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. Every mapped quote MUST be a complete verbatim turn from that interviewee's source transcript, with the exact timestamp, wording, spelling, and punctuation; never truncate, paraphrase, translate, or correct it. The controller enforces this source equality before promotion. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
@@ -55,15 +56,18 @@ never reads `.env` directly.
 
 ## Input & Output
 **Input**: Natural language request, a folder path, and an `api_keys` mapping
-provided by the parent for the full workflow. Transcription requires
-`api_keys.ELEVENLABS_API_KEY`; isolated `saturate-insights` requests require the
-absolute canonical `Interview/mapped-transcript.md` path and no API key.
+provided by the parent for the full workflow. Transcription requires at least one
+of `api_keys.ELEVENLABS_API_KEY` or `api_keys.GEMINI_API_KEY`; isolated
+`saturate-insights` requests require the absolute canonical
+`Interview/mapped-transcript.md` path and no API key.
 **Output**: Skill execution result (e.g., status, generated file paths).
 
 ## Environment Access (.env)
 - **Allowed to access `.env`**: `false`
 - **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
   `transcribe-audios`.
+- **GEMINI_API_KEY**: Received from `ux-research` and injected only into
+  `transcribe-audios` as a fallback transcription provider.
 
 ## Sequence Diagram
 ```mermaid
@@ -127,7 +131,7 @@ sequenceDiagram
 | `UNKNOWN_INTENT` | Ask for clarification or list capabilities. |
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
-| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide the required key from the workspace `.env`. |
+| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide at least one transcription key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) from the workspace `.env`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
 | `SOURCE_TIMESTAMP_NOT_FOUND` / `NON_VERBATIM_RESPONSE` | Retry the affected mapped row using the complete timestamped source turn exactly as written in that interviewee's transcript. |
