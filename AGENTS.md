@@ -108,4 +108,16 @@ To ensure the workspace remains fully portable and syncs seamlessly via iCloud:
   2. The agent MUST ask the user directly to provide the required API key.
   3. Once the user provides the key, the agent MUST write it to the `.env` file (e.g. `ELEVENLABS_API_KEY=your_key_here`) and verify it is loaded correctly before proceeding.
 
+## Missing Skill Inputs Handling
+Whenever running a skill and any required inputs (such as folder paths, mandatory files, audio files, questionnaire tables, or parameters) are missing, incomplete, or invalid:
+1. **Halt Execution**: The agent MUST halt the skill or workflow execution immediately.
+2. **Identify Missing Inputs**: The agent MUST inspect the target skill's `SKILL.md` (under `Input` and `Error Handling & Fallbacks`) to identify all missing or invalid parameters and required files.
+3. **Instruct User Step-by-Step**: The agent MUST explicitly communicate to the user:
+   - **What is missing**: Clearly list the missing parameter(s) or required file(s).
+   - **File formats & locations**: Specify exact file formats/extensions (e.g., `.mp3`, `.m4a`, `.xlsx`), expected folder locations (e.g., `<folder_path>/Interview/`), or parameter types.
+   - **Action required**: Give clear, step-by-step instructions on what the user needs to upload, place, or provide.
+   - **Resume instructions**: Tell the user what response or command to send back once they have provided the missing inputs.
+4. **Wait for User Response**: The agent MUST wait for explicit user confirmation or input before resuming execution.
+
+
 
