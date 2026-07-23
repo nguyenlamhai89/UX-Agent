@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from email.utils import parseaddr
 import hashlib
 import hmac
+import html
 import json
 import math
 import os
@@ -174,8 +175,8 @@ def _validate_body(body: Any) -> str:
     return body
 
 
-def extract_top_insights(project_dir: Path) -> list[str]:
-    """Extract top insights from insights-data.json if present in the project directory."""
+def extract_top_insights(project_dir: Path) -> list[tuple[str, str]]:
+    """Extract top insights as (theme, insight) tuples from insights-data.json if present."""
     candidate_json = project_dir / "Interview" / "insights-data.json"
     if not candidate_json.exists():
         candidate_json = project_dir / "insights-data.json"
@@ -185,14 +186,12 @@ def extract_top_insights(project_dir: Path) -> list[str]:
             with open(candidate_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
             master_insights = data.get("master_insights", [])
-            extracted = []
+            extracted: list[tuple[str, str]] = []
             for item in master_insights:
                 theme = str(item.get("theme") or "").strip()
                 insight = str(item.get("insight") or "").strip()
-                if theme and insight:
-                    extracted.append(f"• [{theme}]: {insight}")
-                elif insight:
-                    extracted.append(f"• {insight}")
+                if theme or insight:
+                    extracted.append((theme, insight))
                 if len(extracted) >= 4:
                     break
             if extracted:
@@ -206,8 +205,8 @@ def build_formal_email_content(
     report_filename: str,
     sender_email: str = "nguyenlamhai89@gmail.com",
     project_dir: Path | None = None,
-) -> tuple[str, str]:
-    """Create Option 1 Executive Summary Vietnamese email content for a report attachment."""
+) -> tuple[str, str, str]:
+    """Create Option 1 Executive Summary Vietnamese email content (subject, text_body, html_body)."""
 
     report_label = (
         Path(report_filename).stem.replace("_", " ").strip()
@@ -215,18 +214,38 @@ def build_formal_email_content(
     )
     subject = f"[Báo cáo UX Research] {report_label}"
 
-    insights_block = ""
-    if project_dir is not None:
-        insights_list = extract_top_insights(project_dir)
-        if insights_list:
-            formatted_items = "\n".join(insights_list)
-            insights_block = f"📌 Một số điểm nhấn quan trọng (Top Insights):\n{formatted_items}\n\n"
+    text_insights_block = ""
+    html_insights_block = ""
 
-    body = (
+    if project_dir is not None:
+        insights_tuples = extract_top_insights(project_dir)
+        if insights_tuples:
+            text_items = []
+            html_items = []
+            for theme, insight in insights_tuples:
+                if theme and insight:
+                    text_items.append(f"• **{theme}**: {insight}")
+                    html_items.append(f"<li><strong>{html.escape(theme)}</strong>: {html.escape(insight)}</li>")
+                elif insight:
+                    text_items.append(f"• {insight}")
+                    html_items.append(f"<li>{html.escape(insight)}</li>")
+                elif theme:
+                    text_items.append(f"• **{theme}**")
+                    html_items.append(f"<li><strong>{html.escape(theme)}</strong></li>")
+
+            text_insights_block = f"📌 Một số điểm nhấn quan trọng (Top Insights):\n" + "\n".join(text_items) + "\n\n"
+            html_insights_block = (
+                '<p style="margin-top: 16px; margin-bottom: 8px;"><strong>📌 Một số điểm nhấn quan trọng (Top Insights):</strong></p>'
+                '<ul style="margin-top: 4px; margin-bottom: 16px; padding-left: 24px;">'
+                + "".join(html_items)
+                + "</ul>"
+            )
+
+    body_text = (
         "Kính gửi Anh/Chị,\n\n"
         f"Xin gửi Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “{report_label}”. "
         "File báo cáo HTML đã được đính kèm trong email này.\n\n"
-        f"{insights_block}"
+        f"{text_insights_block}"
         "Hướng dẫn mở báo cáo:\n"
         "1. Tải file HTML đính kèm về máy tính.\n"
         "2. Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.\n"
@@ -235,11 +254,27 @@ def build_formal_email_content(
         "Nguyễn Lâm Hải (nhâm)\n"
         "UX Designer"
     )
-    return subject, body
+
+    body_html = (
+        f'<div style="font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b;">'
+        f'<p style="margin-bottom: 12px;">Kính gửi Anh/Chị,</p>'
+        f'<p style="margin-bottom: 12px;">Xin gửi Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “<strong>{html.escape(report_label)}</strong>”. File báo cáo HTML đã được đính kèm trong email này.</p>'
+        f'{html_insights_block}'
+        f'<p style="margin-top: 16px; margin-bottom: 8px;"><strong>Hướng dẫn mở báo cáo:</strong></p>'
+        f'<ol style="margin-top: 4px; margin-bottom: 16px; padding-left: 24px;">'
+        f'<li>Tải file HTML đính kèm về máy tính.</li>'
+        f'<li>Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.</li>'
+        f'<li>Để có trải nghiệm tốt nhất, vui lòng sử dụng phiên bản trình duyệt mới nhất.</li>'
+        f'</ol>'
+        f'<p style="margin-top: 20px; margin-bottom: 0;">Trân trọng,<br><strong>Nguyễn Lâm Hải (nhâm)</strong><br>UX Designer</p>'
+        f'</div>'
+    )
+
+    return subject, body_text, body_html
 
 
 def _canonical_fields(draft: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    fields = {
         "from": draft["from"],
         "to": draft["to"],
         "cc": draft["cc"],
@@ -248,6 +283,9 @@ def _canonical_fields(draft: Mapping[str, Any]) -> dict[str, Any]:
         "body": draft["body"],
         "attachment_path": draft["attachment_path"],
     }
+    if "html_body" in draft:
+        fields["html_body"] = draft["html_body"]
+    return fields
 
 
 def _draft_id(draft: Mapping[str, Any]) -> str:
@@ -290,7 +328,7 @@ def prepare_email_draft(
             report_dir=project_dir / "Interview",
         )
         recipients = _normalize_recipients(bcc_recipients)
-        generated_subject, generated_body = build_formal_email_content(
+        generated_subject, generated_body, generated_html_body = build_formal_email_content(
             Path(attachment_path).name,
             validated_sender,
             project_dir=project_dir,
@@ -305,6 +343,7 @@ def prepare_email_draft(
             "bcc": recipients,
             "subject": validated_subject,
             "body": validated_body,
+            "html_body": generated_html_body,
             "attachment_path": attachment_path,
         }
         identifier = _draft_id(draft)
@@ -347,6 +386,8 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
         "body": body,
         "attachment_path": attachment_path,
     }
+    if "html_body" in draft:
+        validated["html_body"] = draft["html_body"]
     identifier = _draft_id(validated)
     expected_token = f"{APPROVAL_PREFIX}{identifier}"
     if draft.get("draft_id") != identifier or draft_result.get("approval_token") != expected_token:
@@ -371,7 +412,12 @@ def _send_via_smtp(
     msg["Message-ID"] = make_msgid(domain="gmail.com")
     msg["User-Agent"] = "UX-Agent/2.0 (macOS)"
     msg["X-Mailer"] = "UX-Agent Email Client"
-    msg.attach(MIMEText(draft["body"], "plain", "utf-8"))
+
+    alt_part = MIMEMultipart("alternative")
+    alt_part.attach(MIMEText(draft["body"], "plain", "utf-8"))
+    if draft.get("html_body"):
+        alt_part.attach(MIMEText(draft["html_body"], "html", "utf-8"))
+    msg.attach(alt_part)
 
     attachment_path = Path(draft["attachment_path"])
     try:

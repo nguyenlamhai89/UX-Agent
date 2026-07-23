@@ -327,6 +327,8 @@ def test_prepare_extracts_top_insights_from_insights_data_json(tmp_path):
     )
     assert result["status"] == "awaiting_approval"
     assert "📌 Một số điểm nhấn quan trọng (Top Insights):" in result["draft"]["body"]
-    assert "• [Theme A]: Insight text A" in result["draft"]["body"]
-    assert "• [Theme B]: Insight text B" in result["draft"]["body"]
+    assert "• **Theme A**: Insight text A" in result["draft"]["body"]
+    assert "• **Theme B**: Insight text B" in result["draft"]["body"]
+    assert "font-size: 16px" in result["draft"]["html_body"]
+    assert "<strong>Theme A</strong>: Insight text A" in result["draft"]["html_body"]
 
