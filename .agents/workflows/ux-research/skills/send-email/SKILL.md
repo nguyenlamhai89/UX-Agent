@@ -164,6 +164,7 @@ sequenceDiagram
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
 | Valid drafts returned `INTERNAL_ERROR` during recipient parsing | The implementation used the Python 3.13-only `parseaddr(..., strict=True)` parameter, but this workflow runs on Python 3.12. | Removed the unsupported parameter, retained explicit control-character, whitespace, parse-equality, `@`, local-part, and domain validation, and added regression coverage through all valid and invalid recipient tests. |
+| Report attachment directly in `Interview/` raised `ATTACHMENT_OUTSIDE_REPORT_DIR` | `_validate_attachment` enforced `Interview/Research Report` strictly, missing reports generated directly inside `Interview/`. | Updated `_validate_attachment` and `prepare_email_draft` to accept files under `Interview/` and `Interview/Research Report/`, and added unit test coverage. |
 
 ## Performance Improvement Solutions
 

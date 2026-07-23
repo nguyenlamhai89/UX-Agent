@@ -62,6 +62,22 @@ def test_prepare_accepts_valid_skipped_visualization(tmp_path):
     assert result["status"] == "awaiting_approval"
 
 
+def test_prepare_accepts_report_directly_in_interview(tmp_path):
+    project = tmp_path / "project"
+    interview = project / "Interview"
+    interview.mkdir(parents=True)
+    report = interview / "DirectReport.html"
+    report.write_text("<html>report</html>", encoding="utf-8")
+
+    result = send_email.prepare_email_draft(
+        {"status": "success", "output_file": str(report)},
+        folder_path=str(project),
+        bcc_recipients=["person@example.com"],
+    )
+    assert result["status"] == "awaiting_approval"
+    assert result["draft"]["attachment_path"] == str(report)
+
+
 @pytest.mark.parametrize(
     "recipients",
     [

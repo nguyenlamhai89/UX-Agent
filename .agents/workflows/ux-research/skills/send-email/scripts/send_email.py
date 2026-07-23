@@ -105,7 +105,7 @@ def _validate_attachment(
                 "ATTACHMENT_OUTSIDE_REPORT_DIR",
                 "The HTML attachment must remain inside Interview/Research Report.",
             )
-    elif resolved.parent.name != "Research Report" or resolved.parent.parent.name != "Interview":
+    elif resolved.parent.name not in ("Research Report", "Interview") and resolved.parent.parent.name != "Interview":
         raise ValidationError(
             "ATTACHMENT_OUTSIDE_REPORT_DIR",
             "The HTML attachment must remain inside Interview/Research Report.",
@@ -238,7 +238,7 @@ def prepare_email_draft(
         project_dir = _validate_folder_path(folder_path)
         attachment_path = _validate_attachment(
             visualization_result["output_file"],
-            report_dir=project_dir / "Interview" / "Research Report",
+            report_dir=project_dir / "Interview",
         )
         recipients = _normalize_recipients(bcc_recipients)
         generated_subject, generated_body = build_formal_email_content(
