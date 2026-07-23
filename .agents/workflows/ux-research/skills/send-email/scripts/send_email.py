@@ -362,10 +362,15 @@ def _send_via_smtp(
 ) -> dict[str, Any]:
     """Internal helper to dispatch email using Python smtplib."""
     from email.header import Header
+    from email.utils import formatdate, make_msgid
 
     msg = MIMEMultipart()
     msg["From"] = draft["from"]
     msg["Subject"] = Header(draft["subject"], "utf-8")
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain="gmail.com")
+    msg["User-Agent"] = "UX-Agent/2.0 (macOS)"
+    msg["X-Mailer"] = "UX-Agent Email Client"
     msg.attach(MIMEText(draft["body"], "plain", "utf-8"))
 
     attachment_path = Path(draft["attachment_path"])
