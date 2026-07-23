@@ -81,7 +81,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 ## Custom Instructions
 
-- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-transcribe/skills/elevenlabs-transcribe/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--max-workers 5] [--max-file-size-mb 200] [--max-retries 3]`.
+- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/elevenlabs-transcribe/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--max-workers 5] [--max-file-size-mb 200] [--max-retries 3]`.
 - The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
 
 ## Sequence Diagram

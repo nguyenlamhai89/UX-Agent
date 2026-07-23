@@ -10,8 +10,8 @@ description: Converts insights.md, mapped-transcript.md, all interviewee transcr
 This skill converts user research insights (`insights.md`) and mapped transcripts (`mapped-transcript.md`) into a visual, interactive HTML dashboard (`<project name>.html`). It uses a specific predefined HTML template structure (split into modules for ease of management) and leverages deterministic Python parsing to accurately populate the layout.
 
 In the complete research workflow, this skill is the terminal stage of
-`ux-transcribe` → `ux-cjm` → `visualize-insights`. It consumes the transcript
-and insight artifacts produced by `ux-transcribe`, plus the journey map
+`ux-interview` → `ux-cjm` → `visualize-insights`. It consumes the transcript
+and insight artifacts produced by `ux-interview`, plus the journey map
 produced by `ux-cjm`, to visualize the final research findings. It may also be
 invoked independently without a journey map.
 
@@ -221,7 +221,7 @@ sequenceDiagram
 - [x] **Human Approval Rate (7/10)**: Add a representative end-to-end HTML fixture plus browser-based visual and accessibility checks for navigation order, drawers, searches, empty states, and wide tables.
 
 #### Workflow Fit
-- [x] **I/O Contract Adherence (7/10)**: Define a parent workflow that runs `ux-transcribe` → `ux-cjm` → `visualize-insights`, passes the canonical transcript, insight, full-transcript, and journey-map paths between stages, enforces the documented required fields, and resolves `output_file` to an absolute path inside `output_dir`.
+- [x] **I/O Contract Adherence (7/10)**: Define a parent workflow that runs `ux-interview` → `ux-cjm` → `visualize-insights`, passes the canonical transcript, insight, full-transcript, and journey-map paths between stages, enforces the documented required fields, and resolves `output_file` to an absolute path inside `output_dir`.
 - [x] **Skip-Logic Compatibility (4/10)**: Add an input signature manifest covering Markdown, transcript, journey, and template files, then define orchestrator skip logic that accepts only a complete current output.
 - [x] **Pipeline Passthrough Rate (6/10)**: Use one guarded template-loading path and stable error codes for input read, parse, template, journey, browser, and output failures; document matching orchestrator handling for every code.
 - [x] **Idempotency (7/10)**: Make browser opening an explicit opt-in flag and replace implicit output-directory audio discovery with declared media inputs or a documented deterministic source.

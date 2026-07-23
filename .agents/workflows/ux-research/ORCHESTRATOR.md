@@ -8,12 +8,12 @@ description: Coordinates the complete UX research pipeline from transcription th
 ## Description
 
 This parent workflow coordinates the complete research sequence:
-`ux-transcribe` → `ux-cjm` → `visualize-insights`. It preserves each child
+`ux-interview` → `ux-cjm` → `visualize-insights`. It preserves each child
 workflow's approval gates, passes only canonical successful outputs to the next
 stage, and finishes with an atomic, freshness-aware HTML research report.
 
 The parent orchestrator owns coordination only. It calls the sibling
-`ux-transcribe` and `ux-cjm` workflows and then invokes the shared
+`ux-interview` and `ux-cjm` workflows and then invokes the shared
 `visualize-insights` workspace skill. It never reads API keys inside a skill.
 
 ## Routing Logic & Execution Flow
@@ -27,7 +27,7 @@ shared skill.
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
    packages, but halt only when the dependency required by the next step is
    unavailable.
-1. **Run `ux-transcribe`** — Pass the absolute `folder_path`, obtain any
+1. **Run `ux-interview`** — Pass the absolute `folder_path`, obtain any
    required keyterms, and preserve all approval gates. Continue only after the
    child workflow reports a complete current canonical mapping and successful
    insight publication.
@@ -72,7 +72,7 @@ next stage. A partial or stale child result halts the pipeline.
 
 ## Available Workflows and Skills
 
-- **[UX Transcribe](../ux-transcribe/ORCHESTRATOR.md)** — Produces canonical
+- **[UX Interview](../ux-interview/ORCHESTRATOR.md)** — Produces canonical
   full transcripts, `mapped-transcript.md`, and `insights.md`.
 - **[UX CJM](../ux-cjm/ORCHESTRATOR.md)** — Produces the canonical
   `Journey Map/journey-map.md` from the mapped transcript.
@@ -117,7 +117,7 @@ sibling workflows and one shared workspace skill.
 
 | Key Name | Purpose | Passed to Skills |
 | --- | --- | --- |
-| `ELEVENLABS_API_KEY` | Interview audio transcription | Passed only to `ux-transcribe`, which injects it into `elevenlabs-transcribe`; never exposed to downstream skills. |
+| `ELEVENLABS_API_KEY` | Interview audio transcription | Passed only to `ux-interview`, which injects it into `elevenlabs-transcribe`; never exposed to downstream skills. |
 
 ## Sequence Diagram
 
@@ -126,13 +126,13 @@ sequenceDiagram
     autonumber
     actor User
     participant Parent as UX Research Report
-    participant UXT as UX Transcribe
+    participant UXI as UX Interview
     participant CJM as UX CJM
     participant VIS as visualize-insights
 
     User->>Parent: folder_path and project_name
-    Parent->>UXT: Run complete transcription workflow
-    UXT-->>Parent: Canonical transcripts, mapping, and insights
+    Parent->>UXI: Run complete interview workflow
+    UXI-->>Parent: Canonical transcripts, mapping, and insights
     Parent-->>User: Approve journey mapping
     User->>Parent: Approved
     Parent->>CJM: Run with Interview folder

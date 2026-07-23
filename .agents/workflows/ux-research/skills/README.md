@@ -2,5 +2,5 @@
 
 This directory is intentionally retained for skills owned directly by the
 `ux-research` parent workflow. The workflow currently composes the sibling
-`ux-transcribe` and `ux-cjm` workflows plus the shared workspace-level
+`ux-interview` and `ux-cjm` workflows plus the shared workspace-level
 `visualize-insights` skill, so it does not duplicate their implementations.

@@ -1,12 +1,12 @@
 ---
-name: UX Transcribe
+name: UX Interview
 description: Orchestrates UX research workflows by routing requests to transcribe interview audio, extract questionnaire tables from images, and map transcript responses to questionnaire structures.
 ---
 
-# UX Transcribe
+# UX Interview
 
 ## Description
-The UX Transcribe orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
+The UX Interview orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
 1. **Questionnaire Table Extraction**: Reading a question table from an image to produce a structured `full-questionnaire.md`.
 2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs.
 3. **Transcript Mapping**: Mapping interviewee responses from transcripts to the questionnaire structure.
@@ -60,7 +60,7 @@ sequenceDiagram
     autonumber
     actor User
     participant FO as Father Orchestrator
-    participant UXS as UX Transcribe
+    participant UXI as UX Interview
     participant CQT as Create Questionnaire Table
     participant STT as ElevenLabs Transcribe
     participant MT as Map Transcript
@@ -68,48 +68,48 @@ sequenceDiagram
     participant Env as .env
 
     User->>FO: Start UX research workflow
-    FO->>UXS: Route to UX Transcribe
-    activate UXS
+    FO->>UXI: Route to UX Interview
+    activate UXI
     
-    UXS->>UXS: 1. Folder Creation & Move Inputs (Interview/)
-    UXS->>CQT: 2. Questionnaire Extraction
-    CQT-->>UXS: Return full-questionnaire.md
-    UXS-->>User: 3. Ask for approval
-    User->>UXS: Approve
+    UXI->>UXI: 1. Folder Creation & Move Inputs (Interview/)
+    UXI->>CQT: 2. Questionnaire Extraction
+    CQT-->>UXI: Return full-questionnaire.md
+    UXI-->>User: 3. Ask for approval
+    User->>UXI: Approve
     
-    UXS-->>User: 4. Prompt for keyterms
-    User->>UXS: Provide keyterms
+    UXI-->>User: 4. Prompt for keyterms
+    User->>UXI: Provide keyterms
     
-    UXS->>Env: Read ELEVENLABS_API_KEY
-    Env-->>UXS: Return API key
-    UXS->>STT: 5. Audio Transcription
+    UXI->>Env: Read ELEVENLABS_API_KEY
+    Env-->>UXI: Return API key
+    UXI->>STT: 5. Audio Transcription
     
     alt Transcription Error
-        STT-->>UXS: Return error
-        UXS-->>User: Halt & show error code
+        STT-->>UXI: Return error
+        UXI-->>User: Halt & show error code
     else Success
-        STT-->>UXS: Return transcripts
-        UXS-->>User: 6. Ask for approval
-        User->>UXS: Approve
+        STT-->>UXI: Return transcripts
+        UXI-->>User: 6. Ask for approval
+        User->>UXI: Approve
 
-        UXS->>MT: 7. Prepare, bounded-map, validate, finalize
+        UXI->>MT: 7. Prepare, bounded-map, validate, finalize
         alt Partial Mapping
-            MT-->>UXS: Return PARTIAL_MAPPING; canonical unchanged
-            UXS-->>User: Halt with per-transcript failures
+            MT-->>UXI: Return PARTIAL_MAPPING; canonical unchanged
+            UXI-->>User: Halt with per-transcript failures
         else Complete Mapping
-            MT-->>UXS: Return canonical + review outputs
-            UXS-->>User: 8. Ask for approval
-            User->>UXS: Approve
+            MT-->>UXI: Return canonical + review outputs
+            UXI-->>User: 8. Ask for approval
+            User->>UXI: Approve
 
-            UXS->>SA: 9. Pass canonical mapped-transcript.md only
+            UXI->>SA: 9. Pass canonical mapped-transcript.md only
             Note over SA: Verify mapping manifest,<br/>extract ≤4 at a time,<br/>ground and consolidate evidence
-            SA-->>UXS: Return atomic insights set + review manifest
-            UXS-->>User: 10. Ask for approval
-            User->>UXS: Approve
+            SA-->>UXI: Return atomic insights set + review manifest
+            UXI-->>User: 10. Ask for approval
+            User->>UXI: Approve
         end
     end
-    UXS-->>FO: Return result
-    deactivate UXS
+    UXI-->>FO: Return result
+    deactivate UXI
     FO-->>User: Respond
 ```
 

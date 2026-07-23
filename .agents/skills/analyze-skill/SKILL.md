@@ -60,7 +60,7 @@ The orchestrator should trigger this skill when:
   ```json
   {
     "status": "success",
-    "report_file": "/Users/madebynham/Desktop/UX Agent/.agents/workflows/ux-transcribe/Analysis/analysis-map-transcript.md",
+    "report_file": "/Users/madebynham/Desktop/UX Agent/.agents/workflows/ux-interview/Analysis/analysis-map-transcript.md",
     "summary": {
       "execution_efficiency": 6.25,
       "output_quality": 7.5,
@@ -148,7 +148,7 @@ The orchestrator should trigger this skill when:
 
 - **Execution Method**: This skill is executed by the Antigravity AI agent. The agent follows these steps directly:
 
-  1. **Resolve the target skill path** — Locate the skill folder at `.agents/workflows/ux-transcribe/skills/<skill_name>/`. Verify the `SKILL.md` file exists.
+  1. **Resolve the target skill path** — Locate the skill folder at `.agents/workflows/ux-interview/skills/<skill_name>/`. Verify the `SKILL.md` file exists.
   2. **Read all target skill files**:
      a. Read `SKILL.md` — Extract description, input/output contracts, custom instructions, error handling table, known bugs table, sequence diagram, and API key configuration.
      b. Read all files in `scripts/` (if the directory exists) — Analyze code logic, API usage, error handling, resource management, and cleanup.
@@ -188,11 +188,11 @@ The orchestrator should trigger this skill when:
   5. **Format the analysis as JSON** — Structure the results according to the JSON schema defined below, with each criteria containing `score`, `analysis`, and `solutions` fields.
   6. **Run the report management script** — Execute:
      ```bash
-     python3 .agents/workflows/ux-transcribe/skills/analyze-skill/scripts/manage_report.py \
+     python3 .agents/workflows/ux-interview/skills/analyze-skill/scripts/manage_report.py \
        --skill-name "<skill_name>" \
        --date "<YYYY-MM-DD>" \
        --analysis-json '<JSON string>' \
-       --output-dir ".agents/workflows/ux-transcribe/Analysis"
+       --output-dir ".agents/workflows/ux-interview/Analysis"
      ```
      For long or punctuation-heavy payloads, write the analysis object to a
      workspace-local UTF-8 JSON file and pass

@@ -13,7 +13,7 @@ Usage:
         --skill-name "map-transcript" \
         --date "2026-07-03" \
         --analysis-json '<JSON string>' \
-        --output-dir ".agents/workflows/ux-transcribe/Analysis"
+        --output-dir ".agents/workflows/ux-interview/Analysis"
 """
 
 import argparse

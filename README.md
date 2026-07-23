@@ -8,7 +8,7 @@ UX Agent is an intelligent agentic workspace built on the **Google Antigravity S
 
 The workspace is organized into two primary agentic workflows under `.agents/workflows/`:
 
-### 1. UX Transcribe (`ux-transcribe`)
+### 1. UX Interview (`ux-interview`)
 Orchestrates raw user research transcription, response mapping, and quantitative insights synthesis.
 - **Dependency Check**: Verifies workspace environment dependencies using `check_libraries.py`.
 - **Questionnaire Extraction (`create-questionnaire-table`)**: Programmatically extracts question tables from images (e.g., screenshots or forms) and structures them into `full-questionnaire.md`.
@@ -24,18 +24,18 @@ Automates the analysis of user experience phases to compile a comprehensive Cust
 
 ### 📊 Workflow Sequence Diagrams
 
-#### UX Transcribe Flow
+#### UX Interview Flow
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant Orchestrator as UX Transcribe Orchestrator
+    participant Orchestrator as UX Interview Orchestrator
     participant CQT as create-questionnaire-table
     participant STT as elevenlabs-transcribe
     participant MT as map-transcript
     participant SA as saturate-insights
 
-    User->>Orchestrator: Run transcribe workflow (audio files, questionnaire image)
+    User->>Orchestrator: Run interview workflow (audio files, questionnaire image)
     activate Orchestrator
     
     Orchestrator->>CQT: 1. Extract table from image
@@ -115,7 +115,7 @@ The project is structured logically around the `.agents/` environment:
     * 📂 `analyze-skill/` — Quality assurance suite to score skills against various criteria.
     * 📂 `visualize-insights/` — Skill to compile Markdown results into an interactive HTML dashboard.
   * 📂 **`workflows/`** — Domain-specific orchestration pipelines
-    * 📂 **`ux-transcribe/`** — Transcribes user audios and maps responses
+    * 📂 **`ux-interview/`** — Transcribes user audios and maps responses
       * 📄 `ORCHESTRATOR.md` — Defines transcription pipeline routing logic and rules.
       * 📂 `skills/` — Skills specific to the transcription pipeline:
         * 📂 `create-questionnaire-table/` — Extracts question formats from images.
@@ -180,11 +180,11 @@ ELEVENLABS_API_KEY=your_actual_elevenlabs_api_key_here
 
 ## 🏃 Running the Workflows
 
-### Scenario A: Raw User Interview Transcription & Synthesis (`ux-transcribe`)
+### Scenario A: Raw User Interview Transcription & Synthesis (`ux-interview`)
 Use this workflow when you have a folder of interview audio files and a screenshot image of the questionnaire structure.
 
 1. Create a workspace folder (e.g., `my_ux_project/`) and place the interview audios and questionnaire image inside it.
-2. Trigger the `ux-transcribe` orchestrator:
+2. Trigger the `ux-interview` orchestrator:
    - The orchestrator will create an `Interview/` folder and organize your inputs.
    - It will run `create-questionnaire-table` to extract the table layout to `full-questionnaire.md`.
    - **Pause for Approval**: Review the extracted table and approve to proceed.
@@ -210,8 +210,8 @@ To verify all pipelines and skills are functioning correctly:
 # Run CJM pipeline end-to-end tests
 pytest .agents/workflows/ux-cjm/tests/test_e2e_pipeline.py
 
-# Run Transcribe pipeline end-to-end tests
-pytest .agents/workflows/ux-transcribe/tests/test_e2e_pipeline.py
+# Run Interview pipeline end-to-end tests
+pytest .agents/workflows/ux-interview/tests/test_e2e_pipeline.py
 
 # Run all tests in the workspace (including individual skill unit tests)
 pytest
