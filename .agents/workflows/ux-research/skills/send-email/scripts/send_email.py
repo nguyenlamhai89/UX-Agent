@@ -321,12 +321,13 @@ def _send_via_smtp(
     attachment_path = Path(draft["attachment_path"])
     try:
         with open(attachment_path, "rb") as f:
-            part = MIMEBase("application", "octet-stream")
+            part = MIMEBase("text", "html", charset="utf-8")
             part.set_payload(f.read())
         encoders.encode_base64(part)
         part.add_header(
             "Content-Disposition",
-            f'attachment; filename="{attachment_path.name}"',
+            "attachment",
+            filename=attachment_path.name,
         )
         msg.attach(part)
     except OSError:
