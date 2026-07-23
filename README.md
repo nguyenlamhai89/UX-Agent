@@ -6,41 +6,36 @@
 
 ## ⚡ Hướng dẫn nhanh cho người mới (Quick Start)
 
-Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên cứu UX:
+Chỉ với 3 bước đơn giản để thiết lập và khởi chạy dự án nghiên cứu UX:
 
-### 1. Cài đặt Agent
-- Copy link git dự án vào AI IDE (Antigravity, Claude Code, Codex, …)
-- Yêu cầu AI IDE cài đặt dự án tự động
-  ```env
-  # Bắt buộc có 1 trong 2 key để sử dụng transcribe-audios
-  ELEVENLABS_API_KEY=your_key_here
-  GEMINI_API_KEY=your_key_here
+### 1. Chuẩn bị (Inputs & Credentials)
+Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguyên sau:
+* 🎙️ **File ghi âm / video phỏng vấn**: `.mp3`, `.m4a`, `.qta` đặt trong thư mục dự án.
+* 📋 **Bảng câu hỏi phỏng vấn**: Tạo bản sao từ [Template Google Sheet Mẫu](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114) (chế độ public) hoặc file Excel (`.xlsx`).
+* 🔑 **API Key chuyển âm** (bắt buộc ít nhất 1 trong 2):
+  * `GEMINI_API_KEY` (miễn phí): Lấy tại [Google AI Studio](https://aistudio.google.com) → *Get API key*.
+  * `ELEVENLABS_API_KEY` (trả phí, ưu tiên): Lấy tại [ElevenLabs](https://elevenlabs.io) → *Profile* → *API Keys*.
+* 📧 **Gmail App Password** (tùy chọn, dùng để gửi báo cáo qua email):
+  * `GMAIL_APP_USERNAME`: Địa chỉ Gmail dùng để gửi.
+  * `GMAIL_APP_PASSWORD`: Mật khẩu ứng dụng 16 ký tự tạo tại [Google App Passwords](https://myaccount.google.com/apppasswords) (cần bật 2FA).
 
-  # Bắt buộc có cả 2 để sử dụng send-email
-  GMAIL_APP_USERNAME=your_gmail@gmail.com
-  GMAIL_APP_PASSWORD=your_gmail_app_password
-  ```
+### 2. Cài đặt Agent (Setup & .env)
+Mở dự án trong AI IDE (Google Antigravity, Claude Code, Cursor...) và cấu hình file `.env` ở thư mục gốc:
 
-> **Lưu ý về API key chuyển âm:** Bạn cần cung cấp **ít nhất một** trong hai key `ELEVENLABS_API_KEY` hoặc `GEMINI_API_KEY`. Nếu cả hai đều được cung cấp, hệ thống sẽ ưu tiên dùng ElevenLabs và tự động chuyển sang Gemini khi ElevenLabs gặp lỗi.
+```env
+# API Key chuyển âm (Cần ít nhất 1 key. Ưu tiên ElevenLabs, Gemini làm dự phòng tự động)
+ELEVENLABS_API_KEY=your_elevenlabs_key_here
+GEMINI_API_KEY=your_gemini_key_here
 
-- **Cách lấy API key:**
-  - 🔑 **ELEVENLABS_API_KEY** (cần trả phí): Đăng nhập https://elevenlabs.io → Vào **Profile** → **API Keys** → Tạo/Copy key.
-  - 🔑 **GEMINI_API_KEY** (miễn phí): Đăng nhập Google AI Studio (https://aistudio.google.com) → Chọn **Get API key** → Tạo key mới.
-  - 📧 **Cách lấy Gmail App Username và Password:**
-    - **GMAIL_APP_USERNAME**: Địa chỉ email Gmail bạn sẽ dùng để gửi.
-    - **GMAIL_APP_PASSWORD**: Đăng nhập Google → Bật Xác thực 2 bước → Truy cập [App Passwords](https://myaccount.google.com/apppasswords) → Tạo mật khẩu ứng dụng 16 ký tự.
+# Thông tin Gmail gửi báo cáo (Tùy chọn)
+GMAIL_APP_USERNAME=your_gmail@gmail.com
+GMAIL_APP_PASSWORD=your_16_digit_app_password
+```
 
-### 2. Chuẩn bị
-- [ ] **API keys**
-  - ELEVENLABS_API_KEY (cần trả phí)
-  - GEMINI_API_KEY (miễn phí)
-- [ ] **Gmail App credentials**
-  - GMAIL_APP_USERNAME
-  - GMAIL_APP_PASSWORD
-- [ ] **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.qta`)
-- [ ] **Bộ câu hỏi phỏng vấn** (template Google Sheet): [link Google Sheet chế độ public](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114) (duplicate file này).
+💡 **Ví dụ câu lệnh nhờ AI Agent cài đặt tự động:**
+> *"Hãy kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GEMINI_API_KEY=AIzaSy...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
 
-### 3. Kích hoạt Agent
+### 3. Kích hoạt Agent (Run Workflow)
 Trong khung chat với AI Agent, gõ câu lệnh:
 ```text
 ux-research <đường_dẫn_thư_mục_dự_án>
