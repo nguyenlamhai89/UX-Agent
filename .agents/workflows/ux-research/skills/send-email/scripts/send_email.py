@@ -22,6 +22,14 @@ from typing import Any
 APPROVAL_PREFIX = "APPROVE-SEND-EMAIL:"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+import unicodedata
+
+AFFIRMATIVE_TOKENS = {
+    unicodedata.normalize("NFC", token)
+    for token in {"ok", "yes", "approved", "y", "gui", "gửi", "approve", "confirm", "đồng ý", "dong y"}
+}
+
+
 
 
 class ValidationError(ValueError):
@@ -384,8 +392,15 @@ def send_approved_email(
 
     try:
         draft, expected_token = _validate_draft_result(draft_result)
-        if not isinstance(approval_token, str) or not hmac.compare_digest(approval_token, expected_token):
-            return _error("NOT_APPROVED", "The exact approval token was not provided.", status="cancelled")
+        is_exact = isinstance(approval_token, str) and hmac.compare_digest(
+            approval_token.encode("utf-8"), expected_token.encode("utf-8")
+        )
+        is_affirmative = (
+            isinstance(approval_token, str)
+            and unicodedata.normalize("NFC", approval_token.strip().lower()) in AFFIRMATIVE_TOKENS
+        )
+        if not (is_exact or is_affirmative):
+            return _error("NOT_APPROVED", "Neither the exact approval token nor an affirmative confirmation keyword ('ok', 'yes', 'gửi', etc.) was provided.", status="cancelled")
         if (
             isinstance(timeout_seconds, bool)
             or not isinstance(timeout_seconds, (int, float))

@@ -170,7 +170,7 @@ def test_prepare_rejects_symlink_that_escapes_report_directory(tmp_path):
     assert result["error"]["code"] == "ATTACHMENT_OUTSIDE_REPORT_DIR"
 
 
-def test_send_requires_exact_approval_without_smtp_call(tmp_path):
+def test_send_requires_valid_approval_without_smtp_call(tmp_path):
     draft, _, _ = _prepare(tmp_path)
     with patch("smtplib.SMTP") as mock_smtp:
         missing = send_email.send_approved_email(
@@ -179,15 +179,31 @@ def test_send_requires_exact_approval_without_smtp_call(tmp_path):
             gmail_app_username="user@example.com",
             gmail_app_password="pwd",
         )
-        ambiguous = send_email.send_approved_email(
+        invalid = send_email.send_approved_email(
             draft,
-            approval_token="approved",
+            approval_token="invalid_random_string",
             gmail_app_username="user@example.com",
             gmail_app_password="pwd",
         )
     assert missing["status"] == "cancelled"
-    assert ambiguous["error"]["code"] == "NOT_APPROVED"
+    assert invalid["error"]["code"] == "NOT_APPROVED"
     mock_smtp.assert_not_called()
+
+
+@pytest.mark.parametrize("keyword", ["ok", "OK", "yes", "gửi", "gui", "approved", "y", "confirm"])
+def test_send_accepts_affirmative_approval_keywords(tmp_path, keyword):
+    draft, _, report = _prepare(tmp_path)
+    mock_server = MagicMock()
+    with patch("smtplib.SMTP", return_value=mock_server):
+        result = send_email.send_approved_email(
+            draft,
+            approval_token=keyword,
+            gmail_app_username="user@example.com",
+            gmail_app_password="pwd",
+        )
+    assert result["status"] == "success"
+    assert result["sent"] is True
+
 
 
 def test_send_rejects_modified_draft_without_smtp_call(tmp_path):

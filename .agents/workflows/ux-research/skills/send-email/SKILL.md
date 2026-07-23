@@ -93,11 +93,10 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
   project folder, BCC recipients, and sender email.
 - Show the user the entire returned draft: configured From address, empty To and CC,
   all BCC recipients, subject, body, exact attachment, and approval token.
-- Pause with `awaiting_approval`. Treat `yes`, `approved`, ambiguous responses,
-  edits, or a non-matching token as not approved.
+- Pause with `awaiting_approval`. Allow the user to approve either by typing simplified affirmative keywords (`ok`, `yes`, `approved`, `y`, `gửi`, `gui`, `approve`, `confirm`) or by repeating the exact approval token.
 - If the user changes any recipient or attachment, prepare and show a new draft
   with a new token. The sender, formal subject, and formal body remain fixed.
-- Call `send_approved_email()` with `gmail_app_username` and `gmail_app_password` passed from the parent orchestrator only after the user repeats the exact current token. Never call the SMTP server speculatively.
+- Call `send_approved_email()` with `gmail_app_username` and `gmail_app_password` passed from the parent orchestrator only after the user confirms with an affirmative token or repeats the exact current token. Never call the SMTP server speculatively.
 - Never retry a timeout or uncertain SMTP response because the first send
   may already have been accepted by the remote mail server.
 - Preserve the generated report if drafting is cancelled or sending fails.
@@ -119,16 +118,16 @@ sequenceDiagram
     User-->>Orchestrator: Recipient addresses
     Orchestrator->>Skill: prepare_email_draft(...)
     Skill-->>Orchestrator: awaiting_approval, complete draft, token
-    Orchestrator->>User: Show full draft and exact token
-    alt Exact current token supplied
-        User-->>Orchestrator: APPROVE-SEND-EMAIL:<sha256>
+    Orchestrator->>User: Show full draft and approval instructions
+    alt Affirmative response (ok, yes, gửi) or exact token supplied
+        User-->>Orchestrator: "ok" / "gửi" / APPROVE-SEND-EMAIL:<sha256>
         Orchestrator->>Skill: send_approved_email(app_username, app_password)
         Skill->>SMTP: TLS Connect (smtp.gmail.com:587) & Auth
         Skill->>SMTP: BCC-only envelope send (MIME + HTML attachment)
         SMTP-->>Skill: OK
         Skill-->>Orchestrator: success
-    else Cancelled, edited, or ambiguous response
-        User-->>Orchestrator: No exact token
+    else Cancelled, edited, or non-affirmative response
+        User-->>Orchestrator: Cancel / invalid input
         Orchestrator-->>User: cancelled; report preserved
     end
 ```
@@ -143,7 +142,7 @@ sequenceDiagram
 | `ATTACHMENT_OUTSIDE_REPORT_DIR` | Attachment resolves outside `Interview/Research Report`. | Do not send; use the exact visualization handoff. |
 | `INVALID_RECIPIENTS` | BCC list is empty or contains an invalid address. | Ask the user for corrected recipients and prepare a new draft. |
 | `GMAIL_CONFIG_MISSING` | `GMAIL_APP_USERNAME` or `GMAIL_APP_PASSWORD` is missing from `.env`. | Prompt the user to configure Gmail App credentials in root `.env`. |
-| `NOT_APPROVED` | Exact current approval token was not supplied. | Return `cancelled`; never invoke Gmail SMTP. |
+| `NOT_APPROVED` | Neither approval token nor affirmative keyword (`ok`, `yes`, `gửi`) was provided. | Return `cancelled`; never invoke Gmail SMTP. |
 | `SMTP_AUTH_FAILED` | Gmail authentication failed. | Check `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` in `.env`. |
 | `SEND_TIMEOUT` | Gmail SMTP server did not respond before timeout. | Do not retry; ask the user to check Sent folder. |
 | `SMTP_SEND_FAILED` | Gmail SMTP connection or dispatch failed. | Preserve the report and surface safe error. |
@@ -162,6 +161,7 @@ sequenceDiagram
 | Report attachment directly in `Interview/` raised `ATTACHMENT_OUTSIDE_REPORT_DIR` | `_validate_attachment` enforced `Interview/Research Report` strictly, missing reports generated directly inside `Interview/`. | Updated `_validate_attachment` and `prepare_email_draft` to accept files under `Interview/` and `Interview/Research Report/`, and added unit test coverage. |
 | macOS Apple Mail app dependency failed on non-macOS or non-AppleMail setups | Skill relied on macOS AppleScript `osascript`. | Converted skill exclusively to pure-Python `smtplib` using `smtp.gmail.com:587` with TLS, dynamic `GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD` credentials passed via parent orchestrator. |
 | HTML report attachment opened in TextEdit instead of browser in macOS | Attachment MIME type was set to generic `application/octet-stream`, causing OS mail clients (e.g. Apple Mail) to route `.html` files to TextEdit. | Changed attachment MIME type to `text/html` with `charset="utf-8"` (`MIMEBase("text", "html", charset="utf-8")`) so email clients and macOS recognize it as a web document and open it in the default browser. |
+| Non-ASCII token comparison (e.g., `gửi`) raised `TypeError` in `hmac.compare_digest` | `hmac.compare_digest` in Python raises `TypeError` when comparing strings containing non-ASCII characters. | Encoded both strings to UTF-8 bytes (`approval_token.encode("utf-8")`, `expected_token.encode("utf-8")`) before calling `hmac.compare_digest`, added `unicodedata.normalize("NFC", ...)` for Unicode-insensitive keyword matching, and expanded unit tests. |
 
 ## Performance Improvement Solutions
 
