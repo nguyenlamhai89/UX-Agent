@@ -3,7 +3,7 @@
 UX Agent is an agentic workspace for turning UX interview material into a
 traceable research report. It extracts a questionnaire, transcribes and maps
 interviews, synthesizes grounded insights, builds a customer journey map, and
-produces an interactive HTML report that can be sent through Apple Mail after
+produces an interactive HTML report that can be sent through Gmail SMTP after
 explicit approval.
 
 The workflow favors canonical artifacts, deterministic validation, and
@@ -36,12 +36,12 @@ sequenceDiagram
     participant EM as extract-map
     participant VIS as visualize-insights
     participant EMAIL as send-email
-    participant Mail as Apple Mail
+    participant SMTP as Gmail SMTP Server
 
     User->>Parent: Provide folder_path and project_name
     Parent->>Parent: Check dependencies
     Parent->>Env: Read required API keys once
-    Env-->>Parent: ELEVENLABS_API_KEY
+    Env-->>Parent: ELEVENLABS_API_KEY, GMAIL_APP_USERNAME, GMAIL_APP_PASSWORD
     Parent->>UXI: Start interview workflow with delegated key
     UXI->>CQT: Extract questionnaire image
     CQT-->>UXI: full-questionnaire.md
@@ -79,14 +79,14 @@ sequenceDiagram
     Parent->>VIS: Generate report from canonical artifacts
     VIS-->>Parent: HTML report and freshness manifest
     Parent-->>User: Review report and approve delivery
-    User-->>Parent: Approval and BCC recipients
+    User-->>Parent: Approval and CC recipients
     Parent->>EMAIL: Prepare formal email with exact HTML output_file
-    EMAIL-->>Parent: Draft from nguyenlamhai89@gmail.com and approval token
-    Parent-->>User: Review From, BCC, body, attachment, and token
-    User-->>Parent: Repeat exact approval token
+    EMAIL-->>Parent: Draft from GMAIL_APP_USERNAME and approval token
+    Parent-->>User: Review From, CC, body, attachment, and token
+    User-->>Parent: Repeat exact approval token or affirmative confirmation
     Parent->>EMAIL: Send approved draft
-    EMAIL->>Mail: Send BCC-only email with HTML attachment
-    Mail-->>EMAIL: SENT
+    EMAIL->>SMTP: Send CC email with HTML attachment via Gmail SMTP (port 587)
+    SMTP-->>EMAIL: SENT
     EMAIL-->>Parent: Delivery result
     Parent-->>User: Return report artifacts and email status
 ```
@@ -137,10 +137,10 @@ complete pipeline and owns its final delivery skills.
   `<project_name>.html` and a freshness manifest to
   `<folder_path>/Interview/Research Report/`.
 - [`send-email`](.agents/workflows/ux-research/skills/send-email/SKILL.md)
-  creates a formal Vietnamese BCC-only email, attaches the exact HTML
-  `output_file` returned by `visualize-insights`, and sends only after the user
-  supplies the content-bound approval token. The configured sender is always
-  `nguyenlamhai89@gmail.com`; that account must be enabled in Apple Mail.
+  creates a formal Vietnamese CC email, attaches the exact HTML
+  `output_file` returned by `visualize-insights`, and sends through Gmail SMTP (`smtp.gmail.com:587`)
+  only after the user supplies the content-bound approval token or affirmative confirmation.
+  The sender email and Gmail App Password are configured in `.env` (`GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD`).
 
 ### Global skill
 
@@ -193,8 +193,7 @@ to `.agents/skills/`; only reusable cross-workflow capabilities belong there.
 - `elevenlabs`, `matplotlib`, and `pytest`
 - `ffprobe` (optional; used for media-duration statistics in reports)
 - An `ELEVENLABS_API_KEY` in the workspace `.env` when transcription is used
-- macOS with Apple Mail configured for `nguyenlamhai89@gmail.com` when email
-  delivery is used
+- Gmail credentials (`GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD`) in `.env` for email delivery via Gmail SMTP (`smtp.gmail.com:587`)
 
 Check installed dependencies before running a workflow:
 
@@ -202,14 +201,16 @@ Check installed dependencies before running a workflow:
 python3 .agents/scripts/check_libraries.py
 ```
 
-For transcription, configure the key in `.env`:
+Configure keys and credentials in `.env`:
 
 ```env
 ELEVENLABS_API_KEY=your_key_here
+GMAIL_APP_USERNAME=your_gmail_address@gmail.com
+GMAIL_APP_PASSWORD=your_gmail_app_password
 ```
 
 Only the parent `ux-research` orchestrator reads `.env`. It passes each child
-orchestrator only the key required for that child. `ux-interview` then injects
+orchestrator or skill only the keys required for that step. `ux-interview` then injects
 the delegated `ELEVENLABS_API_KEY` only into `elevenlabs-transcribe`; child
 orchestrators and skills never read `.env` directly.
 
@@ -221,10 +222,10 @@ orchestrators and skills never read `.env` directly.
    `project_name`.
 3. Review and approve each gate: questionnaire extraction, transcription,
    mapping, insights, journey map, and final report.
-4. Supply BCC recipients for the completed report.
-5. Review the generated email draft, including the fixed From address, formal
+4. Supply CC recipients for the completed report.
+5. Review the generated email draft, including the fixed From address, CC recipients, formal
    message, HTML attachment, and approval token.
-6. Repeat the exact approval token to send once through Apple Mail.
+6. Repeat the exact approval token or confirm with an affirmative keyword (`ok`, `gửi`, `yes`) to send once through Gmail SMTP.
 
 The attached report is the exact HTML path returned by `visualize-insights`.
 Recipients can download the attachment and open it with a current browser such
@@ -242,7 +243,7 @@ python3 -m pytest .agents/workflows/ux-research/tests/test_e2e_pipeline.py -q
 python3 -m pytest .agents/workflows/ux-research/skills/visualize-insights/tests -q
 ```
 
-The `send-email` tests mock Apple Mail; they never send a real message.
+The `send-email` tests mock Gmail SMTP (`smtplib.SMTP`); they never send a real message.
 
 ## Repository conventions
 
