@@ -215,10 +215,10 @@ Thực hiện theo các bước đơn giản sau để bắt đầu chạy agent
 
 Thực hiện theo các bước sau để thiết lập và chạy quy trình nghiên cứu đầy đủ:
 
-- **1. Thiết lập & Cấu hình môi trường**:
-  - Clone repository: `git clone https://github.com/nguyenlamhai89/UX-Agent.git`
-  - Kiểm tra các thư viện Python bắt buộc: `python3 .agents/scripts/check_libraries.py`
-  - Tạo file `.env` tại thư mục gốc của workspace với các API key và thông tin đăng nhập:
+- **1. Cài đặt & Cấu hình môi trường**:
+  - Copy đường link Git của dự án: `https://github.com/nguyenlamhai89/UX-Agent.git`
+  - Dán đường link vào khung chat của AI IDE (ví dụ: Antigravity, Claude Code, Codex, Cursor,...) và nhờ AI tự động clone & cài đặt môi trường cho bạn.
+  - Tạo file `.env` tại thư mục gốc của dự án chứa các API key & tài khoản cần thiết:
     ```env
     ELEVENLABS_API_KEY=your_elevenlabs_api_key
     GMAIL_APP_USERNAME=your_gmail_address@gmail.com
