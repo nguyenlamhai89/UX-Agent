@@ -189,4 +189,4 @@ sequenceDiagram
 - [x] Implement concurrent execution to improve scaling behavior when processing multiple audio files.
 - [x] Add unit tests covering ElevenLabs API failure scenarios and edge cases (e.g. empty files).
 - [x] Add tests for keyterms parsing, timestamps, diarized-word output, and empty transcription content.
-- [ ] Add a dedicated regression test for unexpected future-result failures.
+- [x] Add a dedicated regression test for unexpected future-result failures.

@@ -198,3 +198,29 @@ def test_main_gemini_only_succeeds(mock_process, mock_files, capsys, tmp_path, m
     call_args = mock_process.call_args[0]
     assert call_args[2] is None  # elevenlabs_key should be None
     assert call_args[6] == "gemini_key"  # gemini_key should be passed
+
+
+@patch.dict(os.environ, {"ELEVENLABS_API_KEY": "key"})
+@patch("transcribe.get_audio_files")
+@patch("transcribe.ThreadPoolExecutor")
+def test_main_handles_future_error(mock_executor_cls, mock_files, capsys, tmp_path):
+    """When a thread pool executor future raises an unhandled exception, handle as FUTURE_ERROR."""
+    mock_files.return_value = ["/tmp/corrupt.mp3"]
+    mock_executor = MagicMock()
+    mock_executor_cls.return_value.__enter__.return_value = mock_executor
+
+    mock_future = MagicMock()
+    mock_future.result.side_effect = RuntimeError("Worker thread crashed unexpectedly")
+    mock_executor.submit.return_value = mock_future
+
+    with patch.object(sys, "argv", ["transcribe.py", str(tmp_path), "--max-workers", "1"]):
+        with patch("transcribe.as_completed", return_value=[mock_future]):
+            with pytest.raises(SystemExit) as error:
+                transcribe.main()
+
+    assert error.value.code == 1
+    output = capsys.readouterr().out
+    assert "FUTURE_ERROR" in output
+    assert "Worker thread crashed unexpectedly" in output
+    assert "corrupt.mp3" in output
+
