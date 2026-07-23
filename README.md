@@ -214,25 +214,25 @@ orchestrator or skill only the keys required for that step. `ux-interview` then 
 the delegated `ELEVENLABS_API_KEY` only into `elevenlabs-transcribe`; child
 orchestrators and skills never read `.env` directly.
 
-## How to Get Started (Bắt đầu sử dụng)
+## How to Get Started
 
-Các bước đơn giản dành cho người dùng mới để bắt đầu chạy UX Agent:
+Follow these simple bulleted steps to run the agent for a new research project:
 
-- **Bước 1: Tạo thư mục dự án (Project Folder)**
-  - Tạo một thư mục riêng đặt tên theo dự án của bạn (Ví dụ: `Chuyển tiền quốc tế` hoặc `/Users/madebynham/Desktop/Chuyển tiền quốc tế`).
+- **Step 1: Create a Project Folder**
+  - Create a dedicated folder named after your project (e.g., `International Money Transfer` or `/Users/madebynham/Desktop/Chuyển tiền quốc tế`).
 
-- **Bước 2: Chuẩn bị các file đầu vào (Input Materials)**
-  - **File âm thanh phỏng vấn**: Cho tất cả các file audio/video phỏng vấn (`.m4a`, `.mp3`, `.wav`, `.mp4`) vào trong thư mục dự án.
-  - **File bảng câu hỏi**:
-    - File Excel được tải từ template mẫu (`.xlsx` chứa tab `"2. Questionnaire"`), **HOẶC**
-    - Link Google Sheet công khai (Public Google Sheet URL).
+- **Step 2: Prepare Input Materials**
+  - **Interview Audio / Video Files**: Place all recorded interview files (`.m4a`, `.mp3`, `.wav`, `.mp4`) directly inside the project folder.
+  - **Questionnaire Source File**:
+    - An Excel file downloaded from the provided template (`.xlsx` containing tab `"2. Questionnaire"`), **OR**
+    - A public Google Sheet URL.
 
-- **Bước 3: Kích hoạt Agent (Run the Agent)**
-  - Trong ô chat với AI Agent, gõ câu lệnh:
+- **Step 3: Run the Agent**
+  - In the chat interface with the AI Agent, trigger the workflow using:
     ```text
-    ux-research <đường_dẫn_thư_mục_dự_án>
+    ux-research <path_to_project_folder>
     ```
-  - *Ví dụ:*
+  - *Example:*
     ```text
     ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
     ```
