@@ -27,7 +27,7 @@ Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên c�
 ### 2. Chuẩn bị tài liệu đầu vào
 Tạo 1 thư mục dự án (Ví dụ: `Chuyển tiền quốc tế`) và cho các file sau vào:
 - 🎧 **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.qta`).
-- 📋 **File bảng câu hỏi**: File Excel mẫu (`.xlsx` chứa tab `"2. Questionnaire"`) **HOẶC** link Google Sheet công khai.
+- 📋 **File bảng câu hỏi**: File Excel mẫu (`.xlsx` chứa tab `"2. Questionnaire"`) **HOẶC** **[link Google Sheet công khai (cần duplicate file sheet này để sử dụng)](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114)**.
 
 ### 3. Kích hoạt Agent
 Trong khung chat với AI Agent, gõ câu lệnh:
