@@ -182,7 +182,7 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 ## 🔐 Bảo mật (Security)
 
 - **API Key cách ly**: Chỉ orchestrator gốc `ux-research` được đọc `.env`. Tất cả key được truyền qua chuỗi ủy quyền, không bao giờ hardcode, log, hoặc ghi vào file output.
-- **Token phê duyệt email**: Email chỉ được gửi khi người dùng cung cấp đúng token bảo mật (content-bound SHA-256). Phản hồi "ok" hoặc "approved" đơn giản sẽ bị từ chối.
+- **Token phê duyệt email**: Email chỉ được gửi khi người dùng xác nhận bằng từ khóa phê duyệt hợp lệ (ví dụ: `ok`, `yes`, `gửi`, `approved`) hoặc cung cấp đúng token bảo mật (content-bound SHA-256).
 - **Atomic writes**: Tất cả file output quan trọng được ghi qua file tạm rồi thay thế nguyên tử (atomic replace), tránh hỏng dữ liệu khi gián đoạn.
 - **Kiểm thử tự động**: Mỗi skill có unit test riêng, mỗi workflow có E2E test kiểm tra toàn bộ pipeline.
 

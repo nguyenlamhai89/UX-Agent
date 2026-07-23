@@ -8,7 +8,7 @@ description: Orchestrates UX research workflows by routing requests to transcrib
 ## Description
 The UX Interview orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
 1. **Questionnaire Table Extraction**: Reading a question table from a Google Sheet link, Excel file (.xlsx/.xls tab "2. Questionnaire"), or image to produce a structured `full-questionnaire.md`.
-2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs.
+2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs (primary) or Google Gemini (fallback).
 3. **Transcript Mapping**: Mapping interviewee responses from transcripts to the questionnaire structure.
 4. **Insights Saturation**: Synthesizing responses into a structured `insights.md` and saturation matrix.
 

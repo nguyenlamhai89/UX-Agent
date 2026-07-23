@@ -79,10 +79,10 @@ workflow-owned skill.
 9. **Show the final draft and pause** — Call `prepare_email_draft()`, then show
    the complete draft: configured From address, empty To and BCC, all CC recipients,
    subject, body, attachment path, and content-bound approval token. Stop with
-   `awaiting_approval` until the user repeats that exact token. Any edit requires
-   a newly prepared draft and token; `yes` or `approved` alone is insufficient.
+   `awaiting_approval` until the user confirms with an affirmative keyword (`ok`, `yes`, `approved`, `gửi`) or repeats the exact approval token. Any edit requires
+   a newly prepared draft and token.
 10. **Send once through Gmail SMTP** — Call `send_approved_email()` with `gmail_app_username`
-    and `gmail_app_password` read by parent only after the exact current token is supplied.
+    and `gmail_app_password` read by parent only after affirmative confirmation or the exact current token is supplied.
     Never retry a timeout or uncertain result because Gmail SMTP may already have accepted the message.
 11. **Return the final result** — Return the absolute HTML and manifest paths,
     child workflow artifacts, input signature, structured warnings, and nested
@@ -190,14 +190,14 @@ sequenceDiagram
     Parent->>EMAIL: Prepare exact report draft with GMAIL_APP_USERNAME
     EMAIL-->>Parent: Complete draft and approval token
     Parent-->>User: Review full draft and exact token
-    alt Exact current token supplied
-        User-->>Parent: APPROVE-SEND-EMAIL:<sha256>
+    alt Affirmative response ("ok", "yes", "gửi") or exact current token supplied
+        User-->>Parent: "ok" / "gửi" / APPROVE-SEND-EMAIL:<sha256>
         Parent->>EMAIL: Send approved draft with GMAIL_APP_USERNAME & GMAIL_APP_PASSWORD
         EMAIL->>SMTP: Connect TLS smtp.gmail.com:587, auth, sendmail
         SMTP-->>EMAIL: OK
         EMAIL-->>Parent: success
-    else Cancelled, edited, or ambiguous
-        User-->>Parent: No exact token
+    else Cancelled, edited, or non-affirmative
+        User-->>Parent: Cancel / invalid input
         Parent-->>User: Email cancelled; report preserved
     end
     Parent-->>User: Report artifacts and nested email result
