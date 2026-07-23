@@ -22,7 +22,9 @@ Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguy�
 ### 2. Cài đặt Agent (Setup & .env)
 Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 
-> *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GEMINI_API_KEY=AIzaSy...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
+```text
+Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GEMINI_API_KEY=AIzaSy...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`
+```
 
 ### 3. Kích hoạt Agent (Run Workflow)
 Trong khung chat với AI Agent, gõ câu lệnh:
