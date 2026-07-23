@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 from pathlib import Path
 import smtplib
 import socket
@@ -301,3 +302,31 @@ def test_send_maps_smtp_failures(tmp_path, side_effect, code):
     assert result["status"] == "error"
     assert result["sent"] is False
     assert result["error"]["code"] == code
+
+
+def test_prepare_extracts_top_insights_from_insights_data_json(tmp_path):
+    project, report = _project_with_report(tmp_path)
+    json_path = project / "Interview" / "insights-data.json"
+    json_path.write_text(
+        json.dumps(
+            {
+                "master_insights": [
+                    {"id": 1, "theme": "Theme A", "insight": "Insight text A"},
+                    {"id": 2, "theme": "Theme B", "insight": "Insight text B"},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = send_email.prepare_email_draft(
+        {"status": "success", "output_file": str(report)},
+        folder_path=str(project),
+        bcc_recipients=["person@example.com"],
+    )
+    assert result["status"] == "awaiting_approval"
+    assert "📌 Một số điểm nhấn quan trọng (Top Insights):" in result["draft"]["body"]
+    assert "• [Theme A]: Insight text A" in result["draft"]["body"]
+    assert "• [Theme B]: Insight text B" in result["draft"]["body"]
+

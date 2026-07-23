@@ -174,18 +174,59 @@ def _validate_body(body: Any) -> str:
     return body
 
 
-def build_formal_email_content(report_filename: str, sender_email: str = "nguyenlamhai89@gmail.com") -> tuple[str, str]:
-    """Create the fixed professional Vietnamese email content for a report attachment."""
+def extract_top_insights(project_dir: Path) -> list[str]:
+    """Extract top insights from insights-data.json if present in the project directory."""
+    candidate_json = project_dir / "Interview" / "insights-data.json"
+    if not candidate_json.exists():
+        candidate_json = project_dir / "insights-data.json"
+
+    if candidate_json.is_file():
+        try:
+            with open(candidate_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            master_insights = data.get("master_insights", [])
+            extracted = []
+            for item in master_insights:
+                theme = str(item.get("theme") or "").strip()
+                insight = str(item.get("insight") or "").strip()
+                if theme and insight:
+                    extracted.append(f"• [{theme}]: {insight}")
+                elif insight:
+                    extracted.append(f"• {insight}")
+                if len(extracted) >= 4:
+                    break
+            if extracted:
+                return extracted
+        except Exception:
+            pass
+    return []
+
+
+def build_formal_email_content(
+    report_filename: str,
+    sender_email: str = "nguyenlamhai89@gmail.com",
+    project_dir: Path | None = None,
+) -> tuple[str, str]:
+    """Create Option 1 Executive Summary Vietnamese email content for a report attachment."""
 
     report_label = (
         Path(report_filename).stem.replace("_", " ").strip()
         or "Báo cáo UX Research"
     )
     subject = f"[Báo cáo UX Research] {report_label}"
+
+    insights_block = ""
+    if project_dir is not None:
+        insights_list = extract_top_insights(project_dir)
+        if insights_list:
+            formatted_items = "\n".join(insights_list)
+            insights_block = f"📌 Một số điểm nhấn quan trọng (Top Insights):\n{formatted_items}\n\n"
+
     body = (
         "Kính gửi Quý Anh/Chị,\n\n"
         f"Xin gửi Quý Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “{report_label}”. "
         "File báo cáo HTML đã được đính kèm trong email này.\n\n"
+        f"{insights_block}"
         "Hướng dẫn mở báo cáo:\n"
         "1. Tải file HTML đính kèm về máy tính.\n"
         "2. Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.\n"
@@ -252,6 +293,7 @@ def prepare_email_draft(
         generated_subject, generated_body = build_formal_email_content(
             Path(attachment_path).name,
             validated_sender,
+            project_dir=project_dir,
         )
         validated_subject = _validate_subject(generated_subject)
         validated_body = _validate_body(generated_body)
