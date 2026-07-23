@@ -216,26 +216,26 @@ orchestrators and skills never read `.env` directly.
 
 ## How to Get Started (Bắt đầu sử dụng)
 
-Dưới đây là các bước đơn giản dành cho người dùng mới để bắt đầu chạy agent:
+Các bước đơn giản dành cho người dùng mới để bắt đầu chạy UX Agent:
 
-1. **Tạo thư mục dự án (Project Folder)**:
-   - Tạo một thư mục riêng đặt tên theo dự án của bạn trên máy (Ví dụ: `Chuyển tiền quốc tế` hoặc `/Users/madebynham/Desktop/Chuyển tiền quốc tế`).
+- **Bước 1: Tạo thư mục dự án (Project Folder)**
+  - Tạo một thư mục riêng đặt tên theo dự án của bạn (Ví dụ: `Chuyển tiền quốc tế` hoặc `/Users/madebynham/Desktop/Chuyển tiền quốc tế`).
 
-2. **Chuẩn bị các file đầu vào (Input Materials)**:
-   - **File âm thanh phỏng vấn**: Cho tất cả các file audio/video phỏng vấn (`.m4a`, `.mp3`, `.wav`, `.mp4`) vào trong thư mục dự án đó.
-   - **File bảng câu hỏi**: 
-     - Tải file template Excel được cung cấp (`.xlsx` chứa sheet `"2. Questionnaire"`) và lưu vào thư mục dự án, **HOẶC**
-     - Sử dụng đường link Google Sheet công khai (Public Google Sheet URL).
+- **Bước 2: Chuẩn bị các file đầu vào (Input Materials)**
+  - **File âm thanh phỏng vấn**: Cho tất cả các file audio/video phỏng vấn (`.m4a`, `.mp3`, `.wav`, `.mp4`) vào trong thư mục dự án.
+  - **File bảng câu hỏi**:
+    - File Excel được tải từ template mẫu (`.xlsx` chứa tab `"2. Questionnaire"`), **HOẶC**
+    - Link Google Sheet công khai (Public Google Sheet URL).
 
-3. **Kích hoạt Agent (Run the Agent)**:
-   - Trong ô chat với AI Agent, gõ câu lệnh kèm đường dẫn thư mục dự án:
-     ```text
-     ux-research <đường_dẫn_thư_mục_dự_án>
-     ```
-     *Ví dụ:*
-     ```text
-     ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
-     ```
+- **Bước 3: Kích hoạt Agent (Run the Agent)**
+  - Trong ô chat với AI Agent, gõ câu lệnh:
+    ```text
+    ux-research <đường_dẫn_thư_mục_dự_án>
+    ```
+  - *Ví dụ:*
+    ```text
+    ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
+    ```
 
 ---
 
