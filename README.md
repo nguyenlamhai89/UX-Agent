@@ -37,11 +37,61 @@ ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
 
 ## 🔄 Quy trình làm việc (Workflow Pipeline)
 
-Quy trình tự động hóa chạy qua 4 bước chính:
+Quy trình tự động hóa tương tác giữa các Skills được thể hiện qua sơ đồ trình tự (Sequence Diagram) bên dưới:
 
-```text
-1. ux-interview ──► 2. ux-map-journey ──► 3. visualize-insights ──► 4. send-email
-(Phỏng vấn & Insight)   (Hành trình khách hàng)   (Tạo báo cáo HTML)     (Gửi Email CC)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 Người dùng
+    participant Parent as 🤖 ux-research (Orchestrator)
+    participant CQT as 📋 create-questionnaire-table
+    participant STT as 🎙️ elevenlabs-transcribe
+    participant MT as 🎯 map-transcript
+    participant SA as 💡 saturate-insights
+    participant UXM as 🗺️ ux-map-journey
+    participant VIS as 📊 visualize-insights
+    participant EMAIL as ✉️ send-email
+
+    User->>Parent: Gõ "ux-research <thư_mục_dự_án>"
+    
+    rect rgb(240, 245, 255)
+        Note over Parent, CQT: 1. Trích xuất Bảng câu hỏi
+        Parent->>CQT: Đọc file Excel (.xlsx) / Google Sheet
+        CQT-->>Parent: full-questionnaire.md
+        Parent-->>User: 🛡️ Gate 1: Phê duyệt Bảng câu hỏi
+    end
+
+    rect rgb(250, 240, 255)
+        Note over Parent, MT: 2. Chuyển âm & Ánh xạ Phỏng vấn
+        Parent-->>User: Yêu cầu cung cấp từ khóa (keyterms)
+        User-->>Parent: Cung cấp từ khóa
+        Parent->>STT: Chuyển âm ghi âm thành văn bản
+        STT-->>Parent: transcript-*.md
+        Parent-->>User: 🛡️ Gate 2: Phê duyệt Bản chuyển âm
+        Parent->>MT: Ánh xạ câu trả lời nguyên văn
+        MT-->>Parent: mapped-transcript.md
+        Parent-->>User: 🛡️ Gate 3: Phê duyệt Bảng ánh xạ
+    end
+
+    rect rgb(240, 255, 245)
+        Note over Parent, SA: 3. Phân tích Insight & Hành trình
+        Parent->>SA: Tổng hợp Insight & Bão hòa dữ liệu
+        SA-->>Parent: insights.md
+        Parent-->>User: 🛡️ Gate 4: Phê duyệt Insights
+        Parent->>UXM: Phân tích 5 giai đoạn & Tạo hành trình
+        UXM-->>Parent: journey-map.md
+        Parent-->>User: 🛡️ Gate 5: Phê duyệt Hành trình khách hàng
+    end
+
+    rect rgb(255, 250, 240)
+        Note over Parent, EMAIL: 4. Báo cáo HTML & Gửi Email
+        Parent->>VIS: Tổng hợp tất cả thành Báo cáo HTML
+        VIS-->>Parent: <project_name>.html
+        Parent-->>User: 🛡️ Gate 6: Xem báo cáo HTML & Nhập email CC
+        User-->>Parent: Xác nhận gửi (gõ "ok" / token)
+        Parent->>EMAIL: Gửi email kèm file HTML đính kèm
+        EMAIL-->>User: ✉️ Báo cáo đã gửi thành công!
+    end
 ```
 
 ### Các tính năng cốt lõi:
