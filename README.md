@@ -27,6 +27,9 @@ Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên c�
 - **Cách lấy API key:**
   - 🔑 **ELEVENLABS_API_KEY** (cần trả phí): Đăng nhập https://elevenlabs.io → Vào **Profile** → **API Keys** → Tạo/Copy key.
   - 🔑 **GEMINI_API_KEY** (miễn phí): Đăng nhập Google AI Studio (https://aistudio.google.com) → Chọn **Get API key** → Tạo key mới.
+  - 📧 **Cách lấy Gmail App Username và Password:**
+    - **GMAIL_APP_USERNAME**: Địa chỉ email Gmail bạn sẽ dùng để gửi.
+    - **GMAIL_APP_PASSWORD**: Đăng nhập Google → Bật Xác thực 2 bước → Truy cập [App Passwords](https://myaccount.google.com/apppasswords) → Tạo mật khẩu ứng dụng 16 ký tự.
 
 ### 2. Chuẩn bị tài liệu đầu vào
 Tạo 1 thư mục dự án (Ví dụ: `Chuyển tiền quốc tế`) và cho các file sau vào:
