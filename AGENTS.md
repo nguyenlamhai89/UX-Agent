@@ -80,7 +80,7 @@ Additionally, for the Customer Journey Map visualization:
 
 ## Workflow End-to-End Testing
 - **Mandatory test creation**: Whenever a new workflow is created, it MUST include a `tests` folder containing an end-to-end test suite (`tests/test_e2e_pipeline.py`) that sets up mock datasets, executes all skills in the pipeline sequentially, and asserts that the final output files are correctly generated.
-- **Automatic execution**: Whenever a new skill is added to any workflow (e.g. `ux-interview`, `ux-cjm`) or an existing skill is modified, you MUST automatically run that workflow's end-to-end test suite (e.g. `pytest .agents/workflows/<workflow-name>/tests/test_e2e_pipeline.py`) at the end of the task to ensure the pipeline remains unbroken.
+- **Automatic execution**: Whenever a new skill is added to any workflow (e.g. `ux-interview`, `ux-map-journey`) or an existing skill is modified, you MUST automatically run that workflow's end-to-end test suite (e.g. `pytest .agents/workflows/<workflow-name>/tests/test_e2e_pipeline.py`) at the end of the task to ensure the pipeline remains unbroken.
 
 
 ## Dependency Version Checks

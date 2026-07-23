@@ -1,13 +1,13 @@
 ---
-name: UX CJM
+name: UX Map Journey
 description: Automates workflows for Customer Journey Map generation, parsing transcript data and extracting phases.
 ---
 
-# UX CJM Orchestrator
+# UX Map Journey Orchestrator
 
 ## Description
 
-The UX CJM Orchestrator manages the workflow automation for extracting and organizing customer journey phases from raw transcript data, and assembling them into a final journey map. It parses mapped transcripts, routes the data to appropriate extraction skills to build detailed phase-based documentation (Awareness, Consideration, Decision Making, Usage, Advocacy), and finally maps them into a unified customer journey map.
+The UX Map Journey Orchestrator manages the workflow automation for extracting and organizing customer journey phases from raw transcript data, and assembling them into a final journey map. It parses mapped transcripts, routes the data to appropriate extraction skills to build detailed phase-based documentation (Awareness, Consideration, Decision Making, Usage, Advocacy), and finally maps them into a unified customer journey map.
 
 ## Routing Logic & Execution Flow
 

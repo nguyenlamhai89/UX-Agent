@@ -16,7 +16,7 @@ Orchestrates raw user research transcription, response mapping, and quantitative
 - **Transcript Mapping (`map-transcript`)**: Maps raw transcript responses onto the structured questionnaire.
 - **Insights Saturation (`saturate-insights`)**: Analyzes mapped interview response datasets with built-in AI, consolidates them, and computes a **Data Saturation Matrix** along with `insights.md`.
 
-### 2. UX Customer Journey Map (`ux-cjm`)
+### 2. UX Map Journey (`ux-map-journey`)
 Automates the analysis of user experience phases to compile a comprehensive Customer Journey Map.
 - **Phase Extraction (`extract-phases`)**: Programmatically categorizes transcript answers into 5 journey phases (Awareness, Consideration, Decision Making, Usage, Advocacy).
 - **Phase Interpretation (`interpret-phases`)**: Leverages built-in AI to summarize goals, actions, touchpoints, pain points, emotion ratings (1-5), and opportunities for each journey phase.
@@ -63,12 +63,12 @@ sequenceDiagram
     deactivate Orchestrator
 ```
 
-#### UX CJM Flow
+#### UX Map Journey Flow
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant Orchestrator as UX CJM Orchestrator
+    participant Orchestrator as UX Map Journey Orchestrator
     participant EP as extract-phases
     participant IP as interpret-phases
     participant EM as extract-map
@@ -123,9 +123,9 @@ The project is structured logically around the `.agents/` environment:
         * 📂 `map-transcript/` — Programmatically aligns responses with questionnaire tables.
         * 📂 `saturate-insights/` — Extracts insights and computes user saturation matrices.
       * 📂 `tests/` — Pipeline end-to-end integration tests.
-    * 📂 **`ux-cjm/`** — Generates Customer Journey Maps
-      * 📄 `ORCHESTRATOR.md` — Defines CJM pipeline routing logic and rules.
-      * 📂 `skills/` — Skills specific to the CJM pipeline:
+    * 📂 **`ux-map-journey/`** — Generates Customer Journey Maps
+      * 📄 `ORCHESTRATOR.md` — Defines Map Journey pipeline routing logic and rules.
+      * 📂 `skills/` — Skills specific to the Map Journey pipeline:
         * 📂 `extract-phases/` — Segregates transcript answers by journey theme.
         * 📂 `interpret-phases/` — Evaluates user emotions, actions, and pain points per phase.
         * 📂 `extract-map/` — Compiles phase tables into a unified journey matrix.
@@ -192,10 +192,10 @@ Use this workflow when you have a folder of interview audio files and a screensh
    - The orchestrator will transcribe audios via ElevenLabs, map answers to the questionnaire in `mapped-transcript.md`, and compute insights saturation in `insights.md`.
    - **Visualization Prompt**: Finally, the agent will ask if you want to run `visualize-insights` to compile the interactive HTML dashboard.
 
-### Scenario B: Generating a Customer Journey Map (`ux-cjm`)
+### Scenario B: Generating a Customer Journey Map (`ux-map-journey`)
 Use this workflow when you have a completed `mapped-transcript.md` file and want to map it to user journey phases.
 
-1. Trigger the `ux-cjm` orchestrator, pointing it to the folder containing your `mapped-transcript.md`.
+1. Trigger the `ux-map-journey` orchestrator, pointing it to the folder containing your `mapped-transcript.md`.
 2. The orchestrator will:
    - Parse themes into separate markdown files for each phase (Awareness, Consideration, Decision Making, Usage, Advocacy).
    - Interpret touchpoints, goals, actions, pain points, and opportunities with Built-in AI.
@@ -207,8 +207,8 @@ Use this workflow when you have a completed `mapped-transcript.md` file and want
 ## 🧪 Running E2E & Unit Tests
 To verify all pipelines and skills are functioning correctly:
 ```bash
-# Run CJM pipeline end-to-end tests
-pytest .agents/workflows/ux-cjm/tests/test_e2e_pipeline.py
+# Run Map Journey pipeline end-to-end tests
+pytest .agents/workflows/ux-map-journey/tests/test_e2e_pipeline.py
 
 # Run Interview pipeline end-to-end tests
 pytest .agents/workflows/ux-interview/tests/test_e2e_pipeline.py

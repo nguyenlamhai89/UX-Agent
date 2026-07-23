@@ -7,7 +7,7 @@ from google.antigravity import Agent, LocalAgentConfig, CapabilitiesConfig
 PLAN_PATH = "/Users/madebynham/.gemini/antigravity/brain/24d95e8d-b198-4597-8f94-6ba181dd1f62/implementation_plan.md"
 
 PROMPT = """
-You are an expert software architect assisting in creating a detailed implementation plan for a new skill in the `ux-cjm` workflow.
+You are an expert software architect assisting in creating a detailed implementation plan for a new skill in the `ux-map-journey` workflow.
 We want to create a new skill named `interpret-phase` before the `extract-map` skill.
 
 Here are the requirements for `interpret-phase`:
@@ -22,13 +22,13 @@ Here are the requirements for `interpret-phase`:
    - Stage Opportunities & Metrics
 4. API Key: Use the built-in Antigravity AI (no external API Key required).
 5. Code structure: Follow the skill structure template. This includes:
-   - `.agents/workflows/ux-cjm/skills/interpret-phase/SKILL.md`
-   - `.agents/workflows/ux-cjm/skills/interpret-phase/scripts/interpret_phase.py` (which implements the execution logic using built-in AI)
-   - `.agents/workflows/ux-cjm/skills/interpret-phase/tests/test_interpret_phase.py` (which contains unit tests with mocks)
+   - `.agents/workflows/ux-map-journey/skills/interpret-phase/SKILL.md`
+   - `.agents/workflows/ux-map-journey/skills/interpret-phase/scripts/interpret_phase.py` (which implements the execution logic using built-in AI)
+   - `.agents/workflows/ux-map-journey/skills/interpret-phase/tests/test_interpret_phase.py` (which contains unit tests with mocks)
 6. Additional updates:
-   - Update `.agents/workflows/ux-cjm/ORCHESTRATOR.md` to add `interpret-phase` as a step between `extract-phases` and `extract-map`.
-   - Update the `extract-map` skill (`.agents/workflows/ux-cjm/skills/extract-map/scripts/extract_map.py` and its tests and SKILL.md) to read/map from `interpret-*.md` instead of `extracted-*.md`.
-   - Update `.agents/workflows/ux-cjm/tests/test_e2e_pipeline.py` to test the new end-to-end pipeline (extract-phases -> interpret-phase -> extract-map).
+   - Update `.agents/workflows/ux-map-journey/ORCHESTRATOR.md` to add `interpret-phase` as a step between `extract-phases` and `extract-map`.
+   - Update the `extract-map` skill (`.agents/workflows/ux-map-journey/skills/extract-map/scripts/extract_map.py` and its tests and SKILL.md) to read/map from `interpret-*.md` instead of `extracted-*.md`.
+   - Update `.agents/workflows/ux-map-journey/tests/test_e2e_pipeline.py` to test the new end-to-end pipeline (extract-phases -> interpret-phase -> extract-map).
 
 Please write a detailed implementation_plan.md matching the template format below. Do not output anything else besides the file content.
 

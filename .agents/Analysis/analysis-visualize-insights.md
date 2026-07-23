@@ -30,7 +30,7 @@
 
 | Criteria | 2026-07-16 |
 |----------|----------|
-| I/O Contract Adherence | • **9/10** — Inputs from `saturate-insights` and `ux-cjm` are accepted and processed perfectly as expected. • **Solution**: Updated the main entrypoint to gracefully fallback to reading the JSON payload from standard input (`sys.stdin`) or a file path instead of just relying on command-line arguments. |
+| I/O Contract Adherence | • **9/10** — Inputs from `saturate-insights` and `ux-map-journey` are accepted and processed perfectly as expected. • **Solution**: Updated the main entrypoint to gracefully fallback to reading the JSON payload from standard input (`sys.stdin`) or a file path instead of just relying on command-line arguments. |
 | Skip-Logic Compatibility | • **9/10** — It outputs deterministic HTML securely to the requested output directory, fully compatible with orchestrator flow. |
 | Pipeline Passthrough Rate | • **9/10** — Catches potential file read errors and gracefully outputs JSON errors compliant with workflow execution. |
 | Idempotency | • **10/10** — Running this skill multiple times with the same input files yields identically correct output files. |

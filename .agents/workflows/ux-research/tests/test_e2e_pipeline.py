@@ -7,15 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).parents[4]
 INTERVIEW = ROOT / ".agents" / "workflows" / "ux-interview"
-CJM = ROOT / ".agents" / "workflows" / "ux-cjm"
+MAP_JOURNEY = ROOT / ".agents" / "workflows" / "ux-map-journey"
 VISUALIZE = ROOT / ".agents" / "skills" / "visualize-insights"
 sys.path[:0] = [
     str(INTERVIEW / "skills" / "create-questionnaire-table" / "scripts"),
     str(INTERVIEW / "skills" / "map-transcript" / "scripts"),
     str(INTERVIEW / "skills" / "saturate-insights" / "scripts"),
-    str(CJM / "skills" / "extract-phases" / "scripts"),
-    str(CJM / "skills" / "interpret-phases" / "scripts"),
-    str(CJM / "skills" / "extract-map" / "scripts"),
+    str(MAP_JOURNEY / "skills" / "extract-phases" / "scripts"),
+    str(MAP_JOURNEY / "skills" / "interpret-phases" / "scripts"),
+    str(MAP_JOURNEY / "skills" / "extract-map" / "scripts"),
     str(VISUALIZE / "scripts"),
 ]
 

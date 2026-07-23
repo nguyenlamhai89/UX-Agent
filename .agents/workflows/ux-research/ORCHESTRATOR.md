@@ -8,12 +8,12 @@ description: Coordinates the complete UX research pipeline from transcription th
 ## Description
 
 This parent workflow coordinates the complete research sequence:
-`ux-interview` → `ux-cjm` → `visualize-insights`. It preserves each child
+`ux-interview` → `ux-map-journey` → `visualize-insights`. It preserves each child
 workflow's approval gates, passes only canonical successful outputs to the next
 stage, and finishes with an atomic, freshness-aware HTML research report.
 
 The parent orchestrator owns coordination only. It calls the sibling
-`ux-interview` and `ux-cjm` workflows and then invokes the shared
+`ux-interview` and `ux-map-journey` workflows and then invokes the shared
 `visualize-insights` workspace skill. It never reads API keys inside a skill.
 
 ## Routing Logic & Execution Flow
@@ -37,8 +37,8 @@ shared skill.
    - exactly one matching `<folder_path>/Interview/transcript-*.md` or legacy
      `transcript_*.md` file for each mapped interviewee.
 3. **Ask for approval** — Present the canonical mapped transcript and insight
-   paths. Stop until the user approves the `ux-cjm` stage.
-4. **Run `ux-cjm`** — Pass `<folder_path>/Interview` as its `folder_path` so it
+   paths. Stop until the user approves the `ux-map-journey` stage.
+4. **Run `ux-map-journey`** — Pass `<folder_path>/Interview` as its `folder_path` so it
    consumes the canonical mapped transcript and writes
    `<folder_path>/Interview/Journey Map/journey-map.md`. Preserve all child
    approval gates.
@@ -74,7 +74,7 @@ next stage. A partial or stale child result halts the pipeline.
 
 - **[UX Interview](../ux-interview/ORCHESTRATOR.md)** — Produces canonical
   full transcripts, `mapped-transcript.md`, and `insights.md`.
-- **[UX CJM](../ux-cjm/ORCHESTRATOR.md)** — Produces the canonical
+- **[UX Map Journey](../ux-map-journey/ORCHESTRATOR.md)** — Produces the canonical
   `Journey Map/journey-map.md` from the mapped transcript.
 - **[visualize-insights](../../skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
@@ -127,7 +127,7 @@ sequenceDiagram
     actor User
     participant Parent as UX Research Report
     participant UXI as UX Interview
-    participant CJM as UX CJM
+    participant UXM as UX Map Journey
     participant VIS as visualize-insights
 
     User->>Parent: folder_path and project_name
@@ -135,8 +135,8 @@ sequenceDiagram
     UXI-->>Parent: Canonical transcripts, mapping, and insights
     Parent-->>User: Approve journey mapping
     User->>Parent: Approved
-    Parent->>CJM: Run with Interview folder
-    CJM-->>Parent: Canonical journey-map.md
+    Parent->>UXM: Run with Interview folder
+    UXM-->>Parent: Canonical journey-map.md
     Parent-->>User: Approve final visualization
     User->>Parent: Approved
     Parent->>VIS: Pass all canonical absolute paths
@@ -155,7 +155,7 @@ sequenceDiagram
 | `MISSING_API_KEY` | Ask the user for the ElevenLabs key and store it only through the authorized parent environment flow. |
 | `PARTIAL_MAPPING`, `UPSTREAM_MAPPING_NOT_SUCCESS`, `UPSTREAM_SIGNATURE_MISMATCH` | Halt before insights and preserve the last-known-good canonical mapping. |
 | `PARTIAL_EXTRACTION`, `PARTIAL_CONSOLIDATION`, `EXTRACTION_VALIDATION_FAILED`, `CONSOLIDATION_VALIDATION_FAILED` | Halt before journey mapping and preserve prior insight outputs. |
-| `SKILL_FAILURE`, `INVALID_INPUT` from `ux-cjm` | Halt before visualization and present the failing journey stage. |
+| `SKILL_FAILURE`, `INVALID_INPUT` from `ux-map-journey` | Halt before visualization and present the failing journey stage. |
 | `INPUT_READ_ERROR`, `FULL_TRANSCRIPT_INVALID`, `PARSING_ERROR`, `JOURNEY_ERROR` | Halt visualization and identify the exact handoff artifact to repair. |
 | `INPUT_TOO_LARGE` | Ask the user to reduce inputs or intentionally raise `max_input_bytes`. |
 | `TEMPLATE_ERROR`, `OUTPUT_PATH_INVALID`, `OUTPUT_WRITE_ERROR` | Preserve the last-known-good report and manifest; do not treat file existence as success. |
