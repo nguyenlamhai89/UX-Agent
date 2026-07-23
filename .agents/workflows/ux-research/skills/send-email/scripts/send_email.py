@@ -175,8 +175,11 @@ def _validate_body(body: Any) -> str:
     return body
 
 
-def extract_top_insights(project_dir: Path) -> list[tuple[str, str]]:
-    """Extract top insights as (theme, insight) tuples from insights-data.json if present."""
+import re
+
+
+def extract_top_insights(project_dir: Path, html_file: Path | None = None) -> list[tuple[str, str]]:
+    """Extract top insights as (theme, insight) tuples from insights-data.json or directly from HTML file."""
     candidate_json = project_dir / "Interview" / "insights-data.json"
     if not candidate_json.exists():
         candidate_json = project_dir / "insights-data.json"
@@ -198,6 +201,28 @@ def extract_top_insights(project_dir: Path) -> list[tuple[str, str]]:
                 return extracted
         except Exception:
             pass
+
+    if html_file is not None:
+        candidate_html = Path(html_file)
+        if candidate_html.is_file():
+            try:
+                with open(candidate_html, "r", encoding="utf-8") as f:
+                    content = f.read()
+                pattern = r"<li>\s*<strong>(.*?)<\/strong>\s*:\s*(.*?)\s*<\/li>"
+                matches = re.findall(pattern, content, re.DOTALL)
+                extracted: list[tuple[str, str]] = []
+                for theme, insight in matches:
+                    clean_theme = html.unescape(theme.strip())
+                    clean_insight = html.unescape(insight.strip())
+                    if clean_theme or clean_insight:
+                        extracted.append((clean_theme, clean_insight))
+                    if len(extracted) >= 4:
+                        break
+                if extracted:
+                    return extracted
+            except Exception:
+                pass
+
     return []
 
 
@@ -205,6 +230,7 @@ def build_formal_email_content(
     report_filename: str,
     sender_email: str = "nguyenlamhai89@gmail.com",
     project_dir: Path | None = None,
+    html_file: Path | None = None,
 ) -> tuple[str, str, str]:
     """Create Option 1 Executive Summary Vietnamese email content (subject, text_body, html_body)."""
 
@@ -217,8 +243,11 @@ def build_formal_email_content(
     text_insights_block = ""
     html_insights_block = ""
 
-    if project_dir is not None:
-        insights_tuples = extract_top_insights(project_dir)
+    if project_dir is not None or html_file is not None:
+        insights_tuples = extract_top_insights(
+            project_dir if project_dir is not None else Path("."),
+            html_file=html_file,
+        )
         if insights_tuples:
             text_items = []
             html_items = []
@@ -332,6 +361,7 @@ def prepare_email_draft(
             Path(attachment_path).name,
             validated_sender,
             project_dir=project_dir,
+            html_file=Path(attachment_path),
         )
         validated_subject = _validate_subject(generated_subject)
         validated_body = _validate_body(generated_body)
