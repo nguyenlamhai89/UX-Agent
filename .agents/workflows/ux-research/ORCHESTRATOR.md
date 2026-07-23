@@ -13,10 +13,11 @@ preserves each child workflow's approval gates, passes only canonical successful
 outputs to the next stage, produces an atomic freshness-aware HTML report, and
 offers BCC-only Apple Mail delivery after a separate final-draft approval.
 
-The parent orchestrator owns coordination and its final delivery stages. It
-calls the sibling `ux-interview` and `ux-map-journey` workflows, invokes its
-workflow-owned `visualize-insights` skill, and finishes with its workflow-owned
-`send-email` skill. It never reads API keys inside a skill.
+The parent orchestrator owns coordination, environment access, and its final
+delivery stages. It reads the workspace-root `.env` once, passes only the API
+keys required by each child orchestrator, invokes its workflow-owned
+`visualize-insights` skill, and finishes with its workflow-owned `send-email`
+skill. Child orchestrators and skills never read `.env` directly.
 
 ## Routing Logic & Execution Flow
 
@@ -25,13 +26,16 @@ mapping, insight saturation, a journey map, and the final visualization in one
 pipeline. Isolated requests remain routed to the relevant child workflow or
 workflow-owned skill.
 
-0. **Dependency verification** — Run
+0. **Dependency verification and environment loading** — Run
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
    packages, but halt only when the dependency required by the next step is
-   unavailable.
-1. **Run `ux-interview`** — Pass the absolute `folder_path`, obtain any
-   required keyterms, and preserve all approval gates. Continue only after the
-   child workflow reports a complete current canonical mapping and successful
+   unavailable. Read the workspace-root `.env` once and resolve the API keys
+   required by this run. Never log, persist in artifacts, or expose key values.
+1. **Run `ux-interview`** — Pass the absolute `folder_path`, required keyterms,
+   and only the `ELEVENLABS_API_KEY` loaded by the parent. The child orchestrator
+   must not read `.env`; it injects the received key only into the
+   `elevenlabs-transcribe` process. Preserve all approval gates and continue only
+   after the child reports a complete current canonical mapping and successful
    insight publication.
 2. **Validate the transcription handoff** — Require these absolute files:
    - `<folder_path>/Interview/mapped-transcript.md`
@@ -135,11 +139,16 @@ workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 
 ## Environment Access (.env)
 
-- **Allowed to access `father-orchestrator/.env`**: `true`
+- **Allowed to access the workspace-root `.env`**: `true`
+- **Environment owner**: `ux-research` is the only workflow in the complete
+  pipeline allowed to read `.env`.
+- **Delegation rule**: Pass only the specific key required by a child
+  orchestrator. Child orchestrators may inject a received key into a skill that
+  requires it, but neither child orchestrators nor skills may read `.env`.
 
-| Key Name | Purpose | Passed to Skills |
+| Key Name | Purpose | Delegation path |
 | --- | --- | --- |
-| `ELEVENLABS_API_KEY` | Interview audio transcription | Passed only to `ux-interview`, which injects it into `elevenlabs-transcribe`; never exposed to downstream skills. |
+| `ELEVENLABS_API_KEY` | Interview audio transcription | `.env` → `ux-research` → `ux-interview` → `elevenlabs-transcribe` process environment |
 
 ## Sequence Diagram
 
@@ -147,6 +156,7 @@ workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 sequenceDiagram
     autonumber
     actor User
+    participant Env as workspace .env
     participant Parent as UX Research Report
     participant UXI as UX Interview
     participant UXM as UX Map Journey
@@ -155,7 +165,9 @@ sequenceDiagram
     participant Mail as Apple Mail
 
     User->>Parent: folder_path and project_name
-    Parent->>UXI: Run complete interview workflow
+    Parent->>Env: Read required API keys once
+    Env-->>Parent: ELEVENLABS_API_KEY
+    Parent->>UXI: Run with folder_path and required API key
     UXI-->>Parent: Canonical transcripts, mapping, and insights
     Parent-->>User: Approve journey mapping
     User->>Parent: Approved

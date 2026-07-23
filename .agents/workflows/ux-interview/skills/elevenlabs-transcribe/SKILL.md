@@ -1,5 +1,5 @@
 ---
-name: ElevenLabs Transcribe
+name: elevenlabs-transcribe
 description: Transcribes audio files in a folder into Markdown files using the ElevenLabs Speech-to-Text API.
 ---
 
@@ -20,7 +20,9 @@ The orchestrator should trigger this skill when the user requests audio transcri
   - `max_workers` (integer, optional): Maximum concurrent uploads; defaults to 5.
   - `max_file_size_mb` (integer, optional): Per-file upload limit; defaults to 200 MB.
   - `max_retries` (integer, optional): Retries for transient API failures; defaults to 3.
-- **Environment**: The orchestrator injects `ELEVENLABS_API_KEY` into the skill process. The skill never reads `.env` directly.
+- **Environment**: The parent `ux-research` orchestrator reads `.env` and passes
+  `ELEVENLABS_API_KEY` to `ux-interview`. The child orchestrator injects that
+  received key into this skill process. The skill never reads `.env` directly.
 - **Location**: `request_body`
 - **Input File(s)**:
   - `Interview/*.mp3`, `Interview/*.wav`, `Interview/*.m4a`, `Interview/*.qta` — Raw audio files containing interviews or recordings in the `Interview` subfolder.
@@ -75,9 +77,13 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| **Key** | `ELEVENLABS_API_KEY` | Must match the variable name defined in the orchestrator's environment. |
+| **Key** | `ELEVENLABS_API_KEY` | Loaded by `ux-research`, delegated to `ux-interview`, and injected into this skill process. |
 
-> **Note**: Skills MUST NOT read API keys directly from the `.env` file. The orchestrator is responsible for injecting `ELEVENLABS_API_KEY` into the skill process. Never hardcode keys in skill files. A missing key returns `MISSING_API_KEY`; there is no built-in-AI transcription fallback.
+> **Note**: Skills MUST NOT read API keys directly from `.env`. Only
+> `ux-research` reads the workspace `.env`; `ux-interview` receives the required
+> key and injects it into this skill process. Never hardcode, log, or write keys
+> to output files. A missing key returns `MISSING_API_KEY`; there is no built-in
+> AI transcription fallback.
 
 ## Custom Instructions
 
@@ -124,7 +130,7 @@ sequenceDiagram
 | Error Code | Message | Fallback Behavior |
 | --- | --- | --- |
 | `NO_AUDIO_FILES` | No supported audio files found in the specified folder. | Inform the user that the folder is empty or contains no supported audio files. |
-| `MISSING_API_KEY` | The orchestrator did not inject `ELEVENLABS_API_KEY`. | Ask the orchestrator to configure its environment. |
+| `MISSING_API_KEY` | `ux-interview` did not inject the key delegated by `ux-research`. | Halt and ask the parent workflow to load the key from `.env` and pass it through the authorized chain. |
 | `INVALID_INPUT` | The supplied folder does not exist. | Return the validation error without calling the API. |
 | `INPUT_TOO_LARGE` | An audio file exceeds `--max-file-size-mb`. | Increase the configured limit only when the API account supports the upload. |
 | `EMPTY_TRANSCRIPT` | The API response contains no usable text. | Return a per-file failure and do not create a transcript. |
@@ -143,6 +149,7 @@ sequenceDiagram
 | Words joined without spaces (e.g., `helloworld`) | ElevenLabs STT `word.text` does not include trailing spaces, causing simple string concatenation to mash words together. | Updated the concatenation logic to prepend a space: `current_text += " " + word.text.strip()`. |
 | API 400 Bad Request error for empty keyterms | Passing an empty string `--keyterms ""` resulted in an array `[""]` being sent to the API, which may be invalid. | Added empty string filtering during parsing: `[k.strip() for k in args.keyterms.split(',') if k.strip()]`. |
 | Invalid or partially written transcripts were skipped on a rerun | Skip logic checked only for file existence, so a failed write could prevent recovery. | Validate the transcript structure and write through a temporary sibling file before atomically replacing the final file. |
+| Skill validation rejected the metadata name | The frontmatter used the display label `ElevenLabs Transcribe`, which was not lowercase hyphen-case. | Changed the metadata name to `elevenlabs-transcribe` and retained the readable Markdown heading. |
 
 ## Performance Improvement Solutions
 

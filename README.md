@@ -23,6 +23,7 @@ ux-interview → ux-map-journey → visualize-insights → send-email
 sequenceDiagram
     autonumber
     actor User
+    participant Env as workspace .env
     participant Parent as ux-research
     participant UXI as ux-interview
     participant CQT as create-questionnaire-table
@@ -39,7 +40,9 @@ sequenceDiagram
 
     User->>Parent: Provide folder_path and project_name
     Parent->>Parent: Check dependencies
-    Parent->>UXI: Start interview workflow
+    Parent->>Env: Read required API keys once
+    Env-->>Parent: ELEVENLABS_API_KEY
+    Parent->>UXI: Start interview workflow with delegated key
     UXI->>CQT: Extract questionnaire image
     CQT-->>UXI: full-questionnaire.md
     UXI-->>User: Review questionnaire and approve
@@ -205,8 +208,10 @@ For transcription, configure the key in `.env`:
 ELEVENLABS_API_KEY=your_key_here
 ```
 
-Skills never read `.env` directly. The relevant orchestrator reads and passes
-the key only to the transcription step.
+Only the parent `ux-research` orchestrator reads `.env`. It passes each child
+orchestrator only the key required for that child. `ux-interview` then injects
+the delegated `ELEVENLABS_API_KEY` only into `elevenlabs-transcribe`; child
+orchestrators and skills never read `.env` directly.
 
 ## Running a research project
 

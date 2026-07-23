@@ -16,7 +16,10 @@ Routes requests here when the user mentions UX research, transcription, question
 
 ## Routing Logic & Execution Flow
 The orchestrator follows a sequential flow. **Incremental Execution**: Before most steps, validate existing outputs before skipping. For `map-transcript`, file existence is never a valid skip signal: always run `mapping_pipeline.py prepare <folder_path>` first and skip only when it returns `canonical_current: true` for the complete transcript source set.
-The orchestrator creates an `Interview` folder inside the provided `folder_path` and instructs all skills to place their outputs inside this `Interview` folder.
+The orchestrator creates an `Interview` folder inside the provided `folder_path`
+and instructs all skills to place their outputs inside this `Interview` folder.
+It receives required API keys from the parent `ux-research` orchestrator and
+never reads `.env` directly.
 
 **Sequential Pipeline**:
 0. **Dependency Verification**: Run the package validation script `.agents/scripts/check_libraries.py` to ensure all external dependencies (`elevenlabs`, `matplotlib`, `pytest`) are installed and up to date. Show warning/suggestions if needed.
@@ -24,7 +27,11 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from image to `full-questionnaire.md`.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`elevenlabs-transcribe`): Inject `ELEVENLABS_API_KEY` into the process environment, then transcribe with keyterms. **Halts workflow and returns detailed per-file error codes on failure.**
+5. **Audio Transcription** (`elevenlabs-transcribe`): Require the
+   `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it only into the skill
+   process environment, then transcribe with keyterms. Never read `.env` or
+   expose the key in logs or output artifacts. **Halts workflow and returns
+   detailed per-file error codes on failure.**
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. Every mapped quote MUST be a complete verbatim turn from that interviewee's source transcript, with the exact timestamp, wording, spelling, and punctuation; never truncate, paraphrase, translate, or correct it. The controller enforces this source equality before promotion. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
@@ -47,12 +54,16 @@ The orchestrator creates an `Interview` folder inside the provided `folder_path`
 - **[Saturate Insights](./skills/saturate-insights/SKILL.md)**
 
 ## Input & Output
-**Input**: Natural language request plus a folder path for the full workflow; isolated `saturate-insights` requests require the absolute canonical `Interview/mapped-transcript.md` path.
+**Input**: Natural language request, a folder path, and an `api_keys` mapping
+provided by the parent for the full workflow. Transcription requires
+`api_keys.ELEVENLABS_API_KEY`; isolated `saturate-insights` requests require the
+absolute canonical `Interview/mapped-transcript.md` path and no API key.
 **Output**: Skill execution result (e.g., status, generated file paths).
 
 ## Environment Access (.env)
-- **Allowed to access `father-orchestrator/.env`**: `true`
-- **ELEVENLABS_API_KEY**: Passed to `elevenlabs-transcribe`.
+- **Allowed to access `.env`**: `false`
+- **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
+  `elevenlabs-transcribe`.
 
 ## Sequence Diagram
 ```mermaid
@@ -65,10 +76,9 @@ sequenceDiagram
     participant STT as ElevenLabs Transcribe
     participant MT as Map Transcript
     participant SA as Saturate Insights
-    participant Env as .env
 
     User->>FO: Start UX research workflow
-    FO->>UXI: Route to UX Interview
+    FO->>UXI: Route with folder_path and ELEVENLABS_API_KEY
     activate UXI
     
     UXI->>UXI: 1. Folder Creation & Move Inputs (Interview/)
@@ -80,9 +90,7 @@ sequenceDiagram
     UXI-->>User: 4. Prompt for keyterms
     User->>UXI: Provide keyterms
     
-    UXI->>Env: Read ELEVENLABS_API_KEY
-    Env-->>UXI: Return API key
-    UXI->>STT: 5. Audio Transcription
+    UXI->>STT: 5. Inject received key and transcribe
     
     alt Transcription Error
         STT-->>UXI: Return error
@@ -119,7 +127,7 @@ sequenceDiagram
 | `UNKNOWN_INTENT` | Ask for clarification or list capabilities. |
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
-| `MISSING_API_KEY` | Ask user to configure `.env`. |
+| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide the required key from the workspace `.env`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
 | `SOURCE_TIMESTAMP_NOT_FOUND` / `NON_VERBATIM_RESPONSE` | Retry the affected mapped row using the complete timestamped source turn exactly as written in that interviewee's transcript. |
