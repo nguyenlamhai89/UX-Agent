@@ -35,7 +35,7 @@ workflow-owned skill.
 1. **Run `ux-interview`** — Pass the absolute `folder_path`, required keyterms,
    and only the `ELEVENLABS_API_KEY` loaded by the parent. The child orchestrator
    must not read `.env`; it injects the received key only into the
-   `elevenlabs-transcribe` process. Preserve all approval gates and continue only
+   `transcribe-audios` process. Preserve all approval gates and continue only
    after the child reports a complete current canonical mapping and successful
    insight publication.
 2. **Validate the transcription handoff** — Require these absolute files:
@@ -148,7 +148,7 @@ workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 
 | Key Name | Purpose | Delegation path |
 | --- | --- | --- |
-| `ELEVENLABS_API_KEY` | Interview audio transcription | `.env` → `ux-research` → `ux-interview` → `elevenlabs-transcribe` process environment |
+| `ELEVENLABS_API_KEY` | Interview audio transcription | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` process environment |
 | `GMAIL_APP_USERNAME` | Gmail sender address / account username | `.env` → `ux-research` → `send-email` parameter |
 | `GMAIL_APP_PASSWORD` | Gmail App Password for SMTP authentication | `.env` → `ux-research` → `send-email` parameter |
 

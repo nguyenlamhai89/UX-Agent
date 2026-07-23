@@ -12,7 +12,7 @@ Whenever the user wants to create a new skill, you MUST:
 Whenever the `template/skill` or `template/orchestrator` template changes, you MUST locate all existing skills or orchestrators that were generated using the template and update them to conform to the latest structure and logic of the template.
 
 ## Skill Structure
-When creating a new skill, if custom code execution is required, always create a `scripts/` folder to store the execution files. Additionally, if unit testing is needed, always create a `tests/` folder with unit tests (e.g. using `pytest` and mocking external APIs) following the patterns established in the elevenlabs-transcribe skill.
+When creating a new skill, if custom code execution is required, always create a `scripts/` folder to store the execution files. Additionally, if unit testing is needed, always create a `tests/` folder with unit tests (e.g. using `pytest` and mocking external APIs) following the patterns established in the transcribe-audios skill.
 
 ## Orchestrator Structure
 Each orchestrator folder MUST contain its own `skills/` folder inside it. The skills that belong to an orchestrator live inside that orchestrator's directory. All orchestrators are placed inside the `.agents/workflows/` directory. The folder structure must follow this pattern:

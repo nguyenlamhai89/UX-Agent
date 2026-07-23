@@ -62,7 +62,7 @@ This orchestrator manages and routes requests to the following skills:
     "status": "success",
     "message": "Your request has been processed successfully.",
     "data": {
-      "skill_executed": "elevenlabs-transcribe",
+      "skill_executed": "transcribe-audios",
       "result_path": "/path/to/result.md"
     }
   }

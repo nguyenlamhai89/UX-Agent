@@ -45,7 +45,7 @@ sequenceDiagram
     actor User as 👤 Người dùng
     participant Parent as 🤖 ux-research (Orchestrator)
     participant CQT as 📋 create-questionnaire-table
-    participant STT as 🎙️ elevenlabs-transcribe
+    participant STT as 🎙️ transcribe-audios
     participant MT as 🎯 map-transcript
     participant SA as 💡 saturate-insights
     participant UXM as 🗺️ ux-map-journey

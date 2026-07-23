@@ -27,7 +27,7 @@ never reads `.env` directly.
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`. If no Excel questionnaire file (`.xlsx`), Google Sheet URL, or question table image is found, halt and prompt the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`elevenlabs-transcribe`): Require the
+5. **Audio Transcription** (`transcribe-audios`): Require the
    `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it only into the skill
    process environment, then transcribe with keyterms. Never read `.env` or
    expose the key in logs or output artifacts. **Halts workflow and returns
@@ -42,13 +42,13 @@ never reads `.env` directly.
 **Isolated Requests (Keyword-based)**:
 | Intent | Keywords | Routed to Skill |
 | --- | --- | --- |
-| Audio Transcription | "transcribe", "audio", "interview transcript" | `elevenlabs-transcribe` |
+| Audio Transcription | "transcribe", "audio", "interview transcript" | `transcribe-audios` |
 | Questionnaire Extraction | "questionnaire", "google sheet", "excel questionnaire", "extract table" | `create-questionnaire-table` |
 | Transcript Mapping | "map transcript", "mapped transcript" | `map-transcript` |
 | Insights Saturation | "saturation", "saturate insights" | `saturate-insights` with an absolute canonical `mapped-transcript.md` path |
 
 ## Available Skills
-- **[ElevenLabs Transcribe](./skills/elevenlabs-transcribe/SKILL.md)**
+- **[Transcribe Audios](./skills/transcribe-audios/SKILL.md)**
 - **[Create Questionnaire Table](./skills/create-questionnaire-table/SKILL.md)**
 - **[Map Transcript](./skills/map-transcript/SKILL.md)**
 - **[Saturate Insights](./skills/saturate-insights/SKILL.md)**
@@ -63,7 +63,7 @@ absolute canonical `Interview/mapped-transcript.md` path and no API key.
 ## Environment Access (.env)
 - **Allowed to access `.env`**: `false`
 - **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
-  `elevenlabs-transcribe`.
+  `transcribe-audios`.
 
 ## Sequence Diagram
 ```mermaid

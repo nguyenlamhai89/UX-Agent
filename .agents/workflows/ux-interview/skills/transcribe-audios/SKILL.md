@@ -1,13 +1,13 @@
 ---
-name: elevenlabs-transcribe
+name: transcribe-audios
 description: Transcribes audio files in a folder into Markdown files using the ElevenLabs Speech-to-Text API.
 ---
 
-# ElevenLabs Transcribe
+# Transcribe Audios
 
 ## Description
 
-The `elevenlabs-transcribe` skill is a Python script wrapper around the ElevenLabs Python SDK. It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.wav`, `.m4a`, `.qta`), uses the ElevenLabs `speech_to_text.convert` API to generate text transcripts with speaker diarization, and outputs the result into corresponding `.md` files within the same `Interview` folder.
+The `transcribe-audios` skill is a Python script wrapper around the ElevenLabs Python SDK. It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.wav`, `.m4a`, `.qta`), uses the ElevenLabs `speech_to_text.convert` API to generate text transcripts with speaker diarization, and outputs the result into corresponding `.md` files within the same `Interview` folder.
 
 The orchestrator should trigger this skill when the user requests audio transcription, converting speech to text, or generating interview transcripts.
 
@@ -87,7 +87,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 ## Custom Instructions
 
-- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/elevenlabs-transcribe/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--max-workers 5] [--max-file-size-mb 200] [--max-retries 3]`.
+- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--max-workers 5] [--max-file-size-mb 200] [--max-retries 3]`.
 - The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
 
 ## Sequence Diagram

@@ -1,4 +1,4 @@
-# Skill Performance Analysis: elevenlabs-transcribe
+# Skill Performance Analysis: transcribe-audios
 
 > Last updated: 2026-07-22
 
