@@ -112,7 +112,7 @@ def normalize_dataframe(df: pd.DataFrame) -> list[dict[str, str]]:
         val_lower = str(val).strip().lower()
         if val_lower in ["#", "stt", "no", "no.", "number", "index"]:
             col_mapping["#"] = col_i
-        elif any(k in val_lower for k in ["theme", "topic", "chủ đề", "category"]):
+        elif any(k in val_lower for k in ["theme", "topic", "chủ đề", "category", "phase", "giai đoạn"]):
             col_mapping["Theme"] = col_i
         elif any(k in val_lower for k in ["question", "câu hỏi", "content"]):
             col_mapping["Question"] = col_i
@@ -120,6 +120,9 @@ def normalize_dataframe(df: pd.DataFrame) -> list[dict[str, str]]:
             col_mapping["Observed Variable"] = col_i
 
     # Fallback to positional mapping if required headers not detected explicitly
+    if "Theme" not in col_mapping and len(header_row) >= 4:
+        col_mapping["Theme"] = 1
+
     if "Question" not in col_mapping or "Observed Variable" not in col_mapping:
         num_cols = len(header_row)
         if num_cols >= 4:

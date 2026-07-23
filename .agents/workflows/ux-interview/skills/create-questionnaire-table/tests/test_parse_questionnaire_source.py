@@ -54,6 +54,28 @@ def test_normalize_dataframe():
     assert rows[2]["Question"] == "What do you think about X"
 
 
+def test_normalize_dataframe_with_phase_header():
+    data = [
+        ["#", "Phase", "Question", "Observed Variables"],
+        [1, "0. Warm-up", "a", "1"],
+        ["", "", "", "2"],
+        [2, "1. Awareness", "b", "3"]
+    ]
+    df = pd.DataFrame(data)
+    rows = normalize_dataframe(df)
+
+    assert len(rows) == 3
+    assert rows[0]["Theme"] == "0. Warm-up"
+    assert rows[0]["Question"] == "a"
+    assert rows[0]["Observed Variable"] == "1"
+    assert rows[1]["Theme"] == "0. Warm-up"
+    assert rows[1]["Question"] == "a"
+    assert rows[1]["Observed Variable"] == "2"
+    assert rows[2]["Theme"] == "1. Awareness"
+    assert rows[2]["Question"] == "b"
+    assert rows[2]["Observed Variable"] == "3"
+
+
 def test_excel_file_parsing(tmp_path):
     excel_path = os.path.join(tmp_path, "sample_questionnaire.xlsx")
     

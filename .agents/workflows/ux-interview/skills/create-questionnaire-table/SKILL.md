@@ -191,6 +191,7 @@ sequenceDiagram
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
 | Invalid cached output was skipped as successful; complex Markdown could bypass validation. | Skip logic did not validate existing output and the parser accepted prose or multiple table blocks. | Validate cached output before skipping; replace the parser with a canonical one-heading/one-table validator and add regression tests. |
+| Column header named 'Phase' or 'Giai đoạn' was ignored, causing empty Theme values in generated questionnaire. | `col_mapping` keyword list lacked 'phase' and 'giai đoạn', so the second column was not recognized as Theme when Question and Observed Variable were explicitly mapped. | Expanded Theme keyword list to include 'phase' and 'giai đoạn', and added fallback mapping for Theme when 4 columns exist. |
 
 ## Performance Improvement Solutions
 
