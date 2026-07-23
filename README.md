@@ -26,7 +26,7 @@ Chỉ với 3 bước đơn giản để bắt đầu một dự án nghiên c�
 
 ### 2. Chuẩn bị tài liệu đầu vào
 Tạo 1 thư mục dự án (Ví dụ: `Chuyển tiền quốc tế`) và cho các file sau vào:
-- 🎧 **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.wav`, `.qta`).
+- 🎧 **File ghi âm / video phỏng vấn** (`.m4a`, `.mp3`, `.qta`).
 - 📋 **File bảng câu hỏi**: File Excel mẫu (`.xlsx` chứa tab `"2. Questionnaire"`) **HOẶC** link Google Sheet công khai.
 
 ### 3. Kích hoạt Agent

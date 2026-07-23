@@ -20,7 +20,7 @@ except ImportError:
     google_genai = None
 
 
-SUPPORTED_PATTERNS = ("*.mp3", "*.wav", "*.m4a", "*.qta")
+SUPPORTED_PATTERNS = ("*.mp3", "*.m4a", "*.qta")
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_MAX_FILE_SIZE_MB = 200
 DEFAULT_MAX_RETRIES = 3
@@ -187,7 +187,7 @@ def transcribe_audio_gemini(file_path, api_key, keyterms=None, max_retries=DEFAU
         raise TranscriptionError("MISSING_DEPENDENCY", "The 'google-genai' package is required for Gemini transcription. Install with: pip install google-genai")
     client = google_genai.Client(api_key=api_key)
     ext = os.path.splitext(file_path)[1].lower()
-    mime_types = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".qta": "audio/quicktime"}
+    mime_types = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".qta": "audio/quicktime"}
     mime_type = mime_types.get(ext, "audio/mpeg")
 
     prompt = GEMINI_TRANSCRIPT_PROMPT

@@ -7,7 +7,7 @@ description: Transcribes audio files in a folder into Markdown files using Eleve
 
 ## Description
 
-The `transcribe-audios` skill transcribes interview audio files into Markdown with speaker diarization. It supports two providers: **ElevenLabs** (primary, using the `speech_to_text.convert` API with the Scribe v2 model) and **Google Gemini** (fallback). It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.wav`, `.m4a`, `.qta`) and outputs corresponding `.md` files. At least one API key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) must be provided. When both keys are available, ElevenLabs is tried first; on failure, Gemini is used automatically.
+The `transcribe-audios` skill transcribes interview audio files into Markdown with speaker diarization. It supports two providers: **ElevenLabs** (primary, using the `speech_to_text.convert` API with the Scribe v2 model) and **Google Gemini** (fallback). It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.m4a`, `.qta`) and outputs corresponding `.md` files. At least one API key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) must be provided. When both keys are available, ElevenLabs is tried first; on failure, Gemini is used automatically.
 
 The orchestrator should trigger this skill when the user requests audio transcription, converting speech to text, or generating interview transcripts.
 
@@ -26,7 +26,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
   never reads `.env` directly. At least one transcription key is required.
 - **Location**: `request_body`
 - **Input File(s)**:
-  - `Interview/*.mp3`, `Interview/*.wav`, `Interview/*.m4a`, `Interview/*.qta` — Raw audio files containing interviews or recordings in the `Interview` subfolder.
+  - `Interview/*.mp3`, `Interview/*.m4a`, `Interview/*.qta` — Raw audio files containing interviews or recordings in the `Interview` subfolder.
 - **Examples**:
 
   **Example 1** — Transcription request:
