@@ -7,7 +7,7 @@ description: Orchestrates UX research workflows by routing requests to transcrib
 
 ## Description
 The UX Interview orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
-1. **Questionnaire Table Extraction**: Reading a question table from an image to produce a structured `full-questionnaire.md`.
+1. **Questionnaire Table Extraction**: Reading a question table from a Google Sheet link, Excel file (.xlsx/.xls tab "2. Questionnaire"), or image to produce a structured `full-questionnaire.md`.
 2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs.
 3. **Transcript Mapping**: Mapping interviewee responses from transcripts to the questionnaire structure.
 4. **Insights Saturation**: Synthesizing responses into a structured `insights.md` and saturation matrix.
@@ -24,7 +24,7 @@ never reads `.env` directly.
 **Sequential Pipeline**:
 0. **Dependency Verification**: Run the package validation script `.agents/scripts/check_libraries.py` to ensure all external dependencies (`elevenlabs`, `matplotlib`, `pytest`) are installed and up to date. Show warning/suggestions if needed.
 1. **Folder Creation & Data Preparation**: Create a folder named `Interview` inside the provided `folder_path`. Move all input files (e.g., images and audio files) from `folder_path` into this `Interview` folder. All subsequent skills MUST read their inputs from and place their outputs inside this `Interview` folder.
-2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from image to `full-questionnaire.md`.
+2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
 5. **Audio Transcription** (`elevenlabs-transcribe`): Require the
@@ -43,7 +43,7 @@ never reads `.env` directly.
 | Intent | Keywords | Routed to Skill |
 | --- | --- | --- |
 | Audio Transcription | "transcribe", "audio", "interview transcript" | `elevenlabs-transcribe` |
-| Questionnaire Extraction | "questionnaire", "extract table" | `create-questionnaire-table` |
+| Questionnaire Extraction | "questionnaire", "google sheet", "excel questionnaire", "extract table" | `create-questionnaire-table` |
 | Transcript Mapping | "map transcript", "mapped transcript" | `map-transcript` |
 | Insights Saturation | "saturation", "saturate insights" | `saturate-insights` with an absolute canonical `mapped-transcript.md` path |
 

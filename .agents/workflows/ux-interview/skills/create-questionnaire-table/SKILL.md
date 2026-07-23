@@ -1,38 +1,52 @@
 ---
 name: Create Questionnaire Table
-description: Extracts one or more question-table images (PNG/JPG) and outputs a validated, structured full-questionnaire.md file with fully expanded rows.
+description: Extracts questionnaire data from Google Sheet links, Excel files (.xlsx/.xls), or table images (PNG/JPG) and outputs a validated, structured full-questionnaire.md file.
 ---
 
 # Create Questionnaire Table
 
 ## Description
 
-This skill extracts question tables from one or more image files (PNG or JPG) and converts them into a validated Markdown table saved as `full-questionnaire.md`. The agent uses its built-in vision capability to read the images in deterministic filename order and formats them into a 4-column expanded table.
+This skill extracts question tables from a **Google Sheet link**, an **Excel file** (`.xlsx`, `.xls`) in the project folder, or image files (`.png`, `.jpg`) and converts them into a validated Markdown table saved as `full-questionnaire.md`. When given a Google Sheet or Excel workbook, it specifically reads and parses the **"2. Questionnaire"** tab.
 
 The orchestrator should trigger this skill when:
-- The user wants to convert a question table image into a Markdown file.
-- The user provides a folder path containing a question table image.
-- Keywords such as "questionnaire", "question table", "extract table from image", "convert table image to markdown" are detected.
+- The user provides a Google Sheet link or path to an Excel file.
+- The user wants to convert a question table image or spreadsheet tab into a Markdown file.
+- Keywords such as "questionnaire", "question table", "google sheet", "excel questionnaire", "extract table" are detected.
 
 **Prerequisites:**
-- The input folder must exist, and its `Interview` subfolder must contain 1–20 image files (`.png`, `.jpg`, or `.jpeg`).
-- Each image must be 20 MB or smaller. Larger inputs return `INPUT_LIMIT_EXCEEDED` before extraction.
+- If using Google Sheet: A valid public or accessible Google Sheet URL.
+- If using Excel: A local `.xlsx` or `.xls` file in the project folder containing tab `"2. Questionnaire"`.
+- If using Images: The `Interview` subfolder must contain 1–20 image files (`.png`, `.jpg`, `.jpeg`).
 
 ## Input
 
 - **Type**: `dict`
 - **Format**:
   - `folder_path` (string, **required**) — Absolute path to a local directory (e.g., project root).
+  - `google_sheet_url` (string, **optional**) — Web URL pointing to a Google Sheet.
+  - `excel_file` (string, **optional**) — Absolute or relative path to an Excel file (`.xlsx` or `.xls`).
 - **Location**: `request_body`
-- **Input File(s)**:
-  - `Interview/<image>.png` / `Interview/<image>.jpg` / `Interview/<image>.jpeg` — One or more question table images in the `Interview` subfolder.
-- **Supported file types**: `.png`, `.jpg`, `.jpeg` only. Other files in the folder are ignored.
+- **Input Source(s)**:
+  - Google Sheet link (reading tab `"2. Questionnaire"`)
+  - Excel file in project folder (reading tab `"2. Questionnaire"`)
+  - `Interview/<image>.png` / `Interview/<image>.jpg` / `Interview/<image>.jpeg` (images in `Interview` subfolder)
+- **Supported file types**: `.xlsx`, `.xls`, `.png`, `.jpg`, `.jpeg`, or Google Sheet URL.
 - **Examples**:
 
-  **Example 1** — Folder with a single PNG:
+  **Example 1** — Google Sheet URL:
   ```json
   {
-    "folder_path": "/Users/madebynham/Desktop/questionnaire-images"
+    "folder_path": "/Users/madebynham/Desktop/project",
+    "google_sheet_url": "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+  }
+  ```
+
+  **Example 2** — Excel file:
+  ```json
+  {
+    "folder_path": "/Users/madebynham/Desktop/project",
+    "excel_file": "/Users/madebynham/Desktop/project/Questionnaire.xlsx"
   }
   ```
 
@@ -84,20 +98,19 @@ The orchestrator should trigger this skill when:
 
 ## Custom Instructions
 
-- **Execution Method**: This skill is executed entirely by the Antigravity AI agent — no external scripts or API calls. The agent follows these steps directly:
+- **Execution Method**:
   1. **Validate any existing output before skipping**: If `Interview/full-questionnaire.md` exists, run `scripts/validate_questionnaire.py` on it. Return success only when the validator exits 0. If validation fails, delete the invalid file and continue with extraction.
-  2. **Scan and bound inputs** at `<folder_path>/Interview`: collect only `.png`, `.jpg`, and `.jpeg` files; sort filenames in ascending natural order; reject more than 20 files or any file larger than 20 MB with `INPUT_LIMIT_EXCEEDED`.
-  3. **Process bounded batches**: Process the sorted images in batches of up to 5 and report completed page ranges for inputs with more than 5 images.
-  4. **Extract all table data** from each image. Identify each topic, its questions, and their observed variables. Concatenate pages in the sorted order.
-  5. **Assign the `#` (order number) by question** — all rows with the same question content share the same number. The number increments only when the question changes. For multi-page, ensure numbering is continuous across pages.
-  6. **Expand all rows** so that every unique combination of (number, topic, question, observed variable) is a separate row. Never merge cells.
-  7. **Format strictly**: Output exactly one `# Questionnaire` heading followed by exactly one Markdown table with 4 columns: `#`, `Theme`, `Question`, `Observed Variable`. Do not add prose, extra tables, or code fences. Escape literal pipe characters inside cell values as `\\|`; remove `<br>` tags and line breaks from cells.
-  8. **Write the result** to `<folder_path>/Interview/full-questionnaire.md` using the `write_to_file` tool.
-  9. **Self-verify**: Re-read the generated file against every source image. Confirm each page was included, the row count matches the extracted rows, questions remain in page order, and every row has non-empty Question and Observed Variable values.
-  10. **Automated Validation**: Run the Python script `scripts/validate_questionnaire.py <folder_path>/Interview/full-questionnaire.md`. 
+  2. **Check for Google Sheet URL or Excel file**:
+     - If `google_sheet_url` is provided: execute `scripts/parse_questionnaire_source.py --google-sheet-url <url> --folder-path <folder_path>`. The script reads tab `"2. Questionnaire"` from the Google Sheet and outputs `Interview/full-questionnaire.md`.
+     - If `excel_file` is provided: execute `scripts/parse_questionnaire_source.py --excel-file <file_path> --folder-path <folder_path>`. The script extracts tab `"2. Questionnaire"` from the `.xlsx`/`.xls` file and outputs `Interview/full-questionnaire.md`.
+  3. **Fallback to Images**: If no spreadsheet input is provided, scan `<folder_path>/Interview` for image files (`.png`, `.jpg`, `.jpeg`), process bounded batches of up to 5 images, and construct the Markdown table.
+  4. **Assign the `#` (order number) by question** — all rows with the same question content share the same number. The number increments only when the question changes.
+  5. **Expand all rows** so that every unique combination of (number, topic, question, observed variable) is a separate row. Never merge cells.
+  6. **Format strictly**: Output exactly one `# Questionnaire` heading followed by exactly one Markdown table with 4 columns: `#`, `Theme`, `Question`, `Observed Variable`. Do not add prose, extra tables, or code fences. Escape literal pipe characters inside cell values as `\\|`; remove `<br>` tags and line breaks from cells.
+  7. **Write the result** to `<folder_path>/Interview/full-questionnaire.md`.
+  8. **Automated Validation**: Run the Python script `scripts/validate_questionnaire.py <folder_path>/Interview/full-questionnaire.md`. 
       - If the script returns success (exit code 0), return success.
-      - If validation fails because of image interpretation or table structure, delete the invalid file and retry extraction up to 2 times. If it still fails, return `UNREADABLE_IMAGE` with the final validator error code and message.
-      - Do not retry `INVALID_INPUT`, `INPUT_LIMIT_EXCEEDED`, `WRITE_FAILURE`, `READ_FAILURE`, or other filesystem failures. Clean up any partial output and return the actionable error immediately.
+      - If validation fails, clean up and return appropriate error code.
 - If the image contains text in Vietnamese, preserve the original Vietnamese text in the output.
 - Do not add any extra content to the markdown file beyond a level-1 heading (`# Questionnaire`) and the table itself.
 - Do not wrap the table in code fences.
