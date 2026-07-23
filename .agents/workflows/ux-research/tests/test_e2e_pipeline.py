@@ -1,5 +1,6 @@
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +10,7 @@ ROOT = Path(__file__).parents[4]
 INTERVIEW = ROOT / ".agents" / "workflows" / "ux-interview"
 MAP_JOURNEY = ROOT / ".agents" / "workflows" / "ux-map-journey"
 VISUALIZE = ROOT / ".agents" / "skills" / "visualize-insights"
+SEND_EMAIL = ROOT / ".agents" / "workflows" / "ux-research" / "skills" / "send-email"
 sys.path[:0] = [
     str(INTERVIEW / "skills" / "create-questionnaire-table" / "scripts"),
     str(INTERVIEW / "skills" / "map-transcript" / "scripts"),
@@ -17,6 +19,7 @@ sys.path[:0] = [
     str(MAP_JOURNEY / "skills" / "interpret-phases" / "scripts"),
     str(MAP_JOURNEY / "skills" / "extract-map" / "scripts"),
     str(VISUALIZE / "scripts"),
+    str(SEND_EMAIL / "scripts"),
 ]
 
 mock_antigravity = MagicMock()
@@ -44,6 +47,7 @@ from mapping_pipeline import (  # noqa: E402
     record_success as record_mapping_success,
 )
 from run_interpret import interpret_phases  # noqa: E402
+from send_email import prepare_email_draft, send_approved_email  # noqa: E402
 from validate_questionnaire import validate_questionnaire  # noqa: E402
 from visualize_insights import generate_report  # noqa: E402
 
@@ -209,7 +213,7 @@ def _run_transcribe_pipeline(project, interview):
     return mapped_file, interview / "insights.md"
 
 
-def test_e2e_pipeline_runs_transcribe_cjm_and_visualization(tmp_path):
+def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
     project = tmp_path / "research-project"
     interview = project / "Interview"
     interview.mkdir(parents=True)
@@ -269,3 +273,35 @@ def test_e2e_pipeline_runs_transcribe_cjm_and_visualization(tmp_path):
     )
     assert skipped["status"] == "skipped"
     assert skipped["input_signature"] == report["input_signature"]
+
+    draft = prepare_email_draft(
+        skipped,
+        folder_path=str(project),
+        bcc_recipients=["stakeholder@example.com"],
+        subject="Complete UX Research report",
+        body="Please find the completed UX research report attached.",
+    )
+    assert draft["status"] == "awaiting_approval"
+    assert draft["draft"]["to"] == []
+    assert draft["draft"]["cc"] == []
+    assert draft["draft"]["attachment_path"] == skipped["output_file"]
+
+    mocked_send = subprocess.CompletedProcess([], 0, stdout="SENT\n", stderr="")
+    with patch("send_email.subprocess.run", return_value=mocked_send) as run:
+        cancelled = send_approved_email(draft, approval_token=None)
+        assert cancelled["status"] == "cancelled"
+        assert cancelled["error"]["code"] == "NOT_APPROVED"
+        run.assert_not_called()
+
+        email_result = send_approved_email(
+            draft,
+            approval_token=draft["approval_token"],
+        )
+
+    assert email_result == {
+        "status": "success",
+        "sent": True,
+        "recipient_count": 1,
+        "attachment_path": skipped["output_file"],
+    }
+    run.assert_called_once()

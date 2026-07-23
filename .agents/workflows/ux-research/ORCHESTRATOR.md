@@ -1,6 +1,6 @@
 ---
 name: UX Research Report
-description: Coordinates the complete UX research pipeline from transcription through customer journey mapping to a final interactive insights report.
+description: Coordinates the complete UX research pipeline from transcription through customer journey mapping and visualization, then prepares and sends the approved HTML report through Apple Mail.
 ---
 
 # UX Research Report
@@ -8,13 +8,15 @@ description: Coordinates the complete UX research pipeline from transcription th
 ## Description
 
 This parent workflow coordinates the complete research sequence:
-`ux-interview` → `ux-map-journey` → `visualize-insights`. It preserves each child
-workflow's approval gates, passes only canonical successful outputs to the next
-stage, and finishes with an atomic, freshness-aware HTML research report.
+`ux-interview` → `ux-map-journey` → `visualize-insights` → `send-email`. It
+preserves each child workflow's approval gates, passes only canonical successful
+outputs to the next stage, produces an atomic freshness-aware HTML report, and
+offers BCC-only Apple Mail delivery after a separate final-draft approval.
 
 The parent orchestrator owns coordination only. It calls the sibling
-`ux-interview` and `ux-map-journey` workflows and then invokes the shared
-`visualize-insights` workspace skill. It never reads API keys inside a skill.
+`ux-interview` and `ux-map-journey` workflows, invokes the shared
+`visualize-insights` workspace skill, and finishes with its workflow-owned
+`send-email` skill. It never reads API keys inside a skill.
 
 ## Routing Logic & Execution Flow
 
@@ -63,8 +65,22 @@ shared skill.
    the canonical insights, mapped transcript, full transcripts, journey map,
    media metadata, and all HTML templates, and the recorded output hash matches
    the current HTML file. File existence alone is never a valid skip signal.
-8. **Return the final result** — Return the absolute HTML and manifest paths,
-   the child workflow artifacts, input signature, and any structured warnings.
+8. **Ask for recipients and draft the email** — Always ask who should receive
+   the report. Place every recipient in BCC and keep To and CC empty. Use
+   built-in AI, without an API key, to suggest a concise subject and plain-text
+   body. Pass the exact visualization `output_file` unchanged to `send-email`.
+9. **Show the final draft and pause** — Call `prepare_email_draft()`, then show
+   the complete draft: empty To and CC, all BCC recipients, subject, body,
+   attachment path, and content-bound approval token. Stop with
+   `awaiting_approval` until the user repeats that exact token. Any edit requires
+   a newly prepared draft and token; `yes` or `approved` alone is insufficient.
+10. **Send once through Apple Mail** — Call `send_approved_email()` only after
+    the exact current token is supplied. Never retry a timeout or uncertain
+    result because Apple Mail may already have accepted the message.
+11. **Return the final result** — Return the absolute HTML and manifest paths,
+    child workflow artifacts, input signature, structured warnings, and nested
+    `email` result. Email cancellation or failure does not invalidate the
+    successfully generated HTML report.
 
 **Execution Rule:** When a child workflow completes and generates an output,
 the orchestrator MUST pause and ask the user for approval before entering the
@@ -78,10 +94,11 @@ next stage. A partial or stale child result halts the pipeline.
   `Journey Map/journey-map.md` from the mapped transcript.
 - **[visualize-insights](../../skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
+- **[send-email](./skills/send-email/SKILL.md)** — Prepares a BCC-only draft and
+  sends the exact HTML report through Apple Mail after exact-token approval.
 
-The required local `skills/` directory is retained for skills owned directly by
-this parent workflow. It is currently empty because this orchestrator composes
-sibling workflows and one shared workspace skill.
+The local `skills/` directory contains skills owned directly by this parent
+workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 
 ## Input
 
@@ -110,6 +127,9 @@ sibling workflows and one shared workspace skill.
   - `artifacts`: Canonical mapped transcript, insights, full transcripts, and
     journey map paths.
   - `warnings`: Structured non-fatal warning objects.
+  - `email`: Nested `awaiting_approval`, `success`, `cancelled`, or `error`
+    result from `send-email`, including the complete draft during approval or
+    the send outcome afterward.
 
 ## Environment Access (.env)
 
@@ -129,6 +149,8 @@ sequenceDiagram
     participant UXI as UX Interview
     participant UXM as UX Map Journey
     participant VIS as visualize-insights
+    participant EMAIL as send-email
+    participant Mail as Apple Mail
 
     User->>Parent: folder_path and project_name
     Parent->>UXI: Run complete interview workflow
@@ -145,7 +167,23 @@ sequenceDiagram
     else Generation required
         VIS-->>Parent: success, HTML, and manifest
     end
-    Parent-->>User: Final interactive research report
+    Parent->>User: Ask for BCC recipients
+    User-->>Parent: Recipient addresses
+    Note over Parent: Built-in AI suggests<br>subject and plain-text body
+    Parent->>EMAIL: Prepare exact report draft
+    EMAIL-->>Parent: Complete draft and approval token
+    Parent-->>User: Review full draft and exact token
+    alt Exact current token supplied
+        User-->>Parent: APPROVE-SEND-EMAIL:<sha256>
+        Parent->>EMAIL: Send approved draft
+        EMAIL->>Mail: BCC-only message and HTML attachment
+        Mail-->>EMAIL: SENT
+        EMAIL-->>Parent: success
+    else Cancelled, edited, or ambiguous
+        User-->>Parent: No exact token
+        Parent-->>User: Email cancelled; report preserved
+    end
+    Parent-->>User: Report artifacts and nested email result
 ```
 
 ## Error Handling & Fallbacks
@@ -160,10 +198,16 @@ sequenceDiagram
 | `INPUT_TOO_LARGE` | Ask the user to reduce inputs or intentionally raise `max_input_bytes`. |
 | `TEMPLATE_ERROR`, `OUTPUT_PATH_INVALID`, `OUTPUT_WRITE_ERROR` | Preserve the last-known-good report and manifest; do not treat file existence as success. |
 | `BROWSER_OPEN_ERROR` | Return success with a structured warning because the report itself remains valid. |
+| `INVALID_VISUALIZATION_HANDOFF`, `INVALID_ATTACHMENT`, `ATTACHMENT_OUTSIDE_REPORT_DIR` from `send-email` | Halt email drafting, preserve the successful report, and identify the handoff to repair. |
+| `INVALID_RECIPIENTS`, `INVALID_SUBJECT`, `INVALID_BODY` | Ask for corrected draft fields and prepare a new content-bound token. |
+| `NOT_APPROVED` | Return email status `cancelled`; never invoke Apple Mail and preserve the report. |
+| `OSASCRIPT_NOT_FOUND` | Preserve the report and explain that Apple Mail sending requires macOS. |
+| `SEND_TIMEOUT`, `UNEXPECTED_OSASCRIPT_OUTPUT` | Do not retry; preserve the report and ask the user to check Apple Mail Sent and Drafts. |
+| `MAIL_AUTOMATION_DENIED` | Preserve the report and ask the user to grant macOS automation permission before preparing a fresh approval. |
+| `MAIL_SEND_FAILED` | Preserve the report and return the safe nested email error. |
 | `INTERNAL_ERROR` | Halt and return the stable code without exposing a stack trace. |
 
 ## Known Bugs & Resolutions
 
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
-
