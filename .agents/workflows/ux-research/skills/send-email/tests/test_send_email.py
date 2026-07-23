@@ -28,8 +28,6 @@ def _prepare(tmp_path, **overrides):
         "visualization_result": {"status": "success", "output_file": str(report)},
         "folder_path": str(project),
         "bcc_recipients": ["research@example.com"],
-        "subject": "UX research report",
-        "body": "Please find the report attached.",
     }
     payload.update(overrides)
     return send_email.prepare_email_draft(**payload), project, report
@@ -43,10 +41,14 @@ def test_prepare_email_draft_is_bcc_only_and_content_bound(tmp_path):
 
     assert result["status"] == "awaiting_approval"
     assert result["sent"] is False
+    assert result["draft"]["from"] == send_email.SENDER_EMAIL
     assert result["draft"]["to"] == []
     assert result["draft"]["cc"] == []
     assert result["draft"]["bcc"] == ["First@example.com", "second@example.com"]
     assert result["draft"]["attachment_path"] == str(report)
+    assert "Kính gửi Quý Anh/Chị" in result["draft"]["body"]
+    assert "Hướng dẫn mở báo cáo" in result["draft"]["body"]
+    assert "Google Chrome" in result["draft"]["body"]
     assert result["approval_token"] == f"{send_email.APPROVAL_PREFIX}{result['draft']['draft_id']}"
 
 
@@ -56,8 +58,6 @@ def test_prepare_accepts_valid_skipped_visualization(tmp_path):
         {"status": "skipped", "output_file": str(report)},
         folder_path=str(project),
         bcc_recipients=["person@example.com"],
-        subject="Current report",
-        body="Attached.",
     )
     assert result["status"] == "awaiting_approval"
 
@@ -80,24 +80,19 @@ def test_prepare_rejects_invalid_recipients(tmp_path, recipients):
     assert result["error"]["code"] == "INVALID_RECIPIENTS"
 
 
-@pytest.mark.parametrize(
-    ("field", "value", "code"),
-    [
-        ("subject", "", "INVALID_SUBJECT"),
-        ("subject", "Hello\nBcc: attacker@example.com", "INVALID_SUBJECT"),
-        ("body", "", "INVALID_BODY"),
-        ("body", "unsafe\x00body", "INVALID_BODY"),
-    ],
-)
-def test_prepare_rejects_invalid_content(tmp_path, field, value, code):
-    result, _, _ = _prepare(tmp_path, **{field: value})
-    assert result["status"] == "error"
-    assert result["error"]["code"] == code
-
-
 def test_prepare_rejects_invalid_visualization_handoff(tmp_path):
     result, _, _ = _prepare(tmp_path, visualization_result={"status": "error"})
     assert result["error"]["code"] == "INVALID_VISUALIZATION_HANDOFF"
+
+
+def test_prepare_rejects_an_unsafe_report_filename(tmp_path):
+    project, report = _project_with_report(tmp_path / "unsafe", "unsafe\nreport.html")
+    result = send_email.prepare_email_draft(
+        {"status": "success", "output_file": str(report)},
+        folder_path=str(project),
+        bcc_recipients=["person@example.com"],
+    )
+    assert result["error"]["code"] == "INVALID_SUBJECT"
 
 
 def test_prepare_rejects_relative_missing_and_wrong_extension_attachments(tmp_path):
@@ -105,8 +100,6 @@ def test_prepare_rejects_relative_missing_and_wrong_extension_attachments(tmp_pa
     base = {
         "folder_path": str(project),
         "bcc_recipients": ["person@example.com"],
-        "subject": "Report",
-        "body": "Attached.",
     }
     for path in ("relative.html", str(report.with_name("missing.html")), str(report.with_suffix(".txt"))):
         result = send_email.prepare_email_draft(
@@ -148,8 +141,6 @@ def test_prepare_rejects_symlink_that_escapes_report_directory(tmp_path):
         {"status": "success", "output_file": str(link)},
         folder_path=str(project),
         bcc_recipients=["person@example.com"],
-        subject="Report",
-        body="Attached.",
     )
     assert result["error"]["code"] == "ATTACHMENT_OUTSIDE_REPORT_DIR"
 
@@ -204,8 +195,6 @@ def test_successful_send_uses_static_argv_boundary_once(tmp_path):
     draft, _, report = _prepare(
         tmp_path,
         bcc_recipients=["one@example.com", "two@example.com"],
-        subject="Subject with 'quotes'",
-        body="Line one\nLine two",
     )
     completed = subprocess.CompletedProcess([], 0, stdout="SENT\n", stderr="")
     with patch("send_email.subprocess.run", return_value=completed) as run:
@@ -218,6 +207,7 @@ def test_successful_send_uses_static_argv_boundary_once(tmp_path):
     assert result == {
         "status": "success",
         "sent": True,
+        "sender": send_email.SENDER_EMAIL,
         "recipient_count": 2,
         "attachment_path": str(report),
     }
@@ -231,15 +221,17 @@ def test_successful_send_uses_static_argv_boundary_once(tmp_path):
         "--",
     ]
     assert command[4:] == [
-        "Subject with 'quotes'",
-        "Line one\nLine two",
+        send_email.SENDER_EMAIL,
+        draft["draft"]["subject"],
+        draft["draft"]["body"],
         str(report),
         "one@example.com",
         "two@example.com",
     ]
-    assert "Subject with 'quotes'" not in send_email.STATIC_APPLESCRIPT
+    assert send_email.SENDER_EMAIL not in send_email.STATIC_APPLESCRIPT
     assert "one@example.com" not in send_email.STATIC_APPLESCRIPT
     assert "make new bcc recipient" in send_email.STATIC_APPLESCRIPT
+    assert "sender:senderAddress" in send_email.STATIC_APPLESCRIPT
     assert "make new to recipient" not in send_email.STATIC_APPLESCRIPT
     assert "make new cc recipient" not in send_email.STATIC_APPLESCRIPT
     assert kwargs == {
@@ -272,3 +264,26 @@ def test_send_maps_mail_failures_without_retry(tmp_path, side_effect, completed,
     assert result["sent"] is False
     assert result["error"]["code"] == code
     run.assert_called_once()
+
+
+def test_send_rejects_a_modified_sender_without_invoking_subprocess(tmp_path):
+    draft, _, _ = _prepare(tmp_path)
+    draft["draft"]["from"] = "other@example.com"
+    with patch("send_email.subprocess.run") as run:
+        result = send_email.send_approved_email(
+            draft,
+            approval_token=draft["approval_token"],
+        )
+    assert result["error"]["code"] == "INVALID_INPUT"
+    run.assert_not_called()
+
+
+def test_send_reports_missing_configured_sender_account(tmp_path):
+    draft, _, _ = _prepare(tmp_path)
+    completed = subprocess.CompletedProcess([], 1, stdout="", stderr="Cannot set sender")
+    with patch("send_email.subprocess.run", return_value=completed):
+        result = send_email.send_approved_email(
+            draft,
+            approval_token=draft["approval_token"],
+        )
+    assert result["error"]["code"] == "SENDER_ACCOUNT_NOT_CONFIGURED"

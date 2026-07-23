@@ -278,13 +278,13 @@ def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
         skipped,
         folder_path=str(project),
         bcc_recipients=["stakeholder@example.com"],
-        subject="Complete UX Research report",
-        body="Please find the completed UX research report attached.",
     )
     assert draft["status"] == "awaiting_approval"
+    assert draft["draft"]["from"] == "nguyenlamhai89@gmail.com"
     assert draft["draft"]["to"] == []
     assert draft["draft"]["cc"] == []
     assert draft["draft"]["attachment_path"] == skipped["output_file"]
+    assert "Hướng dẫn mở báo cáo" in draft["draft"]["body"]
 
     mocked_send = subprocess.CompletedProcess([], 0, stdout="SENT\n", stderr="")
     with patch("send_email.subprocess.run", return_value=mocked_send) as run:
@@ -301,6 +301,7 @@ def test_e2e_pipeline_runs_through_approved_mock_email_send(tmp_path):
     assert email_result == {
         "status": "success",
         "sent": True,
+        "sender": "nguyenlamhai89@gmail.com",
         "recipient_count": 1,
         "attachment_path": skipped["output_file"],
     }

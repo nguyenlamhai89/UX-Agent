@@ -1,17 +1,19 @@
 ---
 name: send-email
-description: Prepares a BCC-only Apple Mail draft for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the report attachment only after the user provides the exact content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
+description: Prepares a formal Vietnamese BCC-only Apple Mail draft from nguyenlamhai89@gmail.com for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
 ---
 
 # Send Email
 
 ## Description
 
-Prepare and send the final UX research HTML report through Apple Mail. Use
-built-in AI only to suggest the subject and plain-text body; use the deterministic
-`scripts/send_email.py` helper for validation, approval enforcement, and sending.
-Always keep To and CC empty, place every recipient in BCC, and never send before
-the user reviews the complete draft and repeats its exact approval token.
+Prepare and send the final UX research HTML report through Apple Mail from
+`nguyenlamhai89@gmail.com`. Use the deterministic `scripts/send_email.py` helper
+to generate a formal Vietnamese subject and body, validate the visualization
+handoff, enforce approval, and send the message. Always keep To and CC empty,
+place every recipient in BCC, attach the exact `output_file` returned by
+`visualize-insights`, and never send before the user reviews the complete draft
+and repeats its exact approval token.
 
 ## Input
 
@@ -25,10 +27,6 @@ the user reviews the complete draft and repeats its exact approval token.
     report directory is `<folder_path>/Interview/Research Report`.
   - `bcc_recipients` (array of strings, required) — Runtime recipients supplied
     by the user. At least one valid address is required.
-  - `subject` (string, required) — User-reviewed subject suggested by built-in AI
-    or edited by the user.
-  - `body` (string, required) — User-reviewed plain-text message suggested by
-    built-in AI or edited by the user.
   - `approval_token` (string, required only for sending) — Exact token returned
     for the unchanged draft and repeated by the user.
 - **Input File(s)**:
@@ -43,9 +41,7 @@ the user reviews the complete draft and repeats its exact approval token.
       "output_file": "/project/Interview/Research Report/Example.html"
     },
     "folder_path": "/project",
-    "bcc_recipients": ["research@example.com"],
-    "subject": "Example UX research report",
-    "body": "Please find the completed UX research report attached."
+    "bcc_recipients": ["research@example.com"]
   }
   ```
 
@@ -57,12 +53,13 @@ the user reviews the complete draft and repeats its exact approval token.
   - Draft phase:
     - `status`: `awaiting_approval`
     - `sent`: `false`
-    - `draft`: Complete immutable draft with `draft_id`, empty `to` and `cc`,
-      BCC recipients, subject, body, and attachment path.
+    - `draft`: Complete immutable draft with `draft_id`, fixed `from` address,
+      empty `to` and `cc`, BCC recipients, formal subject and body, and attachment path.
     - `approval_token`: Content-bound token that must be repeated exactly.
   - Send phase:
     - `status`: `success`, `cancelled`, or `error`
     - `sent`: Boolean send confirmation.
+    - `sender`: Fixed From address on success: `nguyenlamhai89@gmail.com`.
     - `recipient_count`: Number of BCC recipients on success.
     - `attachment_path`: Exact report path on success.
     - `error`: Stable `code` and safe `message` for cancelled or failed sends.
@@ -74,11 +71,12 @@ the user reviews the complete draft and repeats its exact approval token.
     "sent": false,
     "draft": {
       "draft_id": "<sha256>",
+      "from": "nguyenlamhai89@gmail.com",
       "to": [],
       "cc": [],
       "bcc": ["research@example.com"],
-      "subject": "Example UX research report",
-      "body": "Please find the completed UX research report attached.",
+      "subject": "[Báo cáo UX Research] Example",
+      "body": "Kính gửi Quý Anh/Chị, ... Hướng dẫn mở báo cáo: tải file HTML đính kèm và mở bằng Chrome, Edge, hoặc Safari.",
       "attachment_path": "/project/Interview/Research Report/Example.html"
     },
     "approval_token": "APPROVE-SEND-EMAIL:<sha256>"
@@ -89,16 +87,19 @@ the user reviews the complete draft and repeats its exact approval token.
 
 - Ask who should receive the report every time this skill runs. Never reuse or
   infer recipients from a prior run.
-- Use built-in AI to suggest a concise subject and plain-text body based on the
-  project name and completed report. Do not use an API key or external LLM.
+- Use `nguyenlamhai89@gmail.com` as the fixed sender. Do not accept a sender
+  address from the user or switch to a different Apple Mail account.
+- Generate a formal Vietnamese subject and plain-text body from the exact HTML
+  filename returned by `visualize-insights`. Include instructions to download
+  the attachment and open it in Chrome, Edge, or Safari.
 - Call `prepare_email_draft()` with the exact visualization result, absolute
-  project folder, recipients, subject, and body.
-- Show the user the entire returned draft: empty To and CC, all BCC recipients,
-  subject, body, exact attachment, and approval token.
+  project folder, and BCC recipients.
+- Show the user the entire returned draft: fixed From address, empty To and CC,
+  all BCC recipients, subject, body, exact attachment, and approval token.
 - Pause with `awaiting_approval`. Treat `yes`, `approved`, ambiguous responses,
   edits, or a non-matching token as not approved.
-- If the user changes any recipient, subject, body, or attachment, prepare and
-  show a new draft with a new token.
+- If the user changes any recipient or attachment, prepare and show a new draft
+  with a new token. The sender, formal subject, and formal body remain fixed.
 - Call `send_approved_email()` only after the user repeats the exact current
   token. Never call the sender speculatively.
 - Never retry a timeout or uncertain Apple Mail result because the first send
@@ -120,15 +121,13 @@ sequenceDiagram
 
     Orchestrator->>User: Ask for BCC recipients
     User-->>Orchestrator: Recipient addresses
-    Orchestrator->>AI: Suggest subject and plain-text body
-    AI-->>Orchestrator: Draft content
     Orchestrator->>Skill: prepare_email_draft(...)
     Skill-->>Orchestrator: awaiting_approval, complete draft, token
     Orchestrator->>User: Show full draft and exact token
     alt Exact current token supplied
         User-->>Orchestrator: APPROVE-SEND-EMAIL:<sha256>
         Orchestrator->>Skill: send_approved_email(...)
-        Skill->>Mail: BCC-only message with HTML attachment
+        Skill->>Mail: Send from fixed account, BCC-only HTML attachment
         Mail-->>Skill: SENT
         Skill-->>Orchestrator: success
     else Cancelled, edited, or ambiguous response
@@ -146,7 +145,7 @@ sequenceDiagram
 | `INVALID_ATTACHMENT` | HTML report is missing, unreadable, or not a regular absolute `.html` file. | Do not send; regenerate or restore the report. |
 | `ATTACHMENT_OUTSIDE_REPORT_DIR` | Attachment resolves outside `Interview/Research Report`. | Do not send; use the exact visualization handoff. |
 | `INVALID_RECIPIENTS` | BCC list is empty or contains an invalid address. | Ask the user for corrected recipients and prepare a new draft. |
-| `INVALID_SUBJECT`, `INVALID_BODY` | Draft content is empty or unsafe. | Suggest corrected content and prepare a new draft. |
+| `SENDER_ACCOUNT_NOT_CONFIGURED` | Apple Mail cannot use `nguyenlamhai89@gmail.com` as the sender. | Add or enable that account in Apple Mail, then prepare a new draft. |
 | `NOT_APPROVED` | Exact current approval token was not supplied. | Return `cancelled`; never invoke Apple Mail. |
 | `OSASCRIPT_NOT_FOUND` | AppleScript is unavailable. | Preserve the report and explain that Apple Mail sending requires macOS. |
 | `SEND_TIMEOUT` | Mail did not confirm before the timeout. | Do not retry; ask the user to check Sent and Drafts. |

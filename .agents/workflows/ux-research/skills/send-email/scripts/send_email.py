@@ -1,4 +1,4 @@
-"""Prepare and send approved BCC-only Apple Mail messages."""
+"""Prepare and send approved BCC-only Apple Mail messages from a fixed sender."""
 
 from __future__ import annotations
 
@@ -17,19 +17,21 @@ from typing import Any
 APPROVAL_PREFIX = "APPROVE-SEND-EMAIL:"
 OSASCRIPT_PATH = "/usr/bin/osascript"
 SUCCESS_MARKER = "SENT"
+SENDER_EMAIL = "nguyenlamhai89@gmail.com"
 
 STATIC_APPLESCRIPT = r'''
 on run argv
-    if (count of argv) < 4 then error "Missing email arguments"
+    if (count of argv) < 5 then error "Missing email arguments"
 
-    set subjectText to item 1 of argv
-    set bodyText to item 2 of argv
-    set attachmentPath to item 3 of argv
-    set bccAddresses to items 4 thru -1 of argv
+    set senderAddress to item 1 of argv
+    set subjectText to item 2 of argv
+    set bodyText to item 3 of argv
+    set attachmentPath to item 4 of argv
+    set bccAddresses to items 5 thru -1 of argv
 
     tell application "Mail"
         set outgoingMessage to make new outgoing message with properties ¬
-            {subject:subjectText, content:bodyText, visible:false}
+            {sender:senderAddress, subject:subjectText, content:bodyText, visible:false}
 
         tell outgoingMessage
             repeat with addressText in bccAddresses
@@ -166,8 +168,32 @@ def _validate_body(body: Any) -> str:
     return body
 
 
+def build_formal_email_content(report_filename: str) -> tuple[str, str]:
+    """Create the fixed professional Vietnamese email content for a report attachment."""
+
+    report_label = (
+        Path(report_filename).stem.replace("_", " ").strip()
+        or "Báo cáo UX Research"
+    )
+    subject = f"[Báo cáo UX Research] {report_label}"
+    body = (
+        "Kính gửi Quý Anh/Chị,\n\n"
+        f"Xin gửi Quý Anh/Chị báo cáo nghiên cứu trải nghiệm người dùng “{report_label}”. "
+        "File báo cáo HTML đã được đính kèm trong email này.\n\n"
+        "Hướng dẫn mở báo cáo:\n"
+        "1. Tải file HTML đính kèm về máy tính.\n"
+        "2. Nhấp đúp vào file hoặc mở file bằng Google Chrome, Microsoft Edge, hoặc Safari.\n"
+        "3. Để có trải nghiệm tốt nhất, vui lòng sử dụng phiên bản trình duyệt mới nhất.\n\n"
+        "Trân trọng,\n"
+        "Nguyen Lam Hai\n"
+        f"{SENDER_EMAIL}"
+    )
+    return subject, body
+
+
 def _canonical_fields(draft: Mapping[str, Any]) -> dict[str, Any]:
     return {
+        "from": draft["from"],
         "to": draft["to"],
         "cc": draft["cc"],
         "bcc": draft["bcc"],
@@ -192,8 +218,6 @@ def prepare_email_draft(
     *,
     folder_path: str,
     bcc_recipients: Sequence[str],
-    subject: str,
-    body: str,
 ) -> dict[str, Any]:
     """Validate an email draft and return the exact approval token required to send it."""
 
@@ -217,10 +241,14 @@ def prepare_email_draft(
             report_dir=project_dir / "Interview" / "Research Report",
         )
         recipients = _normalize_recipients(bcc_recipients)
-        validated_subject = _validate_subject(subject)
-        validated_body = _validate_body(body)
+        generated_subject, generated_body = build_formal_email_content(
+            Path(attachment_path).name
+        )
+        validated_subject = _validate_subject(generated_subject)
+        validated_body = _validate_body(generated_body)
 
         draft: dict[str, Any] = {
+            "from": SENDER_EMAIL,
             "to": [],
             "cc": [],
             "bcc": recipients,
@@ -250,6 +278,11 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
         raise ValidationError("INVALID_INPUT", "The draft payload is missing or invalid.")
     if draft.get("to") != [] or draft.get("cc") != []:
         raise ValidationError("INVALID_INPUT", "To and CC must remain empty.")
+    if draft.get("from") != SENDER_EMAIL:
+        raise ValidationError(
+            "INVALID_INPUT",
+            "The sender must remain the configured Apple Mail address.",
+        )
 
     recipients = _normalize_recipients(draft.get("bcc"))
     if recipients != draft.get("bcc"):
@@ -259,6 +292,7 @@ def _validate_draft_result(draft_result: Mapping[str, Any]) -> tuple[dict[str, A
     attachment_path = _validate_attachment(draft.get("attachment_path"))
 
     validated = {
+        "from": SENDER_EMAIL,
         "to": [],
         "cc": [],
         "bcc": recipients,
@@ -298,6 +332,7 @@ def send_approved_email(
             "-e",
             STATIC_APPLESCRIPT,
             "--",
+            draft["from"],
             draft["subject"],
             draft["body"],
             draft["attachment_path"],
@@ -329,6 +364,11 @@ def send_approved_email(
                     "MAIL_AUTOMATION_DENIED",
                     "macOS denied permission to control Apple Mail. Allow automation access and try again.",
                 )
+            if "sender" in diagnostic or SENDER_EMAIL.casefold() in diagnostic:
+                return _error(
+                    "SENDER_ACCOUNT_NOT_CONFIGURED",
+                    "Apple Mail does not have the required sender account configured.",
+                )
             return _error("MAIL_SEND_FAILED", "Apple Mail did not send the message.")
         if completed.stdout.strip() != SUCCESS_MARKER:
             return _error(
@@ -339,6 +379,7 @@ def send_approved_email(
         return {
             "status": "success",
             "sent": True,
+            "sender": draft["from"],
             "recipient_count": len(draft["bcc"]),
             "attachment_path": draft["attachment_path"],
         }

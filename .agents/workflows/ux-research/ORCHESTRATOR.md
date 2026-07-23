@@ -66,12 +66,13 @@ workflow-owned skill.
    media metadata, and all HTML templates, and the recorded output hash matches
    the current HTML file. File existence alone is never a valid skip signal.
 8. **Ask for recipients and draft the email** — Always ask who should receive
-   the report. Place every recipient in BCC and keep To and CC empty. Use
-   built-in AI, without an API key, to suggest a concise subject and plain-text
-   body. Pass the exact visualization `output_file` unchanged to `send-email`.
+   the report. Place every recipient in BCC and keep To and CC empty. Pass the
+   exact visualization `output_file` unchanged to `send-email`. The skill sends
+   from `nguyenlamhai89@gmail.com` and deterministically generates a formal
+   Vietnamese email with instructions for opening the attached HTML report.
 9. **Show the final draft and pause** — Call `prepare_email_draft()`, then show
-   the complete draft: empty To and CC, all BCC recipients, subject, body,
-   attachment path, and content-bound approval token. Stop with
+   the complete draft: fixed From address, empty To and CC, all BCC recipients,
+   subject, body, attachment path, and content-bound approval token. Stop with
    `awaiting_approval` until the user repeats that exact token. Any edit requires
    a newly prepared draft and token; `yes` or `approved` alone is insufficient.
 10. **Send once through Apple Mail** — Call `send_approved_email()` only after
@@ -94,8 +95,9 @@ next stage. A partial or stale child result halts the pipeline.
   `Journey Map/journey-map.md` from the mapped transcript.
 - **[visualize-insights](./skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
-- **[send-email](./skills/send-email/SKILL.md)** — Prepares a BCC-only draft and
-  sends the exact HTML report through Apple Mail after exact-token approval.
+- **[send-email](./skills/send-email/SKILL.md)** — Prepares a formal BCC-only
+  draft from `nguyenlamhai89@gmail.com` and sends the exact HTML report through
+  Apple Mail after exact-token approval.
 
 The local `skills/` directory contains skills owned directly by this parent
 workflow. Shared cross-workflow skills remain under `.agents/skills/`.
@@ -169,7 +171,6 @@ sequenceDiagram
     end
     Parent->>User: Ask for BCC recipients
     User-->>Parent: Recipient addresses
-    Note over Parent: Built-in AI suggests<br>subject and plain-text body
     Parent->>EMAIL: Prepare exact report draft
     EMAIL-->>Parent: Complete draft and approval token
     Parent-->>User: Review full draft and exact token
@@ -199,7 +200,8 @@ sequenceDiagram
 | `TEMPLATE_ERROR`, `OUTPUT_PATH_INVALID`, `OUTPUT_WRITE_ERROR` | Preserve the last-known-good report and manifest; do not treat file existence as success. |
 | `BROWSER_OPEN_ERROR` | Return success with a structured warning because the report itself remains valid. |
 | `INVALID_VISUALIZATION_HANDOFF`, `INVALID_ATTACHMENT`, `ATTACHMENT_OUTSIDE_REPORT_DIR` from `send-email` | Halt email drafting, preserve the successful report, and identify the handoff to repair. |
-| `INVALID_RECIPIENTS`, `INVALID_SUBJECT`, `INVALID_BODY` | Ask for corrected draft fields and prepare a new content-bound token. |
+| `INVALID_RECIPIENTS` | Ask for corrected BCC recipients and prepare a new content-bound token. |
+| `SENDER_ACCOUNT_NOT_CONFIGURED` | Add or enable `nguyenlamhai89@gmail.com` in Apple Mail, then prepare a fresh draft. |
 | `NOT_APPROVED` | Return email status `cancelled`; never invoke Apple Mail and preserve the report. |
 | `OSASCRIPT_NOT_FOUND` | Preserve the report and explain that Apple Mail sending requires macOS. |
 | `SEND_TIMEOUT`, `UNEXPECTED_OSASCRIPT_OUTPUT` | Do not retry; preserve the report and ask the user to check Apple Mail Sent and Drafts. |
