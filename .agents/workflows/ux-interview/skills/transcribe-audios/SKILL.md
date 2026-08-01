@@ -26,7 +26,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
   never reads `.env` directly. At least one transcription key is required.
 - **Location**: `request_body`
 - **Input File(s)**:
-  - `Interview/*.mp3`, `Interview/*.m4a`, `Interview/*.qta` — Raw audio files containing interviews or recordings in the `Interview` subfolder.
+  - `Interview/*.mp3`, `Interview/*.m4a`, `Interview/*.qta` (or `*.mp3`, `*.m4a`, `*.qta` directly in `folder_path` if no `Interview` subfolder exists) — Raw audio files containing interviews or recordings.
 - **Examples**:
 
   **Example 1** — Transcription request:
@@ -161,6 +161,7 @@ sequenceDiagram
 | API 400 Bad Request error for empty keyterms | Passing an empty string `--keyterms ""` resulted in an array `[""]` being sent to the API, which may be invalid. | Added empty string filtering during parsing: `[k.strip() for k in args.keyterms.split(',') if k.strip()]`. |
 | Invalid or partially written transcripts were skipped on a rerun | Skip logic checked only for file existence, so a failed write could prevent recovery. | Validate the transcript structure and write through a temporary sibling file before atomically replacing the final file. |
 | Skill validation rejected the metadata name | The frontmatter used the display label `ElevenLabs Transcribe`, which was not lowercase hyphen-case. | Changed the metadata name to `elevenlabs-transcribe` and retained the readable Markdown heading. |
+| `NO_AUDIO_FILES` when audio is in `folder_path` directly | Script strictly expected an `Interview` subfolder, failing if audio files were placed directly in `folder_path`. | Updated `get_audio_files` and `process_file` to fall back to searching and writing directly in `folder_path` if no `Interview` subfolder is found. |
 
 ## Performance Improvement Solutions
 

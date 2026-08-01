@@ -46,9 +46,15 @@ class TranscriptionError(Exception):
 
 def get_audio_files(folder_path):
     interview_dir = os.path.join(folder_path, "Interview")
-    return sorted(
+    interview_files = sorted(
         path for pattern in SUPPORTED_PATTERNS
         for path in glob.glob(os.path.join(interview_dir, pattern))
+    )
+    if interview_files:
+        return interview_files
+    return sorted(
+        path for pattern in SUPPORTED_PATTERNS
+        for path in glob.glob(os.path.join(folder_path, pattern))
     )
 
 
@@ -246,7 +252,8 @@ def atomic_write(path, content):
 def process_file(audio_path, folder_path, api_key, keyterms=None, max_file_size_mb=DEFAULT_MAX_FILE_SIZE_MB, max_retries=DEFAULT_MAX_RETRIES, gemini_api_key=None):
     filename = os.path.basename(audio_path)
     base_name, _ = os.path.splitext(filename)
-    output_file = os.path.join(folder_path, "Interview", f"transcript_{base_name}.md")
+    output_dir = os.path.dirname(audio_path)
+    output_file = os.path.join(output_dir, f"transcript_{base_name}.md")
     if os.path.exists(output_file) and is_valid_transcript(output_file):
         return {"status": "skipped", "audio_file": filename, "output_file": output_file}
     try:

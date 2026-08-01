@@ -224,3 +224,22 @@ def test_main_handles_future_error(mock_executor_cls, mock_files, capsys, tmp_pa
     assert "Worker thread crashed unexpectedly" in output
     assert "corrupt.mp3" in output
 
+
+def test_get_audio_files_fallback(tmp_path):
+    # Test Interview subfolder priority
+    interview = tmp_path / "Interview"
+    interview.mkdir()
+    f1 = interview / "test1.m4a"
+    f1.write_bytes(b"data")
+    f2 = tmp_path / "test2.m4a"
+    f2.write_bytes(b"data")
+
+    files = transcribe.get_audio_files(str(tmp_path))
+    assert files == [str(f1)]
+
+    # Remove Interview subfolder file to test fallback to folder_path
+    f1.unlink()
+    files_fallback = transcribe.get_audio_files(str(tmp_path))
+    assert files_fallback == [str(f2)]
+
+
