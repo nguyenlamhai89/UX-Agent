@@ -65,7 +65,7 @@ class FakeDoclingEngine:
         job_dir.mkdir(parents=True, exist_ok=True)
         first_page = job_dir / "first-page.png"
         first_page.write_bytes(b"fake-png")
-        return skill.PreflightBundle(candidates, selected, str(first_page), self.docling_version, "SUCCESS")
+        return skill.PreflightBundle(candidates, selected, str(first_page), self.docling_version, "SUCCESS", 1, True)
 
     def convert(self, source: Path, staging_dir: Path):
         metadata = self._metadata(source)
@@ -132,9 +132,8 @@ class FakeDoclingEngine:
 
 
 class FakeAIRunner:
-    def __init__(self, title_confidence: float = 0.99, malformed_translation: bool = False):
+    def __init__(self, title_confidence: float = 0.99):
         self.title_confidence = title_confidence
-        self.malformed_translation = malformed_translation
 
     def validate_title(self, preflight):
         return {
@@ -149,28 +148,13 @@ class FakeAIRunner:
         language = "vi" if "LANG:vi" in source else "en"
         return {"language": language, "confidence": 0.99, "reason": "Fixture language marker."}
 
-    def translate(self, state):
-        original = Path(state["original_draft"]).read_text(encoding="utf-8")
-        translated = (
-            original.replace("## Abstract", "## Tóm tắt")
-            .replace("Complete source content with", "Nội dung nguồn đầy đủ với")
-            .replace("participants", "người tham gia")
-            .replace("## Method", "## Phương pháp")
-            .replace("The method preserves", "Phương pháp giữ nguyên")
-            .replace("and unit", "và đơn vị")
-            .replace("| Measure | Value |", "| Chỉ số | Giá trị |")
-            .replace("| Sample |", "| Mẫu |")
-            .replace("![Figure 1]", "![Hình 1]")
-            .replace("## References", "## Tài liệu tham khảo")
-        )
-        if self.malformed_translation:
-            translated = translated.replace("## Phương pháp", "### Phương pháp").replace("42", "41", 1)
-        target = Path(state["staging_dir"]) / "ai-vie.md"
-        target.write_text(translated, encoding="utf-8")
-        return target
-
-    def audit(self, state, language_decision, translation_path):
-        return {"passed": True, "issues": []}
+    def audit_source(self, state, language_decision):
+        return {
+            "passed": True,
+            "issues": [],
+            "chunk_ids": state["source_audit_plan"]["chunk_ids"],
+            "coverage_complete": True,
+        }
 
 
 class FakeHttpClient:
