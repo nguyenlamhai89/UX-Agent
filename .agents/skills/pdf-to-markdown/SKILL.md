@@ -53,9 +53,10 @@ cd ~/.claude/skills/pdf-to-markdown && uv venv .venv && uv pip install --python 
 
 ```bash
 # Convert PDF to markdown (always extracts images)
-~/.claude/skills/pdf-to-markdown/.venv/bin/python ~/.claude/skills/pdf-to-markdown/scripts/pdf_to_md.py document.pdf
+# Rule: Converted .md files MUST be exported to the SAME directory/path as the source .pdf file
+docling "/path/to/document.pdf" --to md --output "/path/to/"
 
-# Output: document.md + images/ folder (next to the .md file)
+# Output: document.md in the exact same directory as document.pdf
 ```
 
 ## Standard Workflow
