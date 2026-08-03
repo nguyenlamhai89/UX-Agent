@@ -72,12 +72,6 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 │   │       ├── extract-phases/       # Trích xuất 5 giai đoạn
 │   │       ├── interpret-phases/     # Diễn giải từng giai đoạn bằng AI
 │   │       └── extract-map/          # Ghép hành trình (không dùng AI)
-│   └── ux-research-paper/            # 📄 Orchestrator xử lý một research paper
-│       ├── ORCHESTRATOR.md
-│       ├── Analysis/                 # Báo cáo Analyze Skill
-│       └── skills/
-│           ├── convert-researchpaper-to-md/ # PDF → original.md + Asset
-│           └── translate-to-vie/     # voice-tone.md + vie.md sau phê duyệt
 └── template/                         # Template mẫu cho skill & orchestrator
 ```
 
@@ -162,15 +156,6 @@ sequenceDiagram
 | 7 | 🗺️ **extract-map** | Ghép các giai đoạn thành `journey-map.md` hoàn chỉnh bằng script Python (không dùng AI, đảm bảo 100% chính xác). |
 | 8 | 📊 **visualize-insights** | Tạo báo cáo HTML tương tác, hiện đại với Overview, Insights, Persona, và Customer Journey Map. |
 | 9 | ✉️ **send-email** | Gửi báo cáo HTML đính kèm qua Gmail SMTP sau khi người dùng phê duyệt bằng token bảo mật. |
-| 10 | 📄 **convert-researchpaper-to-md** | Dùng Docling chuyển đúng một PDF nghiên cứu thành PDF đã chuẩn hóa tên, `original.md`, thư mục `Asset/` và manifest có kiểm tra hash; không tạo bản dịch. |
-| 11 | 🇻🇳 **translate-to-vie** | Sau phê duyệt gắn với hash, phân tích giọng văn thành `voice-tone.md` tiếng Việt rồi dịch đầy đủ sang `vie.md` với cấu trúc Markdown được bảo toàn. |
-
-### Workflow research paper
-
-Chạy `ux-research-paper <PDF_URL_OR_PATH>`. Workflow chỉ xử lý một paper mỗi lần, dừng sau khi tạo `original.md` để yêu cầu phê duyệt, rồi mới chạy `translate-to-vie`. Cả hai skill chỉ dùng Built-in AI, không cần API key và không ghi đè `voice-tone.md` hoặc `vie.md` đã tồn tại.
-
-Pipeline hỗ trợ handoff cũ có kiểm tra hash để bỏ qua Docling sớm; tải PDF theo streaming với retry có giới hạn; audit nguồn và dịch theo chunk có ngân sách tài nguyên; lưu manifest chunk để tiếp tục; và chỉ retry pha AI bị lỗi khi dữ liệu đã phê duyệt vẫn không thay đổi.
-
 ### Công cụ hỗ trợ
 
 | Công cụ | Mô tả |
@@ -191,15 +176,12 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 5. **Gate 5**: Phê duyệt Bản đồ hành trình khách hàng (`journey-map.md`).
 6. **Gate 6**: Xem lại Báo cáo HTML & Phê duyệt gửi Email.
 
-Workflow `ux-research-paper` có một gate độc lập: người dùng phải phản hồi xác nhận kèm đúng token gắn với hash của PDF, manifest và `original.md` trước khi tạo `voice-tone.md` và `vie.md`.
-
 ---
 
 ## 🔐 Bảo mật (Security)
 
 - **API Key cách ly**: Chỉ orchestrator gốc `ux-research` được đọc `.env`. Tất cả key được truyền qua chuỗi ủy quyền, không bao giờ hardcode, log, hoặc ghi vào file output.
 - **Token phê duyệt email**: Email chỉ được gửi khi người dùng xác nhận bằng từ khóa phê duyệt hợp lệ (ví dụ: `ok`, `yes`, `gửi`, `approved`) hoặc cung cấp đúng token bảo mật (content-bound SHA-256).
-- **Phê duyệt bản dịch research paper**: Token được gắn với đường dẫn và SHA-256 của các artifact đã convert; mọi thay đổi đều làm mất hiệu lực phê duyệt.
 - **Atomic writes**: Tất cả file output quan trọng được ghi qua file tạm rồi thay thế nguyên tử (atomic replace), tránh hỏng dữ liệu khi gián đoạn.
 - **Kiểm thử tự động**: Mỗi skill có unit test riêng, mỗi workflow có E2E test kiểm tra toàn bộ pipeline.
 
