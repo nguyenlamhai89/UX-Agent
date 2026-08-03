@@ -19,9 +19,16 @@ Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gma
     must be passed unchanged.
   - `folder_path` (string, required) — Absolute research project folder whose
     report directory is `<folder_path>/Interview/Research Report`.
-  - `cc_recipients` (array of strings, required) — Runtime CC recipients supplied
-    by the user. At least one valid address is required.
-  - `sender_email` (string, optional) — Configured sender address passed by the parent orchestrator (default `GMAIL_APP_USERNAME`).
+  - `cc_recipients` (array of strings, optional) — Runtime CC recipients. Defaults to the fixed Eximbank stakeholder list:
+    - `hai.nl01@eximbank.com.vn`
+    - `dung.ntp07@eximbank.com.vn`
+    - `quan.pm03@eximbank.com.vn`
+    - `ngoc.lth02@eximbank.com.vn`
+    - `anh.ht14@eximbank.com.vn`
+    - `linh.htt02@eximbank.com.vn`
+    - `huyen.nk02@eximbank.com.vn`
+    - `huy.nt08@eximbank.com.vn`
+  - `sender_email` (string, optional) — Configured sender address, defaulting to `nguyenlamhai89@gmail.com`.
   - `gmail_app_username` (string, required for sending) — Gmail account username passed from `.env` by parent orchestrator.
   - `gmail_app_password` (string, required for sending) — Gmail App Password passed from `.env` by parent orchestrator.
   - `approval_token` (string, required only for sending) — Exact token returned

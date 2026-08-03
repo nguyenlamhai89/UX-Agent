@@ -30,6 +30,17 @@ AFFIRMATIVE_TOKENS = {
     for token in {"ok", "yes", "approved", "y", "gui", "gửi", "approve", "confirm", "đồng ý", "dong y"}
 }
 
+DEFAULT_EIB_RECIPIENTS = [
+    "hai.nl01@eximbank.com.vn",
+    "dung.ntp07@eximbank.com.vn",
+    "quan.pm03@eximbank.com.vn",
+    "ngoc.lth02@eximbank.com.vn",
+    "anh.ht14@eximbank.com.vn",
+    "linh.htt02@eximbank.com.vn",
+    "huyen.nk02@eximbank.com.vn",
+    "huy.nt08@eximbank.com.vn",
+]
+
 
 
 
@@ -351,7 +362,12 @@ def prepare_email_draft(
                 "Visualization output_file is required for email drafting.",
             )
 
-        raw_recipients = cc_recipients if cc_recipients is not None else bcc_recipients
+        if cc_recipients is not None:
+            raw_recipients = cc_recipients
+        elif bcc_recipients is not None:
+            raw_recipients = bcc_recipients
+        else:
+            raw_recipients = DEFAULT_EIB_RECIPIENTS
         field_name = "cc_recipients" if cc_recipients is not None else ("bcc_recipients" if bcc_recipients is not None else "cc_recipients")
 
         validated_sender = _validate_sender_email(sender_email)

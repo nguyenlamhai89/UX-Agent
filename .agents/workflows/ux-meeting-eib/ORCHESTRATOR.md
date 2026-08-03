@@ -41,8 +41,17 @@ This orchestrator manages and routes requests to the following skills:
   ```json
   {
     "folder_path": "/path/to/meeting-project",
-    "recipients": ["stakeholder@example.com"],
-    "cc": ["manager@example.com"],
+    "recipients": [
+      "hai.nl01@eximbank.com.vn",
+      "dung.ntp07@eximbank.com.vn",
+      "quan.pm03@eximbank.com.vn",
+      "ngoc.lth02@eximbank.com.vn",
+      "anh.ht14@eximbank.com.vn",
+      "linh.htt02@eximbank.com.vn",
+      "huyen.nk02@eximbank.com.vn",
+      "huy.nt08@eximbank.com.vn"
+    ],
+    "sender": "nguyenlamhai89@gmail.com",
     "meeting_title": "EIB Weekly Sync"
   }
   ```
