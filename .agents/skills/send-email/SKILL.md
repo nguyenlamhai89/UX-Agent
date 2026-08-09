@@ -1,6 +1,6 @@
 ---
 name: send-email
-description: Prepares a formal Vietnamese CC draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights in the ux-research workflow when users want to email a completed UX research report to specified recipients.
+description: Prepares a formal Vietnamese CC draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights when users want to email a completed UX research report to specified recipients.
 ---
 
 # Send Email

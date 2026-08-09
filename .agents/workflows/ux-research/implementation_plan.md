@@ -2,8 +2,8 @@
 
 ## 1. Objective and confirmed contract
 
-Create the workflow-owned `send-email` skill at
-`.agents/workflows/ux-research/skills/send-email/`.
+Create the shared universal `send-email` skill at
+`.agents/skills/send-email/`.
 
 The skill will:
 
@@ -26,18 +26,18 @@ The skill will:
 Implementation is checked against the live
 [Antigravity Projects documentation](https://antigravity.google/docs/projects)
 and [Skills guide](https://antigravity.google/docs/skills), while retaining the
-repository-required workflow-local skill location.
+repository-required universal skill location.
 
 ## 2. Files to create
 
-- `.agents/workflows/ux-research/skills/send-email/SKILL.md`
+- `.agents/skills/send-email/SKILL.md`
   - Follow every applicable section in `template/skill/SKILL.md`.
   - Document inputs, outputs, approval flow, sequence diagram, stable errors,
     and known-bug policy.
-- `.agents/workflows/ux-research/skills/send-email/scripts/send_email.py`
+- `.agents/skills/send-email/scripts/send_email.py`
   - Implement deterministic validation, draft normalization, approval
     enforcement, pure-Python Gmail SMTP execution, and structured results.
-- `.agents/workflows/ux-research/skills/send-email/tests/test_send_email.py`
+- `.agents/skills/send-email/tests/test_send_email.py`
   - Add unit tests with smtplib.SMTP execution mocked.
 
 ## 3. Files to modify or delete
@@ -87,7 +87,7 @@ Modify:
 Run:
 
 1. `python3 .agents/scripts/check_libraries.py`
-2. `python3 -m pytest .agents/workflows/ux-research/skills/send-email/tests -q`
+2. `python3 -m pytest .agents/skills/send-email/tests -q`
 3. `python3 -m pytest .agents/workflows/ux-research/tests/test_e2e_pipeline.py -q`
 
 Unit coverage includes:

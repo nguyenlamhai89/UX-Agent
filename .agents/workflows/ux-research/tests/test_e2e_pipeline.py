@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 ROOT = Path(__file__).parents[4]
 INTERVIEW = ROOT / ".agents" / "workflows" / "ux-interview"
 MAP_JOURNEY = ROOT / ".agents" / "workflows" / "ux-map-journey"
-VISUALIZE = ROOT / ".agents" / "workflows" / "ux-research" / "skills" / "visualize-insights"
-SEND_EMAIL = ROOT / ".agents" / "workflows" / "ux-research" / "skills" / "send-email"
+VISUALIZE = ROOT / ".agents" / "skills" / "visualize-insights"
+SEND_EMAIL = ROOT / ".agents" / "skills" / "send-email"
 sys.path[:0] = [
     str(INTERVIEW / "skills" / "create-questionnaire-table" / "scripts"),
     str(INTERVIEW / "skills" / "map-transcript" / "scripts"),

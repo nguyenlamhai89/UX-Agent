@@ -13,18 +13,18 @@ preserves each child workflow's approval gates, passes only canonical successful
 outputs to the next stage, produces an atomic freshness-aware HTML report, and
 offers CC Gmail SMTP delivery after a separate final-draft approval.
 
-The parent orchestrator owns coordination, environment access, and its final
-delivery stages. It reads the workspace-root `.env` once, passes only the API
-keys and credentials required by each child orchestrator or skill, invokes its
-workflow-owned `visualize-insights` skill, and finishes with its workflow-owned
-`send-email` skill. Child orchestrators and skills never read `.env` directly.
+The parent orchestrator owns coordination and environment access. It reads the
+workspace-root `.env` once, passes only the API keys and credentials required by
+each child orchestrator or skill, invokes the shared universal
+`visualize-insights` skill, and finishes with the shared universal `send-email`
+skill. Child orchestrators and skills never read `.env` directly.
 
 ## Routing Logic & Execution Flow
 
 Route complete UX research requests here when the user wants transcription,
 mapping, insight saturation, a journey map, and the final visualization in one
 pipeline. Isolated requests remain routed to the relevant child workflow or
-workflow-owned skill.
+shared skill.
 
 0. **Dependency verification and environment loading** — Run
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
@@ -99,14 +99,13 @@ next stage. A partial or stale child result halts the pipeline.
   full transcripts, `mapped-transcript.md`, and `insights.md`.
 - **[UX Map Journey](../ux-map-journey/ORCHESTRATOR.md)** — Produces the canonical
   `Journey Map/journey-map.md` from the mapped transcript.
-- **[visualize-insights](./skills/visualize-insights/SKILL.md)** — Produces
+- **[visualize-insights](../../skills/visualize-insights/SKILL.md)** — Produces
   the final interactive HTML report and freshness manifest.
-- **[send-email](./skills/send-email/SKILL.md)** — Prepares a formal CC
+- **[send-email](../../skills/send-email/SKILL.md)** — Prepares a formal CC
   draft from the configured Gmail sender and sends the exact HTML report through
   Gmail SMTP after exact-token approval.
 
-The local `skills/` directory contains skills owned directly by this parent
-workflow. Shared cross-workflow skills remain under `.agents/skills/`.
+The shared universal skills used by this workflow live under `.agents/skills/`.
 
 ## Input
 

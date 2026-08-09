@@ -51,13 +51,12 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 ├── scripts/
 │   └── check_libraries.py          # Kiểm tra & cài đặt dependencies
 ├── skills/
-│   └── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   ├── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   ├── visualize-insights/          # 📊 Tạo báo cáo HTML tương tác (universal)
+│   └── send-email/                  # ✉️ Gửi email qua Gmail SMTP (universal)
 ├── workflows/
 │   ├── ux-research/                  # 🎯 Orchestrator gốc (đọc .env)
 │   │   ├── ORCHESTRATOR.md
-│   │   └── skills/
-│   │       ├── visualize-insights/   # 📊 Tạo báo cáo HTML tương tác
-│   │       └── send-email/           # ✉️ Gửi email qua Gmail SMTP
 │   ├── ux-interview/                 # 🎤 Orchestrator phỏng vấn
 │   │   ├── ORCHESTRATOR.md
 │   │   └── skills/
