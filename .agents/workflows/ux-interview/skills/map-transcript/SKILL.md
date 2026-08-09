@@ -311,3 +311,15 @@ sequenceDiagram
 - **Category 4: 🛡️ Reliability & Error Handling**: All 4 criteria scored 9/10 (Error Rate: 9/10, Error Recoverability: 9/10, Retry Success Rate: 9/10, Known Bug Recurrence: 9/10). No improvement needed.
 - **Category 5: 💰 Cost & Scalability**: All 3 criteria scored 8/10 or above (Cost per Execution: 8/10, Scaling Behavior: 9/10, Unit Test Coverage & Pass Rate: 9/10). No improvement needed.
 
+---
+
+### 2026-08-09 Analysis — transcribe-audios Handoff Compatibility
+
+**Category 3: 🔗 Workflow Fit**
+- [ ] Add one shared input-directory resolution contract so `transcribe-audios` and `map-transcript` consistently use `Interview/` or the same explicit direct-folder mode; expand mapping timestamp patterns from a three-digit minute cap to one-or-more digits and add regression tests. *(I/O Contract Adherence: 7/10)*
+
+**Category 4: 🛡️ Reliability & Error Handling**
+- [ ] Document every controller-emitted state code in this `SKILL.md` and `ux-interview/ORCHESTRATOR.md`, with explicit recovery actions for `INVALID_MANIFEST`, `NO_MANIFEST`, `UNKNOWN_TASK`, and `INVALID_STATE`; add CLI regression tests for each code. *(Error Rate: 7/10)*
+
+**Category 5: 💰 Cost & Scalability**
+- [ ] Add a committed cross-skill contract test that generates `transcript_<audio_name>.md` with `transcribe-audios/format_transcription`, writes its metadata sidecar, then runs `map-transcript` prepare and candidate validation for `Interview/`, direct-folder behavior, multichannel speaker labels, and timestamps above 999 minutes. *(Unit Test Coverage & Pass Rate: 7/10)*
