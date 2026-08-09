@@ -325,10 +325,14 @@ def is_valid_transcript(path, expected_filename=None):
     return saw_segment and not expecting_content
 
 
-def get_output_paths(audio_path):
+def get_output_paths(audio_path, folder_path=None):
     filename = os.path.basename(audio_path)
     base_name, _ = os.path.splitext(filename)
     output_dir = os.path.dirname(audio_path)
+    if folder_path:
+        interview_dir = os.path.join(folder_path, "Interview")
+        if os.path.isdir(interview_dir):
+            output_dir = interview_dir
     output_file = os.path.join(output_dir, f"transcript_{base_name}.md")
     return output_file, os.path.join(output_dir, f"transcript_{base_name}.meta.json")
 
@@ -467,7 +471,7 @@ def process_file(
     pricing=None,
 ):
     filename = os.path.basename(audio_path)
-    output_file, metadata_file = get_output_paths(audio_path)
+    output_file, metadata_file = get_output_paths(audio_path, folder_path)
     try:
         source_fingerprint = build_source_fingerprint(audio_path, source_fingerprint_mode)
         existing_metadata = read_transcript_metadata(metadata_file)

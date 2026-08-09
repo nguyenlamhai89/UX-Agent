@@ -16,6 +16,8 @@ import sys
 import re
 import glob
 
+from workspace_paths import resolve_workspace_dir
+
 
 def find_stale_mapped_files(folder_path):
     """
@@ -31,10 +33,10 @@ def find_stale_mapped_files(folder_path):
     """
     stale_files = []
 
-    interview_dir = os.path.join(folder_path, "Interview")
-    if not os.path.exists(interview_dir):
+    workspace_dir = resolve_workspace_dir(folder_path)
+    if not os.path.exists(workspace_dir):
         return stale_files
-    questionnaire_path = os.path.join(interview_dir, "full-questionnaire.md")
+    questionnaire_path = os.path.join(workspace_dir, "full-questionnaire.md")
     questionnaire_mtime = (
         os.path.getmtime(questionnaire_path)
         if os.path.isfile(questionnaire_path)
@@ -42,7 +44,7 @@ def find_stale_mapped_files(folder_path):
     )
 
     # Find all transcript files
-    transcript_pattern = os.path.join(interview_dir, "transcript_*.md")
+    transcript_pattern = os.path.join(workspace_dir, "transcript_*.md")
     transcript_files = glob.glob(transcript_pattern)
 
     for transcript_path in transcript_files:
@@ -53,7 +55,7 @@ def find_stale_mapped_files(folder_path):
             continue
 
         audio_name = match.group(1)
-        mapped_path = os.path.join(interview_dir, f"mapped-transcript-{audio_name}.md")
+        mapped_path = os.path.join(workspace_dir, f"mapped-transcript-{audio_name}.md")
 
         if not os.path.exists(mapped_path):
             continue

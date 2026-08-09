@@ -48,6 +48,18 @@
 
 ---
 
+## 2026-08-09 Implementation Follow-up
+
+The three open handoff findings have been implemented and verified:
+
+| Finding | Change | Regression coverage |
+| --- | --- | --- |
+| I/O contract and long timestamps | Added a shared workspace resolver: use a complete `Interview/` handoff first, otherwise use the direct folder. Transcription writes root-level audio output into `Interview/` when it exists; mapping now resolves the same workspace. Timestamp parsers accept one or more minute digits. | Root-audio-to-`Interview/` unit test and a direct-folder `1000:00` end-to-end contract test. |
+| Undocumented controller state errors | Added recovery guidance for `INVALID_MANIFEST`, `NO_MANIFEST`, `UNKNOWN_TASK`, and `INVALID_STATE` to the skill and orchestrator. | CLI regression covers each emitted code. |
+| Missing true cross-skill test | Added a filesystem contract test that renders the actual ElevenLabs Markdown formatter output, persists the metadata sidecar, then prepares, validates, promotes, and finalizes the mapping. | Covers `Interview/`, direct-folder mode, multichannel speaker labels, and timestamps beyond 999 minutes. |
+
+---
+
 ## 5. 💰 Cost & Scalability
 
 | Criteria | 2026-07-06 | 2026-07-13 | 2026-07-13 | 2026-07-14 | 2026-07-14 | 2026-07-22 | 2026-07-23 | 2026-08-09 |

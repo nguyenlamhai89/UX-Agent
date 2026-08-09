@@ -22,14 +22,14 @@ from typing import Iterable
 
 
 BASE_HEADERS = ["#", "Theme", "Question", "Observed Variable"]
-TIMESTAMP_PATTERN = re.compile(r"\[(\d{1,3}):([0-5]\d)\]")
+TIMESTAMP_PATTERN = re.compile(r"\[(\d+):([0-5]\d)\]")
 TRANSCRIPT_HEADING_PATTERN = re.compile(
-    r"^\s*\*\*(\[\d{1,3}:[0-5]\d\])(?:\s+\[[^\]]+\])?\*\*"
+    r"^\s*\*\*(\[\d+:[0-5]\d\])(?:\s+\[[^\]]+\])?\*\*"
     r"\s*(?:<br\s*/?>)?\s*$",
     re.IGNORECASE,
 )
 TRANSCRIPT_INLINE_PATTERN = re.compile(
-    r"^\s*(\[\d{1,3}:[0-5]\d\])\s*(.*?)\s*$"
+    r"^\s*(\[\d+:[0-5]\d\])\s*(.*?)\s*$"
 )
 INLINE_SPEAKER_PATTERN = re.compile(r"^[^:\n]{1,80}:\s?(.*)$")
 HIGHLIGHT_OPEN = '<mark style="background-color: yellow;">'
@@ -40,8 +40,8 @@ FULL_HIGHLIGHT_PATTERN = re.compile(
 SUMMARY_PATTERN = re.compile(
     r"^> \*\*Mapping Summary\*\*: "
     r"Total rows: (\d+) \| Answered: (\d+) \| N/A: (\d+) \| "
-    r"Transcript coverage: (\[\d{1,3}:[0-5]\d\]) to "
-    r"(\[\d{1,3}:[0-5]\d\])$"
+    r"Transcript coverage: (\[\d+:[0-5]\d\]) to "
+    r"(\[\d+:[0-5]\d\])$"
 )
 
 

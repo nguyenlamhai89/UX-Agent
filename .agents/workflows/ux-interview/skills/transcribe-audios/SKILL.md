@@ -7,7 +7,7 @@ description: Transcribes audio and video files into Markdown interview transcrip
 
 ## Description
 
-The `transcribe-audios` skill transcribes interview audio and video files into Markdown with speaker diarization, timestamps, and ElevenLabs audio-event tags. It uses **ElevenLabs Speech to Text** through the current `speech_to_text.convert` API with Scribe v2. It traverses the `Interview` subfolder of an input folder and outputs corresponding `.md` files. `ELEVENLABS_API_KEY` is required; a provider failure is returned as a per-file error after the configured ElevenLabs retry policy is exhausted.
+The `transcribe-audios` skill transcribes interview audio and video files into Markdown with speaker diarization, timestamps, and ElevenLabs audio-event tags. It uses **ElevenLabs Speech to Text** through the current `speech_to_text.convert` API with Scribe v2. It searches `Interview/` first and otherwise the direct input folder; when `Interview/` exists, it writes handoff transcripts there even if an audio source was discovered in the parent folder. `ELEVENLABS_API_KEY` is required; a provider failure is returned as a per-file error after the configured ElevenLabs retry policy is exhausted.
 
 The orchestrator should trigger this skill when the user requests audio transcription, converting speech to text, or generating interview transcripts.
 
@@ -36,7 +36,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
   key into this skill process. The skill never reads `.env` directly.
 - **Location**: `request_body`
 - **Input File(s)**:
-  - `Interview/*` with an ElevenLabs-supported audio/video extension (or directly in `folder_path` if no `Interview` subfolder exists): AAC, AIFF, OGG, MP3, OPUS, WAV, FLAC, M4A, WebM, MP4, AVI, MKV, MOV, WMV, FLV, MPEG, 3GPP, and QuickTime variants.
+  - `Interview/*` with an ElevenLabs-supported audio/video extension (or directly in `folder_path` when `Interview/` has no supported audio): AAC, AIFF, OGG, MP3, OPUS, WAV, FLAC, M4A, WebM, MP4, AVI, MKV, MOV, WMV, FLV, MPEG, 3GPP, and QuickTime variants.
 - **Examples**:
 
   **Example 1** — Transcription request:
@@ -53,7 +53,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Format**:
   - Success: `status: "success"` and `data` containing `transcripts` (sorted list) and `total`. Each successful or skipped transcript includes `audio_file`, `output_file`, `metadata_file`, `provider: "elevenlabs"`, `model`, `attempts`, `quality`, `warnings`, `audio_duration_seconds`, `estimated_cost_usd`, and `pricing_version` where available.
   - Failure: `status: "error"`, `error_code`, `message`, `errors` (per-file code and message), and `successful_transcripts` when applicable.
-- **Location**: `file_path` — The generated files are saved to an `Interview` subfolder within the provided folder.
+- **Location**: `file_path` — The generated files are saved in `Interview/` whenever it exists; otherwise they are saved directly in `folder_path`.
 - **Output File(s)**:
   - `Interview/transcript_<audio_name>.md` — The generated markdown transcript files.
   - `Interview/transcript_<audio_name>.meta.json` — Atomically written source fingerprint and non-secret execution metadata. A missing or mismatched sidecar forces re-transcription rather than a stale skip.
@@ -107,7 +107,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Execution Method**: The orchestrator supplies `ELEVENLABS_API_KEY`, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--language-code vi] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-inflight-mb 4096] [--max-retries 3] [--requests-per-minute 60] [--source-fingerprint stat] [--pricing-json-file <path> --max-estimated-cost-usd <limit>]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
 - **ElevenLabs request contract**: Keep `model_id="scribe_v2"`, `language_code="vi"`, `diarize=true` for normal interview recordings, `timestamps_granularity="word"`, `tag_audio_events=true`, and `no_verbatim=false` by default so filler words and false starts remain available for UX-research evidence. For multichannel recordings, use `use_multi_channel=true`, disable diarization/`num_speakers`, and use `multichannel_output_style="combined"` unless a caller explicitly needs separate channel responses.
 - **Feature boundaries**: This skill handles prerecorded batch files. ElevenLabs realtime WebSocket and webhook workflows are documentation references only and are not silently substituted into this local-file pipeline.
-- The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
+- The script automatically writes the `transcript_<filename>.md` file in the shared mapping workspace: `Interview/` whenever it exists, otherwise the direct input folder. This ensures an audio discovered at the folder root is still handed off to `map-transcript` under the normal workflow layout.
 
 ### Official ElevenLabs Speech to Text sources
 
@@ -193,6 +193,7 @@ sequenceDiagram
 | Replaced audio reused an old transcript | Skip state contained no input provenance, so same-named changed audio could be treated as current. | The metadata sidecar stores a `stat` or `sha256` source fingerprint and the skill retranscribes when it changes; regression test added. |
 | Several large files could enter upload together | Worker count bounded tasks but not total active input bytes. | Bounded submission enforces `--max-inflight-mb`; a concurrency regression test proves the byte cap is respected. |
 | Batch cost was not visible before submission | No duration or orchestrator-provided price information was retained. | Optional `ffprobe` duration, non-secret cost metadata, and `--max-estimated-cost-usd` preflight guard were added; regression test added. |
+| Root-level audio was transcribed beside its source even though `Interview/` existed | The output path followed the audio file rather than the workflow handoff directory, so map-transcript could not discover the generated transcript. | `process_file` now emits the transcript and metadata sidecar into `Interview/` whenever it exists; direct-folder output remains only when no `Interview/` directory exists. |
 
 ## Performance Improvement Solutions
 

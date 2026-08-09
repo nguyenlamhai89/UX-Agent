@@ -1,5 +1,8 @@
+import json
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -279,3 +282,38 @@ def test_cleanup_removes_only_controller_artifacts(tmp_path):
     result = cleanup_pipeline(str(tmp_path))
     assert len(result["removed"]) == 2
     assert keep.exists()
+
+
+def _run_controller_cli(*args):
+    completed = subprocess.run(
+        [sys.executable, str(Path(mapping_pipeline.__file__)), *map(str, args)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return completed.returncode, json.loads(completed.stdout)
+
+
+def test_controller_cli_reports_documented_state_errors(tmp_path):
+    code, payload = _run_controller_cli("status", tmp_path)
+    assert code == 1
+    assert payload["code"] == "NO_MANIFEST"
+
+    (tmp_path / "mapping-manifest.json").write_text("{not-json", encoding="utf-8")
+    code, payload = _run_controller_cli("status", tmp_path)
+    assert code == 1
+    assert payload["code"] == "INVALID_MANIFEST"
+
+    (tmp_path / "mapping-manifest.json").unlink()
+    create_study(tmp_path, count=1)
+    code, payload = _run_controller_cli("prepare", tmp_path)
+    assert code == 0
+    assert payload["counts"] == {"pending": 1}
+
+    code, payload = _run_controller_cli("record-success", tmp_path, "missing-user")
+    assert code == 1
+    assert payload["code"] == "UNKNOWN_TASK"
+
+    code, payload = _run_controller_cli("record-success", tmp_path, "user01")
+    assert code == 1
+    assert payload["code"] == "INVALID_STATE"

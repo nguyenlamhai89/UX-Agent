@@ -123,6 +123,27 @@ def test_process_file_replaces_invalid_transcript_atomically(tmp_path):
     assert not list(interview.glob("tmp*"))
 
 
+def test_process_file_places_root_audio_handoff_in_existing_interview_directory(tmp_path):
+    """The mapper receives one stable handoff location even for root-level audio."""
+    interview = tmp_path / "Interview"
+    interview.mkdir()
+    audio = tmp_path / "root-recording.mp3"
+    audio.write_bytes(b"audio")
+    transcript = (
+        "# INTERVIEW TRANSCRIPT: root-recording.mp3\n\n"
+        "**[00:00] [speaker_0]** <br>\ncontent"
+    )
+
+    with patch("transcribe.transcribe_audio", return_value=transcript):
+        result = transcribe.process_file(str(audio), str(tmp_path), "key")
+
+    assert result["status"] == "success"
+    assert result["output_file"] == str(interview / "transcript_root-recording.md")
+    assert result["metadata_file"] == str(
+        interview / "transcript_root-recording.meta.json"
+    )
+
+
 def test_process_file_rejects_large_audio(tmp_path):
     interview = tmp_path / "Interview"
     interview.mkdir()

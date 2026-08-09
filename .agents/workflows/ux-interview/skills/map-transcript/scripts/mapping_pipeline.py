@@ -28,9 +28,14 @@ from map_transcript import (
     merge_mapping_outputs,
 )
 from validate_mapping import BASE_HEADERS, parse_markdown_table, validate_mapping
+from workspace_paths import (
+    candidate_workspace_dirs,
+    existing_manifest_path,
+    manifest_path,
+    resolve_workspace_dir,
+)
 
 
-MANIFEST_FILENAME = "mapping-manifest.json"
 DEFAULT_MAX_WORKERS = 4
 MAX_ALLOWED_WORKERS = 8
 DEFAULT_MAX_ATTEMPTS = 3
@@ -63,12 +68,12 @@ def file_signature(path: str) -> dict:
     }
 
 
-def _manifest_path(folder_path: str) -> str:
-    return os.path.join(folder_path, "Interview", MANIFEST_FILENAME)
+def _manifest_path(folder_path: str, workspace_dir: str | None = None) -> str:
+    return manifest_path(folder_path, workspace_dir)
 
 
 def _load_manifest(folder_path: str) -> dict | None:
-    path = _manifest_path(folder_path)
+    path = existing_manifest_path(folder_path)
     if not os.path.isfile(path):
         return None
     try:
@@ -103,7 +108,8 @@ def _atomic_write_json(path: str, payload: dict) -> None:
 
 def _save_manifest(folder_path: str, manifest: dict) -> None:
     manifest["updated_at"] = _utc_timestamp()
-    _atomic_write_json(_manifest_path(folder_path), manifest)
+    workspace_dir = manifest.get("workspace_dir") or resolve_workspace_dir(folder_path)
+    _atomic_write_json(_manifest_path(folder_path, workspace_dir), manifest)
 
 
 def _validate_settings(
@@ -165,19 +171,19 @@ def prepare_pipeline(
     _validate_settings(max_workers, max_attempts, max_tokens, review_batch_size)
     if not os.path.isdir(folder_path):
         raise PipelineError("INVALID_INPUT", f"Folder does not exist: {folder_path}")
-    interview_dir = os.path.join(folder_path, "Interview")
-    if not os.path.isdir(interview_dir):
+    workspace_dir = resolve_workspace_dir(folder_path)
+    if not os.path.isdir(workspace_dir):
         raise PipelineError(
-            "INVALID_INPUT", f"Interview folder does not exist: {interview_dir}"
+            "INVALID_INPUT", f"Mapping directory does not exist: {workspace_dir}"
         )
-    questionnaire_path = os.path.join(interview_dir, "full-questionnaire.md")
+    questionnaire_path = os.path.join(workspace_dir, "full-questionnaire.md")
     if not os.path.isfile(questionnaire_path):
         raise PipelineError(
-            "NO_QUESTIONNAIRE", "Interview/full-questionnaire.md not found."
+            "NO_QUESTIONNAIRE", "full-questionnaire.md not found in the resolved mapping directory."
         )
     _validate_questionnaire(questionnaire_path)
 
-    transcripts = find_transcripts(interview_dir)
+    transcripts = find_transcripts(workspace_dir)
     if not transcripts:
         raise PipelineError(
             "NO_TRANSCRIPT_FILES", "No transcript_<audio_name>.md files found."
@@ -192,9 +198,9 @@ def prepare_pipeline(
         audio_name = extract_transcript_audio_name(transcript_path)
         if not audio_name:
             continue
-        mapped_path = os.path.join(interview_dir, f"mapped-transcript-{audio_name}.md")
+        mapped_path = os.path.join(workspace_dir, f"mapped-transcript-{audio_name}.md")
         candidate_path = os.path.join(
-            interview_dir, f".mapped-transcript-{audio_name}.candidate.md"
+            workspace_dir, f".mapped-transcript-{audio_name}.candidate.md"
         )
         source_signature = file_signature(transcript_path)
         previous_entry = previous_entries.get(audio_name, {})
@@ -234,7 +240,7 @@ def prepare_pipeline(
         if cache_valid:
             status = "cached"
             input_files = [transcript_path]
-            cleanup_chunk_directory(interview_dir, transcript_path)
+            cleanup_chunk_directory(workspace_dir, transcript_path)
             if os.path.exists(candidate_path):
                 os.remove(candidate_path)
             attempts = 0
@@ -278,7 +284,7 @@ def prepare_pipeline(
 
     expected_names = set(entries)
     orphaned_outputs = []
-    for mapped_path in find_mapped_transcripts(interview_dir):
+    for mapped_path in find_mapped_transcripts(workspace_dir):
         audio_name = extract_audio_name(mapped_path)
         if audio_name and audio_name not in expected_names:
             orphaned_outputs.append(mapped_path)
@@ -286,7 +292,7 @@ def prepare_pipeline(
     source_set = sorted(entries)
     previous_source_set = previous.get("source_set", []) if previous else []
     all_cached = all(entry["status"] == "cached" for entry in entries.values())
-    canonical_path = os.path.join(interview_dir, "mapped-transcript.md")
+    canonical_path = os.path.join(workspace_dir, "mapped-transcript.md")
     canonical_current = bool(
         all_cached
         and os.path.isfile(canonical_path)
@@ -305,6 +311,7 @@ def prepare_pipeline(
         ),
         "updated_at": _utc_timestamp(),
         "folder_path": os.path.abspath(folder_path),
+        "workspace_dir": workspace_dir,
         "questionnaire_file": questionnaire_path,
         "questionnaire_signature": questionnaire_signature,
         "source_set": source_set,
@@ -378,8 +385,7 @@ def next_batch(folder_path: str, *, now: float | None = None) -> dict:
                 "message": "Maximum attempts reached.",
             }
             cleanup_chunk_directory(
-                os.path.join(folder_path, "Interview"),
-                entry["transcript_file"],
+                os.path.dirname(entry["transcript_file"]), entry["transcript_file"]
             )
             continue
         if float(entry.get("next_attempt_at", 0.0)) > current_time:
@@ -434,8 +440,7 @@ def _record_error(
         entry["status"] = "failed"
         entry["next_attempt_at"] = 0.0
         cleanup_chunk_directory(
-            os.path.join(folder_path, "Interview"),
-            entry["transcript_file"],
+            os.path.dirname(entry["transcript_file"]), entry["transcript_file"]
         )
     candidate = entry["candidate_file"]
     if os.path.exists(candidate):
@@ -501,8 +506,7 @@ def record_success(folder_path: str, audio_name: str) -> dict:
     entry["questionnaire_signature"] = file_signature(manifest["questionnaire_file"])
     entry["mapped_signature"] = file_signature(entry["mapped_file"])
     cleanup_chunk_directory(
-        os.path.join(folder_path, "Interview"),
-        entry["transcript_file"],
+        os.path.dirname(entry["transcript_file"]), entry["transcript_file"]
     )
     _save_manifest(folder_path, manifest)
     return {
@@ -539,18 +543,16 @@ def record_failure(
 
 def cleanup_pipeline(folder_path: str) -> dict:
     """Remove only controller-owned candidates and chunk directories."""
-    interview_dir = os.path.join(folder_path, "Interview")
     removed: list[str] = []
-    if not os.path.isdir(interview_dir):
-        return {"status": "success", "removed": removed}
-    for path in Path(interview_dir).glob(".chunks_transcript_*"):
-        if path.is_dir():
-            shutil.rmtree(path)
-            removed.append(str(path))
-    for path in Path(interview_dir).glob(".mapped-transcript-*.candidate.md"):
-        if path.is_file():
-            path.unlink()
-            removed.append(str(path))
+    for workspace_dir in candidate_workspace_dirs(folder_path):
+        for path in Path(workspace_dir).glob(".chunks_transcript_*"):
+            if path.is_dir():
+                shutil.rmtree(path)
+                removed.append(str(path))
+        for path in Path(workspace_dir).glob(".mapped-transcript-*.candidate.md"):
+            if path.is_file():
+                path.unlink()
+                removed.append(str(path))
     return {"status": "success", "removed": sorted(removed)}
 
 
@@ -633,7 +635,9 @@ def _public_status(manifest: dict) -> dict:
         "source_set": manifest["source_set"],
         "counts": counts,
         "orphaned_outputs": manifest.get("orphaned_outputs", []),
-        "manifest_file": _manifest_path(manifest["folder_path"]),
+        "manifest_file": _manifest_path(
+            manifest["folder_path"], manifest.get("workspace_dir")
+        ),
     }
 
 
