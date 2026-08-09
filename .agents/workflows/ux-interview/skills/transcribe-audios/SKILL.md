@@ -192,16 +192,19 @@ sequenceDiagram
 **⚡ Execution Efficiency**
 - [x] Use `concurrent.futures.ThreadPoolExecutor` to process multiple audio files in parallel.
 - [x] Consider streaming audio files if the ElevenLabs API supports it, or implement chunking for very large files.
-- [ ] Implement streaming or chunked file reading for audio files larger than a configurable threshold (e.g., 100MB) to reduce peak memory usage when processing multiple large files concurrently with `ThreadPoolExecutor`.
+- [ ] Add an aggregate in-flight byte budget or automatically lower effective `max_workers` based on pending file sizes; add a regression test proving large files cannot all enter upload concurrently. *(2026-08-09 — Resource Consumption: 7/10)*
 - [x] Make the transcription worker count and rate-limit cap configurable, with conservative defaults for large files.
 
 **🎯 Output Quality & Accuracy**
 - [x] Align the documented JSON output contract with the CLI's `data` envelope and partial-failure fields.
 - [x] Reject empty transcription text before writing a completed transcript.
+- [ ] Require Gemini output to contain valid timestamped speaker segments, or explicitly mark a validated plain-text fallback as degraded; return `MALFORMED_TRANSCRIPT` instead of publishing arbitrary non-empty model text. *(2026-08-09 — Content Accuracy: 7/10)*
 
 **🔗 Workflow Fit**
 - [x] Align API-key documentation with the actual environment-variable contract; implement Gemini fallback when ElevenLabs is unavailable.
 - [x] Validate existing transcripts before skipping them, use atomic writes, and return results in filename order.
+- [ ] Require at least one timestamped speaker block after the transcript header and add regression tests for header-only and malformed files. *(2026-08-09 — Skip-Logic Compatibility: 6/10)*
+- [ ] Persist and compare an audio source fingerprint (size plus mtime or SHA-256) before skipping so changed audio invalidates a same-named transcript. *(2026-08-09 — Skip-Logic Compatibility: 6/10)*
 
 **🛡️ Reliability & Error Handling**
 - [x] Catch transcription exceptions per file and continue processing the remaining files instead of exiting immediately.
@@ -209,9 +212,14 @@ sequenceDiagram
 - [x] Classify retryable API failures, honor `Retry-After` where available, add jitter, and do not retry invalid credentials or requests.
 - [x] Catch unexpected future-result failures and return documented per-file error codes.
 - [x] Add regression tests for documented word-spacing and empty-keyterms bugs.
+- [ ] Validate `diarization_threshold` within `0.1`–`0.4` before submitting work and add the emitted `MISSING_DEPENDENCY` code to the error-handling table. *(2026-08-09 — Error Rate: 7/10)*
+- [ ] Use an explicit, tested MIME map for every supported Gemini fallback extension and fail clearly when that provider does not support a format. *(2026-08-09 — Error Rate: 7/10)*
+- [ ] Retry transient Gemini remote-file deletion failures and include a non-secret cleanup warning or artifact identifier when cleanup remains unsuccessful. *(2026-08-09 — Error Recoverability: 7/10)*
 
 **💰 Cost & Scalability**
 - [x] Implement concurrent execution to improve scaling behavior when processing multiple audio files.
 - [x] Add unit tests covering ElevenLabs API failure scenarios and edge cases (e.g. empty files).
 - [x] Add tests for keyterms parsing, timestamps, diarized-word output, and empty transcription content.
 - [x] Add a dedicated regression test for unexpected future-result failures.
+- [ ] Return per-file provider, attempt count, fallback-used flag, and audio duration or billed-unit metadata; add an optional preflight budget guard supplied with current pricing by the orchestrator instead of hard-coding rates. *(2026-08-09 — Cost per Execution: 6/10)*
+- [ ] Introduce bounded task submission plus size-aware and quota-aware concurrency, reusing the aggregate in-flight byte budget from Execution Efficiency. *(2026-08-09 — Scaling Behavior: 7/10)*
