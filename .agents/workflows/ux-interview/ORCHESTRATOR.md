@@ -18,8 +18,8 @@ Routes requests here when the user mentions UX research, transcription, question
 The orchestrator follows a sequential flow. **Incremental Execution**: Before most steps, validate existing outputs before skipping. For `map-transcript`, file existence is never a valid skip signal: always run `mapping_pipeline.py prepare <folder_path>` first and skip only when it returns `canonical_current: true` for the complete transcript source set.
 The orchestrator creates an `Interview` folder inside the provided `folder_path`
 and instructs all skills to place their outputs inside this `Interview` folder.
-It receives required API keys from the parent `ux-research` orchestrator and
-never reads `.env` directly.
+It receives required API keys from the calling orchestrator and never reads
+`.env` directly.
 
 **Sequential Pipeline**:
 0. **Dependency Verification**: Run the package validation script `.agents/scripts/check_libraries.py` to ensure all external dependencies (`elevenlabs`, `matplotlib`, `pytest`) are installed and up to date. Show warning/suggestions if needed.
@@ -32,7 +32,7 @@ never reads `.env` directly.
    tutorial/quickstart, batch how-to guides, realtime event reference, and API
    reference. If the live contract has changed or the docs are unavailable,
    stop before making an ElevenLabs request and review the docs. Then require
-   `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it into the skill
+   `ELEVENLABS_API_KEY` supplied by the caller, inject it into the skill
    process environment, and transcribe with `language_code=vi` and the
    documented batch options. Never read `.env` or expose keys in
    logs or output artifacts. **Halts workflow and returns detailed per-file
@@ -68,7 +68,7 @@ provided by the parent for the full workflow. Transcription requires
 
 ## Environment Access (.env)
 - **Allowed to access `.env`**: `false`
-- **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
+- **ELEVENLABS_API_KEY**: Received from the caller and injected only into
   `transcribe-audios`.
 
 ## Sequence Diagram
@@ -135,7 +135,7 @@ sequenceDiagram
 | `UNKNOWN_INTENT` | Ask for clarification or list capabilities. |
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
-| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide `ELEVENLABS_API_KEY` from the workspace `.env`. |
+| `MISSING_API_KEY` | Halt before transcription and ask the caller to provide `ELEVENLABS_API_KEY`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
 | `INVALID_MANIFEST` | Preserve mapping outputs; remove or repair the malformed `mapping-manifest.json` in the resolved workspace, then run mapping `prepare` again. |

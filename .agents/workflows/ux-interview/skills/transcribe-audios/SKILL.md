@@ -31,9 +31,9 @@ The orchestrator should trigger this skill when the user requests audio transcri
   - `source_fingerprint` (string, optional): `stat` (default, size plus nanosecond mtime) or `sha256`. A valid transcript is skipped only when this fingerprint matches its metadata sidecar.
   - `pricing_json_file` (string, optional): Absolute path to orchestrator-supplied JSON pricing data with `providers.elevenlabs.usd_per_minute`, never a hard-coded rate in the skill. It enables duration and estimated-cost metadata.
   - `max_estimated_cost_usd` (number, optional): Conservative batch budget. Requires `pricing_json_file` and `ffprobe` to determine duration; the run halts before API calls when the estimate exceeds the limit.
-- **Environment**: The parent `ux-research` orchestrator reads `.env` and passes
-  `ELEVENLABS_API_KEY` to `ux-interview`. The child orchestrator injects that
-  key into this skill process. The skill never reads `.env` directly.
+- **Environment**: The calling orchestrator passes `ELEVENLABS_API_KEY` to
+  `ux-interview`, which injects that key into this skill process. The skill
+  never reads `.env` directly.
 - **Location**: `request_body`
 - **Input File(s)**:
   - `Interview/*` with an ElevenLabs-supported audio/video extension (or directly in `folder_path` when `Interview/` has no supported audio): AAC, AIFF, OGG, MP3, OPUS, WAV, FLAC, M4A, WebM, MP4, AVI, MKV, MOV, WMV, FLV, MPEG, 3GPP, and QuickTime variants.
@@ -94,11 +94,11 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| **Key** | `ELEVENLABS_API_KEY` | Required transcription provider. Loaded by `ux-research`, delegated to `ux-interview`, and injected into this skill process. |
+| **Key** | `ELEVENLABS_API_KEY` | Required transcription provider. Supplied by the calling orchestrator, delegated to `ux-interview`, and injected into this skill process. |
 
 > **Note**: `ELEVENLABS_API_KEY` must be provided. Skills MUST NOT read API keys directly from `.env`. Only
-> `ux-research` reads the workspace `.env`; `ux-interview` receives the required
-> key and injects it into this skill process. Never hardcode, log, or write the
+> The calling orchestrator reads the workspace `.env`; `ux-interview` receives
+> the required key and injects it into this skill process. Never hardcode, log, or write the
 > key to output files.
 
 ## Custom Instructions

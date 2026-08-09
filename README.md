@@ -24,19 +24,19 @@ Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 > *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `ELEVENLABS_API_KEY=...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
 
 ### 3. Kích hoạt Agent (Run Workflow)
-Trong khung chat với AI Agent, gõ câu lệnh:
+Trong khung chat với AI Agent, gọi workflow cần dùng. Ví dụ với quy trình phỏng vấn:
 ```text
-ux-research <đường_dẫn_thư_mục_dự_án>
+ux-interview <đường_dẫn_thư_mục_dự_án>
 ```
 
 * 💡 **Ví dụ 1 (Đã có sẵn file Excel `.xlsx` trong thư mục dự án):**
   ```text
-  ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế
+  ux-interview /Users/madebynham/Desktop/Chuyển tiền quốc tế
   ```
 
 * 💡 **Ví dụ 2 (Dùng link Google Sheet thay cho file Excel):**
   ```text
-  ux-research /Users/madebynham/Desktop/Chuyển tiền quốc tế https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114
+  ux-interview /Users/madebynham/Desktop/Chuyển tiền quốc tế https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114
   ```
   *(Hoặc bạn có thể dán link Google Sheet vào khung chat khi Agent yêu cầu ở bước trích xuất Bảng câu hỏi).*
 
@@ -55,8 +55,6 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 │   ├── visualize-insights/          # 📊 Tạo báo cáo HTML tương tác (universal)
 │   └── send-email/                  # ✉️ Gửi email qua Gmail SMTP (universal)
 ├── workflows/
-│   ├── ux-research/                  # 🎯 Orchestrator gốc (đọc .env)
-│   │   ├── ORCHESTRATOR.md
 │   ├── ux-interview/                 # 🎤 Orchestrator phỏng vấn
 │   │   ├── ORCHESTRATOR.md
 │   │   └── skills/
@@ -75,13 +73,13 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 
 ### Chuỗi ủy quyền API Key
 
-Chỉ orchestrator gốc `ux-research` được đọc file `.env`. Các key được truyền xuống theo chuỗi:
+Các workflow và skill không tự đọc `.env`; calling orchestrator truyền các key cần thiết:
 
 | Key | Đường truyền |
 | --- | --- |
-| `ELEVENLABS_API_KEY` | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` |
-| `GMAIL_APP_USERNAME` | `.env` → `ux-research` → `send-email` |
-| `GMAIL_APP_PASSWORD` | `.env` → `ux-research` → `send-email` |
+| `ELEVENLABS_API_KEY` | Calling orchestrator → `ux-interview` → `transcribe-audios` |
+| `GMAIL_APP_USERNAME` | Calling orchestrator → `send-email` |
+| `GMAIL_APP_PASSWORD` | Calling orchestrator → `send-email` |
 
 ---
 
@@ -93,7 +91,7 @@ Quy trình tự động hóa tương tác giữa các Skills được thể hi�
 sequenceDiagram
     autonumber
     actor User as 👤 Người dùng
-    participant Parent as 🤖 ux-research (Orchestrator)
+    participant Parent as 🤖 Calling Orchestrator
     participant CQT as 📋 create-questionnaire-table
     participant STT as 🎙️ transcribe-audios
     participant MT as 🎯 map-transcript
@@ -102,7 +100,7 @@ sequenceDiagram
     participant VIS as 📊 visualize-insights
     participant EMAIL as ✉️ send-email
 
-    User->>Parent: Gõ "ux-research <thư_mục_dự_án>"
+    User->>Parent: Chọn workflow và thư mục dự án
     
     Note over Parent, CQT: 1. Trích xuất Bảng câu hỏi
     Parent->>CQT: Đọc file Excel (.xlsx) / Google Sheet
@@ -177,7 +175,7 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 
 ## 🔐 Bảo mật (Security)
 
-- **API Key cách ly**: Chỉ orchestrator gốc `ux-research` được đọc `.env`. Tất cả key được truyền qua chuỗi ủy quyền, không bao giờ hardcode, log, hoặc ghi vào file output.
+- **API Key cách ly**: Calling orchestrator truyền key qua chuỗi ủy quyền; skill không bao giờ hardcode, log, hoặc ghi key vào file output.
 - **Token phê duyệt email**: Email chỉ được gửi khi người dùng xác nhận bằng từ khóa phê duyệt hợp lệ (ví dụ: `ok`, `yes`, `gửi`, `approved`) hoặc cung cấp đúng token bảo mật (content-bound SHA-256).
 - **Atomic writes**: Tất cả file output quan trọng được ghi qua file tạm rồi thay thế nguyên tử (atomic replace), tránh hỏng dữ liệu khi gián đoạn.
 - **Kiểm thử tự động**: Mỗi skill có unit test riêng, mỗi workflow có E2E test kiểm tra toàn bộ pipeline.

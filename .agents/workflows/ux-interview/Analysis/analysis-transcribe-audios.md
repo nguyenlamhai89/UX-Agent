@@ -5,8 +5,8 @@
 ## Current provider policy
 
 `transcribe-audios` uses only ElevenLabs Speech to Text (Scribe v2). The only
-accepted credential is `ELEVENLABS_API_KEY`, delegated from `ux-research` to
-`ux-interview` and then injected into the skill process. A failed request is
+accepted credential is `ELEVENLABS_API_KEY`, delegated by the calling
+orchestrator to `ux-interview` and then injected into the skill process. A failed request is
 retried only when ElevenLabs classifies it as transient; the skill does not
 switch to another transcription service.
 
@@ -46,7 +46,7 @@ switch to another transcription service.
 | Upload pressure | Five workers could submit several very large files at once. | Limits aggregate active bytes with `--max-inflight-mb` and bounded task submission. |
 | Rate control | No shared provider-wide client limiter. | Adds `--requests-per-minute` and shares a backoff window across ElevenLabs workers. |
 | Cost control | No cost estimate or preflight guard. | Uses optional orchestrator-supplied ElevenLabs pricing, `ffprobe` duration probing, and `--max-estimated-cost-usd`. |
-| Documentation | Provider/key instructions differed between skill, workflow, and README. | Skill, `ux-interview`, `ux-research`, and README consistently document ElevenLabs-only operation. |
+| Documentation | Provider/key instructions differed between skill, workflow, and README. | Skill, `ux-interview`, and README consistently document ElevenLabs-only operation. |
 | Tests | Focused on the former multi-provider execution paths. | Removes those paths and verifies the ElevenLabs-only contract, strict skip validation, freshness, size budget, and cost guard. |
 
 ## Known Bugs & Resolutions
