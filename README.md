@@ -12,9 +12,8 @@ Chỉ với 3 bước đơn giản để thiết lập và khởi chạy dự á
 Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguyên sau:
 * 🎙️ **File ghi âm / video phỏng vấn**: File định dạng `.mp3`, `.m4a`, `.qta` đặt trong thư mục dự án.
 * 📋 **Bảng câu hỏi phỏng vấn**: Tạo bản sao từ [Template Google Sheet Mẫu](https://docs.google.com/spreadsheets/d/11QyWQvgy6893QFv7ZFgdDlL-YQ5YNS-E00YFsvJkNBA/edit?gid=335610114#gid=335610114) (chế độ public) hoặc file Excel (`.xlsx`).
-* 🔑 **API Key chuyển âm** (bắt buộc ít nhất 1 trong 2):
-  * `GEMINI_API_KEY` (miễn phí): Lấy tại [Google AI Studio](https://aistudio.google.com) → *Get API key*.
-  * `ELEVENLABS_API_KEY` (trả phí, ưu tiên): Lấy tại [ElevenLabs](https://elevenlabs.io) → *Profile* → *API Keys*.
+* 🔑 **API Key chuyển âm** (bắt buộc):
+  * `ELEVENLABS_API_KEY`: Lấy tại [ElevenLabs](https://elevenlabs.io) → *Profile* → *API Keys*.
 * 📧 **Gmail App Credentials** (tùy chọn, dùng để gửi báo cáo email qua SMTP):
   * `GMAIL_APP_USERNAME`: Địa chỉ Gmail dùng để gửi.
   * `GMAIL_APP_PASSWORD`: Mật khẩu ứng dụng 16 ký tự tạo tại [Google App Passwords](https://myaccount.google.com/apppasswords) (cần bật 2FA).
@@ -22,7 +21,7 @@ Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguy�
 ### 2. Cài đặt Agent (Setup & .env)
 Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 
-> *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GEMINI_API_KEY=AIzaSy...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
+> *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `ELEVENLABS_API_KEY=...` và `GMAIL_APP_USERNAME=myemail@gmail.com`, `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
 
 ### 3. Kích hoạt Agent (Run Workflow)
 Trong khung chat với AI Agent, gõ câu lệnh:
@@ -63,7 +62,7 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 │   │   ├── ORCHESTRATOR.md
 │   │   └── skills/
 │   │       ├── create-questionnaire-table/  # 📋 Trích xuất bảng câu hỏi
-│   │       ├── transcribe-audios/           # 🎙️ Chuyển âm (ElevenLabs / Gemini)
+│   │       ├── transcribe-audios/           # 🎙️ Chuyển âm (ElevenLabs)
 │   │       ├── map-transcript/              # 🎯 Ánh xạ câu trả lời
 │   │       └── saturate-insights/           # 💡 Tổng hợp Insight & bão hòa
 │   ├── ux-map-journey/              # 🗺️ Orchestrator hành trình khách hàng
@@ -82,7 +81,6 @@ Chỉ orchestrator gốc `ux-research` được đọc file `.env`. Các key đ�
 | Key | Đường truyền |
 | --- | --- |
 | `ELEVENLABS_API_KEY` | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` |
-| `GEMINI_API_KEY` | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` |
 | `GMAIL_APP_USERNAME` | `.env` → `ux-research` → `send-email` |
 | `GMAIL_APP_PASSWORD` | `.env` → `ux-research` → `send-email` |
 
@@ -116,7 +114,7 @@ sequenceDiagram
     Parent-->>User: Yêu cầu cung cấp từ khóa (keyterms)
     User-->>Parent: Cung cấp từ khóa
     Parent->>STT: Chuyển âm ghi âm thành văn bản
-    Note right of STT: ElevenLabs (ưu tiên)<br/>Gemini (dự phòng)
+    Note right of STT: ElevenLabs Speech to Text
     STT-->>Parent: transcript-*.md
     Parent-->>User: 🛡️ Gate 2: Phê duyệt Bản chuyển âm
     Parent->>MT: Ánh xạ câu trả lời nguyên văn
@@ -148,7 +146,7 @@ sequenceDiagram
 | # | Skill | Mô tả |
 | --- | --- | --- |
 | 1 | 📋 **create-questionnaire-table** | Tự động chuyển file Excel (`.xlsx` tab `"2. Questionnaire"`), Google Sheet công khai, hoặc ảnh bảng câu hỏi thành `full-questionnaire.md`. |
-| 2 | 🎙️ **transcribe-audios** | Chuyển âm ghi âm phỏng vấn thành Markdown với nhận diện người nói (diarization) và timestamp. Hỗ trợ **ElevenLabs** (ưu tiên) và **Gemini** (dự phòng). |
+| 2 | 🎙️ **transcribe-audios** | Chuyển âm ghi âm phỏng vấn thành Markdown với nhận diện người nói (diarization) và timestamp bằng **ElevenLabs Speech to Text**. |
 | 3 | 🎯 **map-transcript** | Ánh xạ chính xác câu trả lời **nguyên văn** của từng người phỏng vấn vào cấu trúc bảng câu hỏi. |
 | 4 | 💡 **saturate-insights** | Tổng hợp Insight có bằng chứng và tạo ma trận bão hòa dữ liệu (saturation matrix). |
 | 5 | 🗺️ **extract-phases** | Trích xuất dữ liệu theo 5 giai đoạn hành trình: *Awareness, Consideration, Decision Making, Usage, Advocacy*. |
@@ -191,13 +189,11 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 
 - **Python**: 3.10+
 - **AI IDE**: Google Antigravity, Claude Code, Cursor, hoặc tương tự
-- **API keys** (ít nhất 1 key chuyển âm):
+- **API keys**:
   - `ELEVENLABS_API_KEY` — ElevenLabs Speech-to-Text
-  - `GEMINI_API_KEY` — Google Gemini (dự phòng)
   - `GMAIL_APP_USERNAME` + `GMAIL_APP_PASSWORD` — Gửi email (tùy chọn)
 - **Dependencies** (tự động kiểm tra bởi `check_libraries.py`):
   - `elevenlabs` — SDK chuyển âm ElevenLabs
-  - `google-genai` — SDK Google Gemini
   - `docling` — Chuyển PDF nghiên cứu thành Markdown và tài sản trực quan
   - `matplotlib` — Biểu đồ bão hòa
   - `pytest` — Kiểm thử tự động

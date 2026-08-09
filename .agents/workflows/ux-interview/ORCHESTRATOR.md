@@ -8,7 +8,7 @@ description: Orchestrates UX research workflows by routing requests to transcrib
 ## Description
 The UX Interview orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
 1. **Questionnaire Table Extraction**: Reading a question table from a Google Sheet link, Excel file (.xlsx/.xls tab "2. Questionnaire"), or image to produce a structured `full-questionnaire.md`.
-2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs (primary) or Google Gemini (fallback).
+2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs Speech to Text.
 3. **Transcript Mapping**: Mapping interviewee responses from transcripts to the questionnaire structure.
 4. **Insights Saturation**: Synthesizing responses into a structured `insights.md` and saturation matrix.
 
@@ -31,11 +31,10 @@ never reads `.env` directly.
    to fetch and verify the current official ElevenLabs Speech to Text overview,
    tutorial/quickstart, batch how-to guides, realtime event reference, and API
    reference. If the live contract has changed or the docs are unavailable,
-   stop before making an ElevenLabs request and review the docs. Then require at
-   least one of `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by
-   `ux-research`, inject them into the skill process environment, and transcribe
-   with `language_code=vi` and the documented batch options. ElevenLabs is tried first;
-   Gemini is used as an automatic fallback. Never read `.env` or expose keys in
+   stop before making an ElevenLabs request and review the docs. Then require
+   `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it into the skill
+   process environment, and transcribe with `language_code=vi` and the
+   documented batch options. Never read `.env` or expose keys in
    logs or output artifacts. **Halts workflow and returns detailed per-file
    error codes on failure.**
 5. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
@@ -61,8 +60,8 @@ never reads `.env` directly.
 
 ## Input & Output
 **Input**: Natural language request, a folder path, and an `api_keys` mapping
-provided by the parent for the full workflow. Transcription requires at least one
-of `api_keys.ELEVENLABS_API_KEY` or `api_keys.GEMINI_API_KEY`; isolated
+provided by the parent for the full workflow. Transcription requires
+`api_keys.ELEVENLABS_API_KEY`; isolated
 `saturate-insights` requests require the absolute canonical
 `Interview/mapped-transcript.md` path and no API key.
 **Output**: Skill execution result (e.g., status, generated file paths).
@@ -71,8 +70,6 @@ of `api_keys.ELEVENLABS_API_KEY` or `api_keys.GEMINI_API_KEY`; isolated
 - **Allowed to access `.env`**: `false`
 - **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
   `transcribe-audios`.
-- **GEMINI_API_KEY**: Received from `ux-research` and injected only into
-  `transcribe-audios` as a fallback transcription provider.
 
 ## Sequence Diagram
 ```mermaid
@@ -133,12 +130,12 @@ sequenceDiagram
 ```
 
 ## Error Handling
-| Error Scenario | Fallback Behavior |
+| Error Scenario | Handling |
 | --- | --- |
 | `UNKNOWN_INTENT` | Ask for clarification or list capabilities. |
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
-| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide at least one transcription key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) from the workspace `.env`. |
+| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide `ELEVENLABS_API_KEY` from the workspace `.env`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
 | `SOURCE_TIMESTAMP_NOT_FOUND` / `NON_VERBATIM_RESPONSE` | Retry the affected mapped row using the complete timestamped source turn exactly as written in that interviewee's transcript. |
