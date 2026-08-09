@@ -9,8 +9,9 @@ description: Generates an auditable UX research HTML report, collects runtime CC
 
 `ux-report` turns canonical UX-research artifacts into an interactive HTML
 report, then delivers that report through Gmail after explicit user approval.
-It composes the shared `visualize-insights` and `send-email` skills without
-copying them into this workflow.
+It owns the workflow-local `visualize-insights` and `send-email` skills. The
+skills are intentionally kept inside this workflow so report generation and
+delivery follow one explicit, approval-gated sequence.
 
 This workflow is the only component permitted to read the workspace-root
 `.env` for report delivery. It reads only `GMAIL_APP_USERNAME` and
@@ -31,8 +32,10 @@ existing UX report, or perform both steps together.
    `<folder_path>/Interview/Research Report`.
 2. **Validate freshness and pause** — Accept `status: skipped` only when the
    visualization manifest verifies both the current input signature and output
-   hash. Present the HTML report and stop for user approval before email work.
-3. **Collect recipients every run** — Ask the user who should receive the
+   hash. Present the HTML report and stop. Do not collect recipients, read
+   Gmail credentials, prepare a draft, or send email until the user explicitly
+   approves the generated report.
+3. **Collect recipients after report approval** — Ask the user who should receive the
    report. Collect at least one valid email address and pass every address in
    `cc_recipients`. Never reuse, infer, or hard-code recipients; To and BCC
    remain empty.
@@ -53,13 +56,13 @@ existing UX report, or perform both steps together.
 
 ## Available Skills
 
-- **[visualize-insights](../../skills/visualize-insights/SKILL.md)** — Produces
+- **[visualize-insights](skills/visualize-insights/SKILL.md)** — Produces
   the interactive HTML report and integrity manifest.
-- **[send-email](../../skills/send-email/SKILL.md)** — Collects runtime CC
+- **[send-email](skills/send-email/SKILL.md)** — Collects runtime CC
   recipients, prepares the approval-gated draft, and sends the exact HTML file.
 
-The local `skills/` folder documents this workflow's use of the shared
-universal skills; it does not duplicate their source files.
+The local `skills/` folder contains the source files, scripts, templates, and
+tests for both workflow stages.
 
 ## Input
 

@@ -1,10 +1,13 @@
-# Shared Skills
+# UX Report Skills
 
-`ux-report` composes the shared workspace skills below rather than keeping
-duplicate copies inside this workflow:
+These skills belong to the `ux-report` workflow and must run in this order:
 
-- [`visualize-insights`](../../../skills/visualize-insights/SKILL.md)
-- [`send-email`](../../../skills/send-email/SKILL.md)
+1. [`visualize-insights`](visualize-insights/SKILL.md) generates the report and
+   manifest.
+2. After the user reviews and explicitly approves that report, [`send-email`](send-email/SKILL.md)
+   asks for runtime recipients, prepares the complete draft, and sends only
+   after a second explicit approval.
 
-The workflow owns credential loading and user approval gates. The shared skills
-remain responsible for report generation and Gmail SMTP delivery.
+The workflow owns credential loading and the approval gates. The skills remain
+responsible for deterministic report generation and Gmail SMTP delivery; the
+email skill never reads `.env` directly.
