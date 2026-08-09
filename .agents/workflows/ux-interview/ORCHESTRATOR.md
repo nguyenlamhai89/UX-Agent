@@ -27,12 +27,18 @@ never reads `.env` directly.
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`. If no Excel questionnaire file (`.xlsx`), Google Sheet URL, or question table image is found, halt and prompt the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`transcribe-audios`): Require at least one of
-   `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by `ux-research`, inject
-   them into the skill process environment, then transcribe with keyterms.
-   ElevenLabs is tried first; Gemini is used as an automatic fallback. Never
-   read `.env` or expose keys in logs or output artifacts. **Halts workflow
-   and returns detailed per-file error codes on failure.**
+5. **Audio Transcription** (`transcribe-audios`): First run
+   `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/check_elevenlabs_docs.py --strict`
+   to fetch and verify the current official ElevenLabs Speech to Text overview,
+   tutorial/quickstart, batch how-to guides, realtime event reference, and API
+   reference. If the live contract has changed or the docs are unavailable,
+   stop before making an ElevenLabs request and review the docs. Then require at
+   least one of `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by
+   `ux-research`, inject them into the skill process environment, and transcribe
+   with keyterms and the documented batch options. ElevenLabs is tried first;
+   Gemini is used as an automatic fallback. Never read `.env` or expose keys in
+   logs or output artifacts. **Halts workflow and returns detailed per-file
+   error codes on failure.**
 6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
 7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. Every mapped quote MUST be a complete verbatim turn from that interviewee's source transcript, with the exact timestamp, wording, spelling, and punctuation; never truncate, paraphrase, translate, or correct it. The controller enforces this source equality before promotion. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
 8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
@@ -93,7 +99,11 @@ sequenceDiagram
     
     UXI-->>User: 4. Prompt for keyterms
     User->>UXI: Provide keyterms
-    
+
+    UXI->>UXI: 5a. Live ElevenLabs Speech to Text docs preflight
+    alt Docs unavailable or contract changed
+        UXI-->>User: Halt and request docs review/update
+    else Docs verified
     UXI->>STT: 5. Inject received key and transcribe
     
     alt Transcription Error
@@ -119,6 +129,7 @@ sequenceDiagram
             UXI-->>User: 10. Ask for approval
             User->>UXI: Approve
         end
+    end
     end
     UXI-->>FO: Return result
     deactivate UXI

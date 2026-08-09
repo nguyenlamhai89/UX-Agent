@@ -28,6 +28,29 @@ def test_format_transcription_rejects_empty_content():
     assert error.value.code == "EMPTY_TRANSCRIPT"
 
 
+def test_format_transcription_supports_audio_events_and_channel_index():
+    words = [
+        SimpleNamespace(text="(laughter)", type="audio_event", channel_index=0, start=1.2),
+        SimpleNamespace(text="hello", type="word", channel_index=1, start=2.0),
+    ]
+    result = transcribe.format_transcription(SimpleNamespace(words=words), "test.mp4")
+    assert "(laughter)" in result
+    assert "[00:01] [speaker_0]" in result
+    assert "[00:02] [speaker_1]" in result
+
+
+def test_format_transcription_flattens_multichannel_response():
+    response = SimpleNamespace(
+        transcripts=[
+            SimpleNamespace(words=[SimpleNamespace(text="first", start=2.0, speaker_id=None)]),
+            SimpleNamespace(words=[SimpleNamespace(text="second", start=1.0, speaker_id=None)]),
+        ]
+    )
+    result = transcribe.format_transcription(response, "test.wav")
+    assert result.index("second") < result.index("first")
+    assert "[speaker_1]" in result
+
+
 @patch("transcribe.random.uniform", return_value=0)
 @patch("transcribe.time.sleep")
 @patch("transcribe.ElevenLabs")
@@ -38,6 +61,35 @@ def test_transcribe_retries_only_transient_errors(MockElevenLabs, mock_sleep, mo
     audio.write_bytes(b"audio")
     assert "done" in transcribe.transcribe_audio(str(audio), "key")
     mock_sleep.assert_called_once_with(1)
+
+
+@patch("transcribe.ElevenLabs")
+def test_transcribe_passes_current_stt_options(MockElevenLabs, tmp_path):
+    instance = MockElevenLabs.return_value
+    instance.speech_to_text.convert.return_value = SimpleNamespace(
+        words=[SimpleNamespace(text="hello", speaker_id="speaker_0", start=0)]
+    )
+    audio = tmp_path / "test.mp3"
+    audio.write_bytes(b"audio")
+    transcribe.transcribe_audio(
+        str(audio),
+        "key",
+        keyterms=["UX"],
+        language_code="eng",
+        tag_audio_events=True,
+        num_speakers=2,
+        diarization_threshold=0.22,
+        timestamps_granularity="word",
+    )
+    kwargs = instance.speech_to_text.convert.call_args.kwargs
+    assert kwargs["model_id"] == "scribe_v2"
+    assert kwargs["tag_audio_events"] is True
+    assert kwargs["language_code"] == "eng"
+    assert kwargs["num_speakers"] == 2
+    assert kwargs["diarization_threshold"] == 0.22
+    assert kwargs["timestamps_granularity"] == "word"
+    assert kwargs["diarize"] is True
+    assert kwargs["no_verbatim"] is False
 
 
 @patch("transcribe.time.sleep")
@@ -243,3 +295,13 @@ def test_get_audio_files_fallback(tmp_path):
     assert files_fallback == [str(f2)]
 
 
+def test_get_audio_files_supports_documented_video_and_audio_extensions(tmp_path):
+    interview = tmp_path / "Interview"
+    interview.mkdir()
+    (interview / "video.MP4").write_bytes(b"data")
+    (interview / "recording.flac").write_bytes(b"data")
+    (interview / "notes.txt").write_text("not audio")
+    assert transcribe.get_audio_files(str(tmp_path)) == [
+        str(interview / "recording.flac"),
+        str(interview / "video.MP4"),
+    ]

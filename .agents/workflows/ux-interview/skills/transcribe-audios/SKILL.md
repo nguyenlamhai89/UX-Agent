@@ -1,13 +1,13 @@
 ---
 name: transcribe-audios
-description: Transcribes audio files in a folder into Markdown files using ElevenLabs Speech-to-Text or Google Gemini as a fallback.
+description: Transcribes audio and video files into Markdown interview transcripts using the current ElevenLabs Speech to Text contract, with Google Gemini as a fallback.
 ---
 
 # Transcribe Audios
 
 ## Description
 
-The `transcribe-audios` skill transcribes interview audio files into Markdown with speaker diarization. It supports two providers: **ElevenLabs** (primary, using the `speech_to_text.convert` API with the Scribe v2 model) and **Google Gemini** (fallback). It traverses the `Interview` subfolder of an input folder for audio files (e.g., `.mp3`, `.m4a`, `.qta`) and outputs corresponding `.md` files. At least one API key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) must be provided. When both keys are available, ElevenLabs is tried first; on failure, Gemini is used automatically.
+The `transcribe-audios` skill transcribes interview audio and video files into Markdown with speaker diarization, timestamps, and ElevenLabs audio-event tags. It supports two providers: **ElevenLabs** (primary, using the current `speech_to_text.convert` API with Scribe v2) and **Google Gemini** (fallback). It traverses the `Interview` subfolder of an input folder and outputs corresponding `.md` files. At least one API key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) must be provided. When both keys are available, ElevenLabs is tried first; on failure, Gemini is used automatically.
 
 The orchestrator should trigger this skill when the user requests audio transcription, converting speech to text, or generating interview transcripts.
 
@@ -17,8 +17,15 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Format**:
   - `folder_path` (string, required): The absolute path to the directory containing audio files.
   - `keyterms` (list of strings, optional): Specific keywords or vocabulary to prioritize during transcription.
+  - `language_code` (string, optional): ISO-639-1 or ISO-639-3 language code when the recording language is known; otherwise language detection remains enabled.
+  - `num_speakers` (integer, optional): Expected maximum speaker count from 1 to 32; use only for single-channel diarization.
+  - `diarization_threshold` (number, optional): ElevenLabs diarization threshold from `0.1` to `0.4`.
+  - `tag_audio_events` (boolean, optional): Include events such as laughter or applause; defaults to `true`.
+  - `timestamps_granularity` (string, optional): `none`, `word` (default), or `character`.
+  - `use_multi_channel` (boolean, optional): Use channel-based separation for recordings with one speaker per channel.
+  - `multichannel_output_style` (string, optional): `separate` or `combined`; the skill defaults to `combined` so the Markdown formatter receives one time-sorted stream.
   - `max_workers` (integer, optional): Maximum concurrent uploads; defaults to 5.
-  - `max_file_size_mb` (integer, optional): Per-file upload limit; defaults to 200 MB.
+  - `max_file_size_mb` (integer, optional): Per-file upload limit; defaults to 3072 MB as a conservative product-guide limit. The live API reference is authoritative if ElevenLabs changes this limit.
   - `max_retries` (integer, optional): Retries for transient API failures; defaults to 3.
 - **Environment**: The parent `ux-research` orchestrator reads `.env` and passes
   `ELEVENLABS_API_KEY` and/or `GEMINI_API_KEY` to `ux-interview`. The child
@@ -26,7 +33,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
   never reads `.env` directly. At least one transcription key is required.
 - **Location**: `request_body`
 - **Input File(s)**:
-  - `Interview/*.mp3`, `Interview/*.m4a`, `Interview/*.qta` (or `*.mp3`, `*.m4a`, `*.qta` directly in `folder_path` if no `Interview` subfolder exists) — Raw audio files containing interviews or recordings.
+  - `Interview/*` with a supported audio/video extension (or directly in `folder_path` if no `Interview` subfolder exists): AAC, AIFF, OGG, MP3, OPUS, WAV, FLAC, M4A, WebM, MP4, AVI, MKV, MOV, WMV, FLV, MPEG, 3GPP, and QuickTime variants.
 - **Examples**:
 
   **Example 1** — Transcription request:
@@ -90,8 +97,24 @@ The orchestrator should trigger this skill when the user requests audio transcri
 
 ## Custom Instructions
 
-- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--max-workers 5] [--max-file-size-mb 200] [--max-retries 3]`.
+- **Live documentation requirement**: Before every transcription run, the orchestrator must run `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/check_elevenlabs_docs.py --strict`. The checker fetches the official Speech to Text overview, quickstart/tutorial, batch how-to guides, realtime event reference, and Create transcript API reference. If a page is unavailable or its API markers changed, stop and review the live documentation before changing or running the ElevenLabs path.
+- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--language-code eng] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-retries 3]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
+- **ElevenLabs request contract**: Keep `model_id="scribe_v2"`, `diarize=true` for normal interview recordings, `timestamps_granularity="word"`, `tag_audio_events=true`, and `no_verbatim=false` by default so filler words and false starts remain available for UX-research evidence. Pass `language_code` only when known. For multichannel recordings, use `use_multi_channel=true`, disable diarization/`num_speakers`, and use `multichannel_output_style="combined"` unless a caller explicitly needs separate channel responses.
+- **Feature boundaries**: This skill handles prerecorded batch files. ElevenLabs realtime WebSocket and webhook workflows are documentation references only and are not silently substituted into this local-file pipeline.
 - The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
+
+### Official ElevenLabs Speech to Text sources
+
+These are the live sources of truth and must be rechecked whenever ElevenLabs changes its SDK, API parameters, limits, response shape, supported formats, or feature behavior:
+
+- [Speech to Text overview](https://elevenlabs.io/docs/overview/capabilities/speech-to-text)
+- [Speech to Text quickstart/tutorial](https://elevenlabs.io/docs/eleven-api/guides/cookbooks/speech-to-text)
+- [Create transcript API reference](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)
+- [Keyterm prompting how-to](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/batch/keyterm-prompting)
+- [Multichannel transcription how-to](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/batch/multichannel-transcription)
+- [Asynchronous Speech to Text/webhooks how-to](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/batch/webhooks)
+- [Client-side realtime streaming how-to](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/client-side-streaming)
+- [Realtime event reference](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/event-reference)
 
 ## Sequence Diagram
 
@@ -156,12 +179,14 @@ sequenceDiagram
 
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
-| `TypeError: convert() got an unexpected keyword argument 'tag_audio_events'` | The ElevenLabs Python SDK `speech_to_text.convert` method does not accept the parameter `tag_audio_events`. | Removed the `tag_audio_events=True` parameter from the API call. |
+| `TypeError: convert() got an unexpected keyword argument 'tag_audio_events'` | An older ElevenLabs Python SDK did not expose a parameter documented by the current Speech to Text API. | The current implementation follows the live API reference and passes `tag_audio_events`; update the `elevenlabs` dependency before running if the installed SDK rejects the documented parameter. |
 | Words joined without spaces (e.g., `helloworld`) | ElevenLabs STT `word.text` does not include trailing spaces, causing simple string concatenation to mash words together. | Updated the concatenation logic to prepend a space: `current_text += " " + word.text.strip()`. |
 | API 400 Bad Request error for empty keyterms | Passing an empty string `--keyterms ""` resulted in an array `[""]` being sent to the API, which may be invalid. | Added empty string filtering during parsing: `[k.strip() for k in args.keyterms.split(',') if k.strip()]`. |
 | Invalid or partially written transcripts were skipped on a rerun | Skip logic checked only for file existence, so a failed write could prevent recovery. | Validate the transcript structure and write through a temporary sibling file before atomically replacing the final file. |
 | Skill validation rejected the metadata name | The frontmatter used the display label `ElevenLabs Transcribe`, which was not lowercase hyphen-case. | Changed the metadata name to `elevenlabs-transcribe` and retained the readable Markdown heading. |
 | `NO_AUDIO_FILES` when audio is in `folder_path` directly | Script strictly expected an `Interview` subfolder, failing if audio files were placed directly in `folder_path`. | Updated `get_audio_files` and `process_file` to fall back to searching and writing directly in `folder_path` if no `Interview` subfolder is found. |
+| API supported more formats than the local scanner | The scanner only matched `.mp3`, `.m4a`, and `.qta`, while the Speech to Text documentation lists broader audio/video support. | Replaced glob-only matching with a case-insensitive supported-extension set covering the documented audio/video formats. |
+| Audio-event and advanced STT options were not forwarded | The local request only sent model, diarization, and keyterms, so documented event tagging, language hints, speaker limits, timestamps, and multichannel options were unavailable. | Added documented batch parameters with interview-safe defaults and normalized multichannel responses before Markdown rendering. |
 
 ## Performance Improvement Solutions
 

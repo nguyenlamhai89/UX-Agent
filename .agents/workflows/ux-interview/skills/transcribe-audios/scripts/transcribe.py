@@ -1,5 +1,4 @@
 import argparse
-import glob
 import json
 import os
 import random
@@ -20,9 +19,30 @@ except ImportError:
     google_genai = None
 
 
-SUPPORTED_PATTERNS = ("*.mp3", "*.m4a", "*.qta")
+SUPPORTED_EXTENSIONS = {
+    ".aac",
+    ".aiff",
+    ".avi",
+    ".flac",
+    ".flv",
+    ".m4a",
+    ".mkv",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".mpeg",
+    ".ogg",
+    ".opus",
+    ".qt",
+    ".qta",
+    ".wav",
+    ".webm",
+    ".wmv",
+    ".3gp",
+    ".3gpp",
+}
 DEFAULT_MAX_WORKERS = 5
-DEFAULT_MAX_FILE_SIZE_MB = 200
+DEFAULT_MAX_FILE_SIZE_MB = 3072
 DEFAULT_MAX_RETRIES = 3
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TRANSCRIPT_PROMPT = """Transcribe this audio file completely and accurately.
@@ -47,14 +67,18 @@ class TranscriptionError(Exception):
 def get_audio_files(folder_path):
     interview_dir = os.path.join(folder_path, "Interview")
     interview_files = sorted(
-        path for pattern in SUPPORTED_PATTERNS
-        for path in glob.glob(os.path.join(interview_dir, pattern))
-    )
+        os.path.join(interview_dir, name)
+        for name in os.listdir(interview_dir)
+        if os.path.isfile(os.path.join(interview_dir, name))
+        and os.path.splitext(name)[1].lower() in SUPPORTED_EXTENSIONS
+    ) if os.path.isdir(interview_dir) else []
     if interview_files:
         return interview_files
     return sorted(
-        path for pattern in SUPPORTED_PATTERNS
-        for path in glob.glob(os.path.join(folder_path, pattern))
+        os.path.join(folder_path, name)
+        for name in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, name))
+        and os.path.splitext(name)[1].lower() in SUPPORTED_EXTENSIONS
     )
 
 
@@ -104,9 +128,35 @@ def classify_gemini_error(error):
     return TranscriptionError("API_REQUEST_ERROR", str(error))
 
 
+def _iter_transcription_words(transcription):
+    """Flatten single-channel and combined/separate multichannel responses."""
+    words = getattr(transcription, "words", None)
+    if words:
+        return list(words)
+
+    transcripts = getattr(transcription, "transcripts", None)
+    if isinstance(transcripts, dict):
+        flattened = []
+        for channel, channel_transcript in transcripts.items():
+            for word in getattr(channel_transcript, "words", None) or []:
+                if not getattr(word, "speaker_id", None):
+                    setattr(word, "speaker_id", f"speaker_{channel}")
+                flattened.append(word)
+        return sorted(flattened, key=lambda word: float(getattr(word, "start", 0) or 0))
+    if isinstance(transcripts, (list, tuple)):
+        flattened = []
+        for index, channel_transcript in enumerate(transcripts):
+            for word in getattr(channel_transcript, "words", None) or []:
+                if not getattr(word, "speaker_id", None):
+                    setattr(word, "speaker_id", f"speaker_{index}")
+                flattened.append(word)
+        return sorted(flattened, key=lambda word: float(getattr(word, "start", 0) or 0))
+    return []
+
+
 def format_transcription(transcription, filename):
     lines = [f"# INTERVIEW TRANSCRIPT: {filename}\n"]
-    words = getattr(transcription, "words", None)
+    words = _iter_transcription_words(transcription)
     if words:
         current_speaker = None
         current_text = []
@@ -115,7 +165,11 @@ def format_transcription(transcription, filename):
             text = str(getattr(word, "text", "")).strip()
             if not text:
                 continue
-            speaker = getattr(word, "speaker_id", "speaker_0") or "speaker_0"
+            channel_index = getattr(word, "channel_index", None)
+            speaker = getattr(word, "speaker_id", None)
+            speaker = speaker or (
+                f"speaker_{channel_index}" if channel_index is not None else "speaker_0"
+            )
             if speaker != current_speaker:
                 if current_speaker is not None:
                     lines.append(f"**[{format_timestamp(start_time)}] [{current_speaker}]** <br>\n{' '.join(current_text)}\n")
@@ -166,7 +220,19 @@ def parse_gemini_response(text, filename):
     return result
 
 
-def transcribe_audio(file_path, api_key, keyterms=None, max_retries=DEFAULT_MAX_RETRIES):
+def transcribe_audio(
+    file_path,
+    api_key,
+    keyterms=None,
+    max_retries=DEFAULT_MAX_RETRIES,
+    language_code=None,
+    tag_audio_events=True,
+    num_speakers=None,
+    diarization_threshold=None,
+    timestamps_granularity="word",
+    use_multi_channel=False,
+    multichannel_output_style="combined",
+):
     if ElevenLabs is None:
         raise TranscriptionError("MISSING_DEPENDENCY", "The 'elevenlabs' package is required for ElevenLabs transcription. Install with: pip install elevenlabs")
     elevenlabs = ElevenLabs(api_key=api_key)
@@ -174,7 +240,22 @@ def transcribe_audio(file_path, api_key, keyterms=None, max_retries=DEFAULT_MAX_
         try:
             with open(file_path, "rb") as audio_file:
                 response = elevenlabs.speech_to_text.convert(
-                    file=audio_file, model_id="scribe_v2", diarize=True, keyterms=keyterms
+                    file=audio_file,
+                    model_id="scribe_v2",
+                    tag_audio_events=tag_audio_events,
+                    language_code=language_code,
+                    diarize=not use_multi_channel,
+                    num_speakers=num_speakers if not use_multi_channel else None,
+                    diarization_threshold=(
+                        diarization_threshold if not use_multi_channel else None
+                    ),
+                    timestamps_granularity=timestamps_granularity,
+                    no_verbatim=False,
+                    keyterms=keyterms,
+                    use_multi_channel=use_multi_channel,
+                    multichannel_output_style=(
+                        multichannel_output_style if use_multi_channel else None
+                    ),
                 )
             return format_transcription(response, os.path.basename(file_path))
         except TranscriptionError:
@@ -249,7 +330,22 @@ def atomic_write(path, content):
             os.unlink(temporary_path)
 
 
-def process_file(audio_path, folder_path, api_key, keyterms=None, max_file_size_mb=DEFAULT_MAX_FILE_SIZE_MB, max_retries=DEFAULT_MAX_RETRIES, gemini_api_key=None):
+def process_file(
+    audio_path,
+    folder_path,
+    api_key,
+    keyterms=None,
+    max_file_size_mb=DEFAULT_MAX_FILE_SIZE_MB,
+    max_retries=DEFAULT_MAX_RETRIES,
+    gemini_api_key=None,
+    language_code=None,
+    tag_audio_events=True,
+    num_speakers=None,
+    diarization_threshold=None,
+    timestamps_granularity="word",
+    use_multi_channel=False,
+    multichannel_output_style="combined",
+):
     filename = os.path.basename(audio_path)
     base_name, _ = os.path.splitext(filename)
     output_dir = os.path.dirname(audio_path)
@@ -265,7 +361,19 @@ def process_file(audio_path, folder_path, api_key, keyterms=None, max_file_size_
 
         if api_key:
             try:
-                text = transcribe_audio(audio_path, api_key, keyterms, max_retries)
+                text = transcribe_audio(
+                    audio_path,
+                    api_key,
+                    keyterms,
+                    max_retries,
+                    language_code,
+                    tag_audio_events,
+                    num_speakers,
+                    diarization_threshold,
+                    timestamps_granularity,
+                    use_multi_channel,
+                    multichannel_output_style,
+                )
             except TranscriptionError as error:
                 if gemini_api_key:
                     elevenlabs_error = error
@@ -293,6 +401,25 @@ def main():
     parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
     parser.add_argument("--max-file-size-mb", type=int, default=DEFAULT_MAX_FILE_SIZE_MB)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
+    parser.add_argument("--language-code", help="ISO-639-1 or ISO-639-3 language code")
+    parser.add_argument("--num-speakers", type=int, choices=range(1, 33))
+    parser.add_argument("--diarization-threshold", type=float)
+    parser.add_argument(
+        "--no-tag-audio-events",
+        action="store_true",
+        help="Disable ElevenLabs audio-event tags such as laughter or applause",
+    )
+    parser.add_argument(
+        "--timestamps-granularity",
+        choices=("none", "word", "character"),
+        default="word",
+    )
+    parser.add_argument("--use-multi-channel", action="store_true")
+    parser.add_argument(
+        "--multichannel-output-style",
+        choices=("separate", "combined"),
+        default="combined",
+    )
     args = parser.parse_args()
     if args.max_workers < 1 or args.max_file_size_mb < 1 or args.max_retries < 1:
         parser.error("--max-workers, --max-file-size-mb, and --max-retries must be positive integers.")
@@ -311,7 +438,26 @@ def main():
 
     results, errors = [], []
     with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
-        futures = {executor.submit(process_file, path, args.folder_path, elevenlabs_key, normalize_keyterms(args.keyterms), args.max_file_size_mb, args.max_retries, gemini_key): path for path in audio_files}
+        futures = {
+            executor.submit(
+                process_file,
+                path,
+                args.folder_path,
+                elevenlabs_key,
+                normalize_keyterms(args.keyterms),
+                args.max_file_size_mb,
+                args.max_retries,
+                gemini_key,
+                args.language_code,
+                not args.no_tag_audio_events,
+                args.num_speakers,
+                args.diarization_threshold,
+                args.timestamps_granularity,
+                args.use_multi_channel,
+                args.multichannel_output_style,
+            ): path
+            for path in audio_files
+        }
         for future in as_completed(futures):
             path = futures[future]
             try:
