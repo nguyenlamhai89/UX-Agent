@@ -16,7 +16,6 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Type**: `dict`
 - **Format**:
   - `folder_path` (string, required): The absolute path to the directory containing audio files.
-  - `keyterms` (list of strings, optional): Specific keywords or vocabulary to prioritize during transcription.
   - `language_code` (string): Always `vi` for this workflow (Vietnamese, ISO-639-1). The transcription command passes `vi` by default.
   - `num_speakers` (integer, optional): Expected maximum speaker count from 1 to 32; use only for single-channel diarization.
   - `diarization_threshold` (number, optional): ElevenLabs diarization threshold from `0.1` to `0.4`.
@@ -41,7 +40,6 @@ The orchestrator should trigger this skill when the user requests audio transcri
   {
     "folder_path": "/Users/madebynham/Desktop/interviews/round-1",
     "api_key": "YOUR_ELEVENLABS_API_KEY",
-    "keyterms": ["ux research", "wireframes", "prototyping"]
   }
   ```
 
@@ -98,7 +96,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 ## Custom Instructions
 
 - **Live documentation requirement**: Before every transcription run, the orchestrator must run `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/check_elevenlabs_docs.py --strict`. The checker fetches the official Speech to Text overview, quickstart/tutorial, batch how-to guides, realtime event reference, and Create transcript API reference. If a page is unavailable or its API markers changed, stop and review the live documentation before changing or running the ElevenLabs path.
-- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--language-code vi] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-retries 3]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
+- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--language-code vi] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-retries 3]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
 - **ElevenLabs request contract**: Keep `model_id="scribe_v2"`, `language_code="vi"`, `diarize=true` for normal interview recordings, `timestamps_granularity="word"`, `tag_audio_events=true`, and `no_verbatim=false` by default so filler words and false starts remain available for UX-research evidence. For multichannel recordings, use `use_multi_channel=true`, disable diarization/`num_speakers`, and use `multichannel_output_style="combined"` unless a caller explicitly needs separate channel responses.
 - **Feature boundaries**: This skill handles prerecorded batch files. ElevenLabs realtime WebSocket and webhook workflows are documentation references only and are not silently substituted into this local-file pipeline.
 - The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
@@ -130,7 +128,7 @@ sequenceDiagram
     User->>Orchestrator: "Transcribe the audio files in the Interview folder"
     activate Orchestrator
     
-    Orchestrator->>Skill: Execute `transcribe.py` with folder_path, api_keys, & optional keyterms
+    Orchestrator->>Skill: Execute `transcribe.py` with folder_path and api_keys
     activate Skill
     
     loop For each audio file

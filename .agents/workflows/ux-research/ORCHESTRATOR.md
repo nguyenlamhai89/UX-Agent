@@ -32,8 +32,8 @@ workflow-owned skill.
    unavailable. Read the workspace-root `.env` once and resolve the API keys and
    credentials (`ELEVENLABS_API_KEY`, `GEMINI_API_KEY`, `GMAIL_APP_USERNAME`, `GMAIL_APP_PASSWORD`)
    required by this run. Never log, persist in artifacts, or expose key values.
-1. **Run `ux-interview`** — Pass the absolute `folder_path`, required keyterms,
-   and the transcription keys (`ELEVENLABS_API_KEY` and/or `GEMINI_API_KEY`)
+1. **Run `ux-interview`** — Pass the absolute `folder_path` and the
+   transcription keys (`ELEVENLABS_API_KEY` and/or `GEMINI_API_KEY`)
    loaded by the parent. At least one transcription key is required. The child
    orchestrator must not read `.env`; it injects the received keys only into the
    `transcribe-audios` process. Preserve all approval gates and continue only
