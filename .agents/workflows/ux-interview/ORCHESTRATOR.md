@@ -35,7 +35,7 @@ never reads `.env` directly.
    stop before making an ElevenLabs request and review the docs. Then require at
    least one of `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by
    `ux-research`, inject them into the skill process environment, and transcribe
-   with keyterms and the documented batch options. ElevenLabs is tried first;
+   with `language_code=vi`, keyterms, and the documented batch options. ElevenLabs is tried first;
    Gemini is used as an automatic fallback. Never read `.env` or expose keys in
    logs or output artifacts. **Halts workflow and returns detailed per-file
    error codes on failure.**

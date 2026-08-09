@@ -13,6 +13,7 @@ def test_normalize_keyterms_and_timestamp():
     assert transcribe.normalize_keyterms(" ux, ,research ") == ["ux", "research"]
     assert transcribe.normalize_keyterms("") is None
     assert transcribe.format_timestamp(65.9) == "01:05"
+    assert transcribe.DEFAULT_LANGUAGE_CODE == "vi"
 
 
 def test_format_transcription_preserves_word_spacing():

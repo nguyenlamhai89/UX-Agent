@@ -44,6 +44,7 @@ SUPPORTED_EXTENSIONS = {
 DEFAULT_MAX_WORKERS = 5
 DEFAULT_MAX_FILE_SIZE_MB = 3072
 DEFAULT_MAX_RETRIES = 3
+DEFAULT_LANGUAGE_CODE = "vi"
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_TRANSCRIPT_PROMPT = """Transcribe this audio file completely and accurately.
 
@@ -225,7 +226,7 @@ def transcribe_audio(
     api_key,
     keyterms=None,
     max_retries=DEFAULT_MAX_RETRIES,
-    language_code=None,
+    language_code=DEFAULT_LANGUAGE_CODE,
     tag_audio_events=True,
     num_speakers=None,
     diarization_threshold=None,
@@ -338,7 +339,7 @@ def process_file(
     max_file_size_mb=DEFAULT_MAX_FILE_SIZE_MB,
     max_retries=DEFAULT_MAX_RETRIES,
     gemini_api_key=None,
-    language_code=None,
+    language_code=DEFAULT_LANGUAGE_CODE,
     tag_audio_events=True,
     num_speakers=None,
     diarization_threshold=None,
@@ -401,7 +402,12 @@ def main():
     parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
     parser.add_argument("--max-file-size-mb", type=int, default=DEFAULT_MAX_FILE_SIZE_MB)
     parser.add_argument("--max-retries", type=int, default=DEFAULT_MAX_RETRIES)
-    parser.add_argument("--language-code", help="ISO-639-1 or ISO-639-3 language code")
+    parser.add_argument(
+        "--language-code",
+        choices=(DEFAULT_LANGUAGE_CODE,),
+        default=DEFAULT_LANGUAGE_CODE,
+        help="Language is fixed to Vietnamese (vi) for this workflow",
+    )
     parser.add_argument("--num-speakers", type=int, choices=range(1, 33))
     parser.add_argument("--diarization-threshold", type=float)
     parser.add_argument(

@@ -17,7 +17,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Format**:
   - `folder_path` (string, required): The absolute path to the directory containing audio files.
   - `keyterms` (list of strings, optional): Specific keywords or vocabulary to prioritize during transcription.
-  - `language_code` (string, optional): ISO-639-1 or ISO-639-3 language code when the recording language is known; otherwise language detection remains enabled.
+  - `language_code` (string): Always `vi` for this workflow (Vietnamese, ISO-639-1). The transcription command passes `vi` by default.
   - `num_speakers` (integer, optional): Expected maximum speaker count from 1 to 32; use only for single-channel diarization.
   - `diarization_threshold` (number, optional): ElevenLabs diarization threshold from `0.1` to `0.4`.
   - `tag_audio_events` (boolean, optional): Include events such as laughter or applause; defaults to `true`.
@@ -98,8 +98,8 @@ The orchestrator should trigger this skill when the user requests audio transcri
 ## Custom Instructions
 
 - **Live documentation requirement**: Before every transcription run, the orchestrator must run `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/check_elevenlabs_docs.py --strict`. The checker fetches the official Speech to Text overview, quickstart/tutorial, batch how-to guides, realtime event reference, and Create transcript API reference. If a page is unavailable or its API markers changed, stop and review the live documentation before changing or running the ElevenLabs path.
-- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--language-code eng] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-retries 3]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
-- **ElevenLabs request contract**: Keep `model_id="scribe_v2"`, `diarize=true` for normal interview recordings, `timestamps_granularity="word"`, `tag_audio_events=true`, and `no_verbatim=false` by default so filler words and false starts remain available for UX-research evidence. Pass `language_code` only when known. For multichannel recordings, use `use_multi_channel=true`, disable diarization/`num_speakers`, and use `multichannel_output_style="combined"` unless a caller explicitly needs separate channel responses.
+- **Execution Method**: The orchestrator supplies the environment variable, then runs: `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/transcribe.py <folder_path> [--keyterms "term1,term2"] [--language-code vi] [--num-speakers 2] [--timestamps-granularity word] [--max-workers 5] [--max-file-size-mb 3072] [--max-retries 3]`. Audio-event tagging is enabled by default; use `--no-tag-audio-events` only when explicitly requested.
+- **ElevenLabs request contract**: Keep `model_id="scribe_v2"`, `language_code="vi"`, `diarize=true` for normal interview recordings, `timestamps_granularity="word"`, `tag_audio_events=true`, and `no_verbatim=false` by default so filler words and false starts remain available for UX-research evidence. For multichannel recordings, use `use_multi_channel=true`, disable diarization/`num_speakers`, and use `multichannel_output_style="combined"` unless a caller explicitly needs separate channel responses.
 - **Feature boundaries**: This skill handles prerecorded batch files. ElevenLabs realtime WebSocket and webhook workflows are documentation references only and are not silently substituted into this local-file pipeline.
 - The script automatically writes the `transcript_<filename>.md` file in the same `Interview` directory as the input audio file.
 
@@ -187,6 +187,7 @@ sequenceDiagram
 | `NO_AUDIO_FILES` when audio is in `folder_path` directly | Script strictly expected an `Interview` subfolder, failing if audio files were placed directly in `folder_path`. | Updated `get_audio_files` and `process_file` to fall back to searching and writing directly in `folder_path` if no `Interview` subfolder is found. |
 | API supported more formats than the local scanner | The scanner only matched `.mp3`, `.m4a`, and `.qta`, while the Speech to Text documentation lists broader audio/video support. | Replaced glob-only matching with a case-insensitive supported-extension set covering the documented audio/video formats. |
 | Audio-event and advanced STT options were not forwarded | The local request only sent model, diarization, and keyterms, so documented event tagging, language hints, speaker limits, timestamps, and multichannel options were unavailable. | Added documented batch parameters with interview-safe defaults and normalized multichannel responses before Markdown rendering. |
+| Vietnamese language detection could vary between recordings | The request left `language_code` unset, allowing automatic language detection to choose a different language or variant. | The workflow now defaults to and documents `language_code="vi"` for Vietnamese interviews. |
 
 ## Performance Improvement Solutions
 
