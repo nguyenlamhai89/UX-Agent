@@ -98,10 +98,11 @@ To ensure the workspace remains fully portable and syncs seamlessly via iCloud:
 - **Automatic push**: At the end of every task where any files in the workspace are created, modified, or deleted, the agent MUST automatically stage, commit, and push the changes to GitHub (`git add .`, `git commit -m "update: [short summary of changes]"`, `git push origin develop`) to ensure the remote repository is always in sync with the local workspace. All changes MUST be committed to the `develop` branch until the user explicitly requests to merge or commit to `main`.
 
 ## API Key Management & .env Creation
-- **Parent workflow ownership**: The former complete UX research pipeline
-  owner has been removed. Do not introduce a replacement `.env` reader
-  without an explicit workflow-specific security rule. Child orchestrators and
-  skills MUST NOT read `.env` directly.
+- **Parent workflow ownership**: `.agents/workflows/ux-report/ORCHESTRATOR.md`
+  may read the workspace-root `.env` solely for `GMAIL_APP_USERNAME` and
+  `GMAIL_APP_PASSWORD`, which it passes in memory only to `send-email`. No
+  other workflow or skill may read `.env` directly without an explicit
+  workflow-specific security rule.
 - **Missing API Keys**: Whenever a workflow or skill requires an API key (e.g. `ELEVENLABS_API_KEY`), but the key is not found in `.env` or the `.env` file does not exist in the workspace root:
   1. The agent MUST proactively check for or create a `.env` file in the workspace root.
   2. The agent MUST ask the user directly to provide the required API key.
@@ -117,4 +118,3 @@ Whenever running a skill and any required inputs (such as folder paths, mandator
    - **Action required**: Give clear, step-by-step instructions on what the user needs to upload, place, or provide.
    - **Resume instructions**: Tell the user what response or command to send back once they have provided the missing inputs.
 4. **Wait for User Response**: The agent MUST wait for explicit user confirmation or input before resuming execution.
-

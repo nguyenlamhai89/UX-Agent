@@ -55,6 +55,10 @@ UX Agent được tổ chức theo mô hình **Orchestrator → Skills**, gồm 
 │   ├── visualize-insights/          # 📊 Tạo báo cáo HTML tương tác (universal)
 │   └── send-email/                  # ✉️ Gửi email qua Gmail SMTP (universal)
 ├── workflows/
+│   ├── ux-report/                    # 📄 Tạo report HTML & gửi Gmail
+│   │   ├── ORCHESTRATOR.md
+│   │   ├── skills/                    # Reference đến universal skills
+│   │   └── tests/
 │   ├── ux-interview/                 # 🎤 Orchestrator phỏng vấn
 │   │   ├── ORCHESTRATOR.md
 │   │   └── skills/
@@ -78,8 +82,8 @@ Các workflow và skill không tự đọc `.env`; calling orchestrator truyền
 | Key | Đường truyền |
 | --- | --- |
 | `ELEVENLABS_API_KEY` | Calling orchestrator → `ux-interview` → `transcribe-audios` |
-| `GMAIL_APP_USERNAME` | Calling orchestrator → `send-email` |
-| `GMAIL_APP_PASSWORD` | Calling orchestrator → `send-email` |
+| `GMAIL_APP_USERNAME` | `.env` → `ux-report` → `send-email` |
+| `GMAIL_APP_PASSWORD` | `.env` → `ux-report` → `send-email` |
 
 ---
 
@@ -175,7 +179,7 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 
 ## 🔐 Bảo mật (Security)
 
-- **API Key cách ly**: Calling orchestrator truyền key qua chuỗi ủy quyền; skill không bao giờ hardcode, log, hoặc ghi key vào file output.
+- **API Key cách ly**: `ux-report` chỉ đọc Gmail credentials từ `.env` để gửi report; skill không bao giờ hardcode, log, hoặc ghi key vào file output.
 - **Token phê duyệt email**: Email chỉ được gửi khi người dùng xác nhận bằng từ khóa phê duyệt hợp lệ (ví dụ: `ok`, `yes`, `gửi`, `approved`) hoặc cung cấp đúng token bảo mật (content-bound SHA-256).
 - **Atomic writes**: Tất cả file output quan trọng được ghi qua file tạm rồi thay thế nguyên tử (atomic replace), tránh hỏng dữ liệu khi gián đoạn.
 - **Kiểm thử tự động**: Mỗi skill có unit test riêng, mỗi workflow có E2E test kiểm tra toàn bộ pipeline.
