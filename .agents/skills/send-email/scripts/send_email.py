@@ -1,4 +1,4 @@
-"""Prepare and send approved BCC-only Gmail SMTP messages from a configured sender."""
+"""Prepare and send approved CC-only Gmail SMTP messages from a configured sender."""
 
 from __future__ import annotations
 
@@ -228,7 +228,6 @@ def extract_top_insights(project_dir: Path, html_file: Path | None = None) -> li
 
 def build_formal_email_content(
     report_filename: str,
-    sender_email: str = "nguyenlamhai89@gmail.com",
     project_dir: Path | None = None,
     html_file: Path | None = None,
 ) -> tuple[str, str, str]:
@@ -331,9 +330,9 @@ def prepare_email_draft(
     visualization_result: Mapping[str, Any],
     *,
     folder_path: str,
-    cc_recipients: Sequence[str] | None = None,
+    cc_recipients: Sequence[str],
+    gmail_app_username: str,
     bcc_recipients: Sequence[str] | None = None,
-    sender_email: str = "nguyenlamhai89@gmail.com",
 ) -> dict[str, Any]:
     """Validate an email draft and return the exact approval token required to send it."""
 
@@ -351,19 +350,21 @@ def prepare_email_draft(
                 "Visualization output_file is required for email drafting.",
             )
 
-        raw_recipients = cc_recipients if cc_recipients is not None else bcc_recipients
-        field_name = "cc_recipients" if cc_recipients is not None else ("bcc_recipients" if bcc_recipients is not None else "cc_recipients")
+        if bcc_recipients is not None:
+            raise ValidationError(
+                "INVALID_RECIPIENTS",
+                "Recipients must be supplied in cc_recipients; BCC is not supported.",
+            )
 
-        validated_sender = _validate_sender_email(sender_email)
+        validated_sender = _validate_sender_email(gmail_app_username)
         project_dir = _validate_folder_path(folder_path)
         attachment_path = _validate_attachment(
             visualization_result["output_file"],
             report_dir=project_dir / "Interview",
         )
-        recipients = _normalize_recipients(raw_recipients, field_name=field_name)
+        recipients = _normalize_recipients(cc_recipients, field_name="cc_recipients")
         generated_subject, generated_body, generated_html_body = build_formal_email_content(
             Path(attachment_path).name,
-            validated_sender,
             project_dir=project_dir,
             html_file=Path(attachment_path),
         )
@@ -512,8 +513,8 @@ def send_approved_email(
     draft_result: Mapping[str, Any],
     *,
     approval_token: str | None,
-    gmail_app_username: str | None = None,
-    gmail_app_password: str | None = None,
+    gmail_app_username: str | None,
+    gmail_app_password: str | None,
     timeout_seconds: float = 30.0,
 ) -> dict[str, Any]:
     """Send an intact draft exactly once via Gmail SMTP after its content-bound token is approved."""
@@ -537,8 +538,8 @@ def send_approved_email(
         ):
             raise ValidationError("INVALID_INPUT", "timeout_seconds must be a positive finite number.")
 
-        username = (gmail_app_username or draft["from"]).strip()
-        password = (gmail_app_password or "").strip()
+        username = gmail_app_username.strip() if isinstance(gmail_app_username, str) else ""
+        password = gmail_app_password.strip() if isinstance(gmail_app_password, str) else ""
 
         if not username or not password:
             return _error(
@@ -546,7 +547,14 @@ def send_approved_email(
                 "Both GMAIL_APP_USERNAME and GMAIL_APP_PASSWORD must be configured in .env to send emails.",
             )
 
-        return _send_via_smtp(draft, username, password, float(timeout_seconds))
+        validated_username = _validate_sender_email(username)
+        if validated_username.casefold() != draft["from"].casefold():
+            return _error(
+                "GMAIL_SENDER_MISMATCH",
+                "GMAIL_APP_USERNAME must match the sender shown in the approved draft.",
+            )
+
+        return _send_via_smtp(draft, validated_username, password, float(timeout_seconds))
     except ValidationError as error:
         return _error(error.code, error.message)
     except Exception:
