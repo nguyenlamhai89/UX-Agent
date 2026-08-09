@@ -117,8 +117,14 @@ chỉ giữ chúng trong bộ nhớ để gọi `send-email`.
 
 ## 🔄 Quy trình làm việc (Workflow Pipeline)
 
-Khi chạy toàn bộ nghiên cứu, caller gọi ba workflow theo thứ tự. Mỗi workflow
-giữ các cổng phê duyệt của riêng mình và chỉ nhận artifact chuẩn từ bước trước:
+Khi chạy toàn bộ nghiên cứu, caller gọi ba workflow theo thứ tự:
+`ux-interview` → `ux-map-journey` → `ux-report`. Mỗi workflow có pipeline và
+cổng phê duyệt riêng, được mô tả chi tiết bên dưới.
+
+### 1. Workflow `ux-interview`
+
+Workflow này tạo questionnaire, chuyển âm, ánh xạ transcript và tổng hợp
+insights. Sau mỗi artifact quan trọng, workflow dừng để người dùng phê duyệt.
 
 ```mermaid
 sequenceDiagram
@@ -130,51 +136,96 @@ sequenceDiagram
     participant STT as 🎙️ transcribe-audios
     participant MT as 🎯 map-transcript
     participant SA as 💡 saturate-insights
-    participant UXM as 🗺️ ux-map-journey
-    participant UXR as 📄 ux-report
-    participant ENV as 🔐 .env
-    participant VIS as 📊 visualize-insights
-    participant EMAIL as ✉️ send-email
-
     User->>Caller: Bắt đầu nghiên cứu UX
     Caller->>UXI: folder_path + ELEVENLABS_API_KEY
-    
-    Note over UXI,CQT: 1. Questionnaire
     UXI->>CQT: Đọc Excel / Google Sheet / ảnh
-    CQT-->>UXI: full-questionnaire.md
-    UXI-->>User: 🛡️ Phê duyệt bảng câu hỏi
-
-    Note over UXI,MT: 2. Chuyển âm & ánh xạ
-    UXI->>STT: Chuyển âm ghi âm thành văn bản
-    Note right of STT: ElevenLabs Speech to Text
-    STT-->>UXI: transcript-*.md
-    UXI-->>User: 🛡️ Phê duyệt bản chuyển âm
+    CQT-->>UXI: Interview/full-questionnaire.md
+    UXI-->>User: 🛡️ Gate 1 — Phê duyệt questionnaire
+    User-->>UXI: Xác nhận tiếp tục
+    UXI->>STT: Chuyển âm audio/video bằng ElevenLabs
+    STT-->>UXI: Interview/transcript_*.md + metadata
+    UXI-->>User: 🛡️ Gate 2 — Phê duyệt transcript
+    User-->>UXI: Xác nhận tiếp tục
     UXI->>MT: Ánh xạ câu trả lời nguyên văn
-    MT-->>UXI: mapped-transcript.md
-    UXI-->>User: 🛡️ Phê duyệt bảng ánh xạ
+    MT-->>UXI: Interview/mapped-transcript.md
+    UXI-->>User: 🛡️ Gate 3 — Phê duyệt mapped transcript
+    User-->>UXI: Xác nhận tiếp tục
+    UXI->>SA: Tổng hợp insight và data saturation
+    SA-->>UXI: Interview/insights.md
+    UXI-->>User: 🛡️ Gate 4 — Phê duyệt insights
+    User-->>UXI: Xác nhận hoàn tất
+    UXI-->>Caller: mapped-transcript.md + insights.md + transcripts
+```
 
-    UXI->>SA: Tổng hợp insight & bão hòa
-    SA-->>UXI: insights.md
-    UXI-->>User: 🛡️ Phê duyệt insights
-    UXI-->>Caller: mapped-transcript.md + insights.md
+### 2. Workflow `ux-map-journey`
 
-    Caller->>UXM: Interview/ chứa mapped-transcript.md
-    UXM-->>Caller: Journey Map/journey-map.md
-    UXM-->>User: 🛡️ Phê duyệt journey map
+Workflow này nhận `mapped-transcript.md`, tạo dữ liệu theo 5 phase, diễn giải
+từng phase và ghép thành customer journey map. Mỗi skill chạy tuần tự và có
+approval gate trước khi chuyển sang skill tiếp theo.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 Người dùng
+    participant Caller as 🤖 Calling Agent
+    participant UXM as 🗺️ ux-map-journey
+    participant EM as 🧩 extract-phases
+    participant IP as 🤖 interpret-phases
+    participant XM as 🧱 extract-map
+
+    Caller->>UXM: folder_path chứa Interview/mapped-transcript.md
+    UXM->>EM: Trích xuất 5 phase từ cột Theme
+    EM-->>UXM: Awareness, Consideration, Decision,
+    EM-->>UXM: Usage, Advocacy phase files
+    UXM-->>User: 🛡️ Gate 5a — Phê duyệt phase extraction
+    User-->>UXM: Xác nhận tiếp tục
+    UXM->>IP: Diễn giải từng phase bằng Built-in AI
+    IP-->>UXM: Goal, touchpoints, actions, pain points,
+    IP-->>UXM: emotion và opportunities cho từng phase
+    UXM-->>User: 🛡️ Gate 5b — Phê duyệt phase interpretation
+    User-->>UXM: Xác nhận tiếp tục
+    UXM->>XM: Ghép các phase bằng script deterministic
+    XM-->>UXM: Journey Map/journey-map.md
+    UXM-->>User: 🛡️ Gate 5c — Phê duyệt journey map
+    User-->>UXM: Xác nhận hoàn tất
+    UXM-->>Caller: journey-map.md
+```
+
+### 3. Workflow `ux-report`
+
+Workflow này nhận các artifact chuẩn, tạo report HTML trước, rồi mới hỏi
+recipients và gửi email. Có hai cổng phê duyệt độc lập: phê duyệt report và
+phê duyệt email draft.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 Người dùng
+    participant Caller as 🤖 Calling Agent
+    participant UXR as 📄 ux-report
+    participant VIS as 📊 visualize-insights
+    participant EMAIL as ✉️ send-email
+    participant ENV as 🔐 .env
+    participant SMTP as 📬 Gmail SMTP
 
     Caller->>UXR: Canonical report inputs
-    UXR->>VIS: Tạo HTML + manifest
-    VIS-->>UXR: <project_name>.html
-    UXR-->>User: 🛡️ Phê duyệt report
-    UXR-->>User: Hỏi người nhận CC
-    User-->>UXR: Danh sách email CC
-    UXR->>ENV: Đọc Gmail credentials trong bộ nhớ
-    UXR->>EMAIL: Tạo draft với Gmail username + CC
-    EMAIL-->>UXR: Draft + approval token
-    UXR-->>User: Xem và phê duyệt draft
-    User-->>UXR: Xác nhận gửi
-    UXR->>EMAIL: Gửi bằng Gmail username + app password
-    EMAIL-->>User: ✉️ Báo cáo đã gửi thành công
+    UXR->>VIS: Tạo HTML + freshness manifest
+    VIS-->>UXR: <project_name>.html + manifest
+    UXR-->>User: 🛡️ Gate 6 — Xem và phê duyệt report HTML
+    User-->>UXR: Phê duyệt report
+    UXR-->>User: Yêu cầu recipients runtime
+    User-->>UXR: Danh sách recipients
+    UXR->>ENV: Đọc GMAIL_APP_USERNAME/PASSWORD
+    ENV-->>UXR: Credentials chỉ giữ trong memory
+    UXR->>EMAIL: prepare_email_draft(report, CC, username)
+    EMAIL-->>UXR: Draft đầy đủ + approval token
+    UXR-->>User: 🛡️ Gate 7 — Xem draft, CC, attachment, token
+    User-->>UXR: Xác nhận gửi / approval token
+    UXR->>EMAIL: send_approved_email(draft, username, password)
+    EMAIL->>SMTP: SMTP login và gửi file HTML qua CC
+    SMTP-->>EMAIL: Gửi thành công
+    EMAIL-->>UXR: Delivery result
+    UXR-->>User: ✉️ Báo cáo đã gửi
 ```
 
 ---
