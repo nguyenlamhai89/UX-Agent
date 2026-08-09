@@ -30,7 +30,7 @@ def _prepare(tmp_path, **overrides):
         "visualization_result": {"status": "success", "output_file": str(report)},
         "folder_path": str(project),
         "cc_recipients": ["research@example.com"],
-        "sender_email": "nguyenlamhai89@gmail.com",
+        "gmail_app_username": "configured.sender@example.com",
     }
     payload.update(overrides)
     return send_email.prepare_email_draft(**payload), project, report
@@ -44,7 +44,7 @@ def test_prepare_email_draft_is_cc_and_content_bound(tmp_path):
 
     assert result["status"] == "awaiting_approval"
     assert result["sent"] is False
-    assert result["draft"]["from"] == "nguyenlamhai89@gmail.com"
+    assert result["draft"]["from"] == "configured.sender@example.com"
     assert result["draft"]["to"] == []
     assert result["draft"]["cc"] == ["First@example.com", "second@example.com"]
     assert result["draft"]["bcc"] == []
@@ -55,12 +55,24 @@ def test_prepare_email_draft_is_cc_and_content_bound(tmp_path):
     assert result["approval_token"] == f"{send_email.APPROVAL_PREFIX}{result['draft']['draft_id']}"
 
 
-def test_prepare_accepts_custom_sender_email(tmp_path):
-    result, _, _ = _prepare(tmp_path, sender_email="custom.sender@example.com")
+def test_prepare_uses_gmail_username_as_sender(tmp_path):
+    result, _, _ = _prepare(tmp_path, gmail_app_username="custom.sender@example.com")
     assert result["status"] == "awaiting_approval"
     assert result["draft"]["from"] == "custom.sender@example.com"
     assert "Nguyễn Lâm Hải (nhâm)" in result["draft"]["body"]
     assert "UX Designer" in result["draft"]["body"]
+
+
+def test_prepare_requires_the_gmail_username_from_caller(tmp_path):
+    result, _, _ = _prepare(tmp_path, gmail_app_username="")
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "INVALID_INPUT"
+
+
+def test_prepare_rejects_bcc_recipients(tmp_path):
+    result, _, _ = _prepare(tmp_path, bcc_recipients=["person@example.com"])
+    assert result["status"] == "error"
+    assert result["error"]["code"] == "INVALID_RECIPIENTS"
 
 
 def test_prepare_accepts_valid_skipped_visualization(tmp_path):
@@ -69,6 +81,7 @@ def test_prepare_accepts_valid_skipped_visualization(tmp_path):
         {"status": "skipped", "output_file": str(report)},
         folder_path=str(project),
         cc_recipients=["person@example.com"],
+        gmail_app_username="configured.sender@example.com",
     )
     assert result["status"] == "awaiting_approval"
 
@@ -84,6 +97,7 @@ def test_prepare_accepts_report_directly_in_interview(tmp_path):
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
         cc_recipients=["person@example.com"],
+        gmail_app_username="configured.sender@example.com",
     )
     assert result["status"] == "awaiting_approval"
     assert result["draft"]["attachment_path"] == str(report)
@@ -118,6 +132,7 @@ def test_prepare_rejects_an_unsafe_report_filename(tmp_path):
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
         cc_recipients=["person@example.com"],
+        gmail_app_username="configured.sender@example.com",
     )
     assert result["error"]["code"] == "INVALID_SUBJECT"
 
@@ -127,6 +142,7 @@ def test_prepare_rejects_relative_missing_and_wrong_extension_attachments(tmp_pa
     base = {
         "folder_path": str(project),
         "cc_recipients": ["person@example.com"],
+        "gmail_app_username": "configured.sender@example.com",
     }
     for path in ("relative.html", str(report.with_name("missing.html")), str(report.with_suffix(".txt"))):
         result = send_email.prepare_email_draft(
@@ -168,6 +184,7 @@ def test_prepare_rejects_symlink_that_escapes_report_directory(tmp_path):
         {"status": "success", "output_file": str(link)},
         folder_path=str(project),
         cc_recipients=["person@example.com"],
+        gmail_app_username="configured.sender@example.com",
     )
     assert result["error"]["code"] == "ATTACHMENT_OUTSIDE_REPORT_DIR"
 
@@ -178,13 +195,13 @@ def test_send_requires_valid_approval_without_smtp_call(tmp_path):
         missing = send_email.send_approved_email(
             draft,
             approval_token=None,
-            gmail_app_username="user@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="pwd",
         )
         invalid = send_email.send_approved_email(
             draft,
             approval_token="invalid_random_string",
-            gmail_app_username="user@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="pwd",
         )
     assert missing["status"] == "cancelled"
@@ -200,7 +217,7 @@ def test_send_accepts_affirmative_approval_keywords(tmp_path, keyword):
         result = send_email.send_approved_email(
             draft,
             approval_token=keyword,
-            gmail_app_username="user@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="pwd",
         )
     assert result["status"] == "success"
@@ -215,7 +232,7 @@ def test_send_rejects_modified_draft_without_smtp_call(tmp_path):
         result = send_email.send_approved_email(
             modified,
             approval_token=modified["approval_token"],
-            gmail_app_username="user@example.com",
+            gmail_app_username=modified["draft"]["from"],
             gmail_app_password="pwd",
         )
     assert result["error"]["code"] == "INVALID_INPUT"
@@ -228,10 +245,23 @@ def test_send_requires_gmail_credentials(tmp_path):
         missing_pwd = send_email.send_approved_email(
             draft,
             approval_token=draft["approval_token"],
-            gmail_app_username="user@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="",
         )
     assert missing_pwd["error"]["code"] == "GMAIL_CONFIG_MISSING"
+    mock_smtp.assert_not_called()
+
+
+def test_send_rejects_gmail_username_mismatch(tmp_path):
+    draft, _, _ = _prepare(tmp_path)
+    with patch("smtplib.SMTP") as mock_smtp:
+        result = send_email.send_approved_email(
+            draft,
+            approval_token=draft["approval_token"],
+            gmail_app_username="other.sender@example.com",
+            gmail_app_password="pwd",
+        )
+    assert result["error"]["code"] == "GMAIL_SENDER_MISMATCH"
     mock_smtp.assert_not_called()
 
 
@@ -239,7 +269,7 @@ def test_successful_send_via_smtp(tmp_path):
     draft, _, report = _prepare(
         tmp_path,
         cc_recipients=["one@example.com", "two@example.com"],
-        sender_email="sender@example.com",
+        gmail_app_username="sender@example.com",
     )
 
     mock_server = MagicMock()
@@ -247,7 +277,7 @@ def test_successful_send_via_smtp(tmp_path):
         result = send_email.send_approved_email(
             draft,
             approval_token=draft["approval_token"],
-            gmail_app_username="sender@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="app-password-123",
             timeout_seconds=15.0,
         )
@@ -294,7 +324,7 @@ def test_send_maps_smtp_failures(tmp_path, side_effect, code):
         result = send_email.send_approved_email(
             draft,
             approval_token=draft["approval_token"],
-            gmail_app_username="sender@example.com",
+            gmail_app_username=draft["draft"]["from"],
             gmail_app_password="wrong-password",
         )
 
@@ -323,6 +353,7 @@ def test_prepare_extracts_top_insights_from_insights_data_json(tmp_path):
         {"status": "success", "output_file": str(report)},
         folder_path=str(project),
         cc_recipients=["person@example.com"],
+        gmail_app_username="configured.sender@example.com",
     )
     assert result["status"] == "awaiting_approval"
     assert "📌 Một số điểm nhấn quan trọng (Top Insights):" in result["draft"]["body"]
@@ -330,4 +361,3 @@ def test_prepare_extracts_top_insights_from_insights_data_json(tmp_path):
     assert "• **Theme B**: Insight text B" in result["draft"]["body"]
     assert "font-size: 16px" in result["draft"]["html_body"]
     assert "<strong>Theme A</strong>: Insight text A" in result["draft"]["html_body"]
-

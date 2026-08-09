@@ -9,11 +9,12 @@ description: Converts insights.md, mapped-transcript.md, all interviewee transcr
 
 This skill converts user research insights (`insights.md`) and mapped transcripts (`mapped-transcript.md`) into a visual, interactive HTML dashboard (`<project name>.html`). It uses a specific predefined HTML template structure (split into modules for ease of management) and leverages deterministic Python parsing to accurately populate the layout.
 
-In the complete research workflow, this skill is the terminal stage of
-`ux-interview` → `ux-map-journey` → `visualize-insights`. It consumes the transcript
-and insight artifacts produced by `ux-interview`, plus the journey map
-produced by `ux-map-journey`, to visualize the final research findings. It may also be
-invoked independently without a journey map.
+In the complete research flow, `ux-interview` and `ux-map-journey` produce the
+canonical artifacts, then `ux-report` invokes this universal skill before its
+`send-email` stage. This skill consumes the transcript and insight artifacts
+produced by `ux-interview`, plus the journey map produced by `ux-map-journey`,
+to visualize the final research findings. It may also be invoked independently
+without a journey map.
 
 ## Input
 
