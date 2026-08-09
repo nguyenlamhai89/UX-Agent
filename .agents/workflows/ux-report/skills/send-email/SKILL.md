@@ -1,13 +1,13 @@
 ---
 name: send-email
-description: Prepares a formal Vietnamese CC draft from a configured Gmail sender for the HTML report returned by visualize-insights, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token. Use after visualize-insights, including from the ux-report workflow, when users want to email a completed UX research report to specified recipients.
+description: Prepares a formal Vietnamese CC draft from a configured Gmail sender for the HTML report returned by the preceding visualize-insights stage, shows the complete draft for approval, and sends the exact report attachment via Gmail SMTP (smtplib) only after the user provides the content-bound approval token.
 ---
 
 # Send Email
 
 ## Description
 
-Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gmail.com:587`) using the Gmail account supplied by the caller from `.env` (`GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD`). The skill itself never reads `.env`. Use the deterministic `scripts/send_email.py` helper to generate a formal Vietnamese subject and body, validate the visualization handoff, enforce approval, and send the message. Always ask the user who should receive the report, keep To and BCC empty, place every recipient in CC, attach the exact `output_file` returned by `visualize-insights`, and never send before the user reviews the complete draft and repeats its exact approval token.
+Prepare and send the final UX research HTML report through Gmail SMTP (`smtp.gmail.com:587`) using the Gmail account supplied by the caller from `.env` (`GMAIL_APP_USERNAME` and `GMAIL_APP_PASSWORD`). The skill itself never reads `.env`. It is the second stage of `ux-report`: the caller must first prove that the preceding visualization completed successfully and that the user approved that report. Use the deterministic `scripts/send_email.py` helper to generate a formal Vietnamese subject and body, validate the visualization handoff, enforce approval, and send the message. Always ask the user who should receive the report, keep To and BCC empty, place every recipient in CC, attach the exact `output_file` returned by `visualize-insights`, and never send before the user reviews the complete draft and repeats its exact approval token.
 
 ## Input
 

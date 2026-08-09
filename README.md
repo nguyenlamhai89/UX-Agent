@@ -77,13 +77,13 @@ orchestrator và 10 skill chuyên biệt:
 ├── scripts/
 │   └── check_libraries.py          # Kiểm tra & cài đặt dependencies
 ├── skills/
-│   ├── analyze-skill/               # Phân tích hiệu năng skill (global)
-│   ├── visualize-insights/          # 📊 Tạo báo cáo HTML tương tác (universal)
-│   └── send-email/                  # ✉️ Gửi email qua Gmail SMTP (universal)
+│   └── analyze-skill/               # Phân tích hiệu năng skill (global)
 ├── workflows/
 │   ├── ux-report/                    # 📄 Tạo report HTML & gửi Gmail
 │   │   ├── ORCHESTRATOR.md
-│   │   ├── skills/                    # Reference đến universal skills
+│   │   ├── skills/                    # Skills thuộc workflow ux-report
+│   │   │   ├── visualize-insights/    # 📊 Tạo báo cáo HTML tương tác
+│   │   │   └── send-email/            # ✉️ Gửi email qua Gmail SMTP
 │   │   └── tests/
 │   ├── ux-interview/                 # 🎤 Orchestrator phỏng vấn
 │   │   ├── ORCHESTRATOR.md
@@ -223,7 +223,7 @@ UX Agent luôn đảm bảo an toàn và tính chính xác bằng cách **hỏi 
 
 - **API Key cách ly**: `ux-interview` nhận `ELEVENLABS_API_KEY` từ caller và không đọc `.env`. Chỉ `ux-report` đọc `GMAIL_APP_USERNAME` và `GMAIL_APP_PASSWORD` từ `.env`.
 - **Gmail credentials**: `ux-report` chỉ giữ credentials trong bộ nhớ, truyền username vào draft và chỉ truyền password vào bước SMTP sau approval. `send-email` không tự đọc `.env`.
-- **Người nhận email**: `ux-report` luôn hỏi người nhận ở mỗi lần chạy; mọi địa chỉ chỉ nằm trong CC, To và BCC luôn rỗng.
+- **Người nhận email**: Chỉ sau khi người dùng phê duyệt report HTML, `ux-report` mới hỏi người nhận ở mỗi lần chạy; mọi địa chỉ chỉ nằm trong CC, To và BCC luôn rỗng.
 - **Token phê duyệt email**: Email chỉ được gửi khi người dùng xác nhận bằng từ khóa phê duyệt hợp lệ (ví dụ: `ok`, `yes`, `gửi`, `approved`) hoặc cung cấp đúng token bảo mật (content-bound SHA-256).
 - **Atomic writes**: Tất cả file output quan trọng được ghi qua file tạm rồi thay thế nguyên tử (atomic replace), tránh hỏng dữ liệu khi gián đoạn.
 - **Kiểm thử tự động**: Mỗi skill có unit test riêng, mỗi workflow có E2E test kiểm tra toàn bộ pipeline.

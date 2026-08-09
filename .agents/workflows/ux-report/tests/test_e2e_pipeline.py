@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 
 ROOT = Path(__file__).parents[4]
-VISUALIZE = ROOT / ".agents" / "skills" / "visualize-insights" / "scripts"
-SEND_EMAIL = ROOT / ".agents" / "skills" / "send-email" / "scripts"
+VISUALIZE = ROOT / ".agents" / "workflows" / "ux-report" / "skills" / "visualize-insights" / "scripts"
+SEND_EMAIL = ROOT / ".agents" / "workflows" / "ux-report" / "skills" / "send-email" / "scripts"
 sys.path[:0] = [str(VISUALIZE), str(SEND_EMAIL)]
 
 from send_email import prepare_email_draft, send_approved_email  # noqa: E402
@@ -77,6 +77,16 @@ def test_e2e_pipeline_generates_report_and_forwards_gmail_credentials(tmp_path):
     assert visualization["status"] == "success"
     assert Path(visualization["output_file"]).is_file()
     assert Path(visualization["manifest_file"]).is_file()
+
+    # Delivery is gated on runtime recipients after visualization succeeds.
+    missing_recipients = prepare_email_draft(
+        visualization,
+        folder_path=str(project),
+        cc_recipients=[],
+        gmail_app_username="configured.sender@example.com",
+    )
+    assert missing_recipients["status"] == "error"
+    assert missing_recipients["error"]["code"] == "INVALID_RECIPIENTS"
 
     loaded_env = {
         "GMAIL_APP_USERNAME": "configured.sender@example.com",
