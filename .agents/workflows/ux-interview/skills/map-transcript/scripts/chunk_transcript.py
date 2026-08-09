@@ -10,6 +10,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from workspace_paths import resolve_workspace_dir
+
 
 DEFAULT_MAX_TOKENS = 15_000
 
@@ -267,13 +269,13 @@ def chunk_transcript_file(
     transcript_file: str,
     max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> list[str]:
-    interview_dir = os.path.join(folder_path, "Interview")
-    questionnaire_path = os.path.join(interview_dir, "full-questionnaire.md")
+    workspace_dir = resolve_workspace_dir(folder_path)
+    questionnaire_path = os.path.join(workspace_dir, "full-questionnaire.md")
     questions = parse_questionnaire_questions(questionnaire_path)
     with open(transcript_file, "r", encoding="utf-8") as handle:
         transcript_text = handle.read()
     chunks = chunk_transcript(transcript_text, questions, max_tokens)
-    return write_chunks(interview_dir, transcript_file, chunks)
+    return write_chunks(workspace_dir, transcript_file, chunks)
 
 
 def main() -> None:
@@ -283,13 +285,13 @@ def main() -> None:
     parser.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     args = parser.parse_args()
 
-    interview_dir = os.path.join(args.folder_path, "Interview")
-    questionnaire_path = os.path.join(interview_dir, "full-questionnaire.md")
+    workspace_dir = resolve_workspace_dir(args.folder_path)
+    questionnaire_path = os.path.join(workspace_dir, "full-questionnaire.md")
     if not os.path.isdir(args.folder_path):
         print(f"Error: '{args.folder_path}' is not a valid directory.")
         raise SystemExit(1)
-    if not os.path.isdir(interview_dir):
-        print(f"Error: '{interview_dir}' does not exist.")
+    if not os.path.isdir(workspace_dir):
+        print(f"Error: '{workspace_dir}' does not exist.")
         raise SystemExit(1)
     if not os.path.isfile(questionnaire_path):
         print("Error: full-questionnaire.md not found.")

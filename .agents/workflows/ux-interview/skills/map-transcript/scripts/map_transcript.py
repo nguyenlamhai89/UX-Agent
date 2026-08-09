@@ -17,6 +17,7 @@ from validate_mapping import (
     parse_markdown_table as parse_table,
 )
 from validate_mapping import validate_mapping
+from workspace_paths import resolve_workspace_dir
 
 
 REVIEW_FILE_PATTERN = re.compile(r"mapped-transcript-(?:partial-)?review-\d+\.md$")
@@ -175,17 +176,21 @@ def _collect_columns(
     allow_partial: bool,
     include_audio_names: set[str] | None = None,
 ) -> tuple[list[list[str]], list[IntervieweeColumn], list[dict]]:
-    interview_dir = os.path.join(folder_path, "Interview")
-    questionnaire_path = find_questionnaire(interview_dir)
+    workspace_dir = resolve_workspace_dir(folder_path)
+    questionnaire_path = find_questionnaire(workspace_dir)
     if not questionnaire_path:
-        raise FileNotFoundError("full-questionnaire.md not found in Interview.")
+        raise FileNotFoundError(
+            "full-questionnaire.md not found in the resolved mapping directory."
+        )
     questionnaire = parse_table(questionnaire_path)
     if questionnaire.headers != BASE_HEADERS or not questionnaire.rows:
         raise ValueError("full-questionnaire.md has an invalid table structure.")
 
-    transcripts = find_transcripts(interview_dir)
+    transcripts = find_transcripts(workspace_dir)
     if not transcripts:
-        raise ValueError("No transcript_<audio_name>.md files found in Interview.")
+        raise ValueError(
+            "No transcript_<audio_name>.md files found in the resolved mapping directory."
+        )
 
     columns: list[IntervieweeColumn] = []
     failures: list[dict] = []
@@ -200,7 +205,7 @@ def _collect_columns(
                 {"audio_name": audio_name, "code": "INCOMPLETE_MAPPING", "issues": []}
             )
             continue
-        mapped_path = os.path.join(interview_dir, f"mapped-transcript-{audio_name}.md")
+        mapped_path = os.path.join(workspace_dir, f"mapped-transcript-{audio_name}.md")
         if not os.path.isfile(mapped_path):
             failures.append(
                 {"audio_name": audio_name, "code": "MISSING_MAPPED_FILE", "issues": []}
@@ -258,7 +263,7 @@ def merge_mapping_outputs(
     """Validate all expected users and generate canonical or explicit partial outputs."""
     if review_batch_size <= 0:
         raise ValueError("review_batch_size must be greater than zero")
-    interview_dir = os.path.join(folder_path, "Interview")
+    workspace_dir = resolve_workspace_dir(folder_path)
     base_rows, columns, failures = _collect_columns(
         folder_path,
         allow_partial=allow_partial,
@@ -268,7 +273,7 @@ def merge_mapping_outputs(
     combined_name = (
         "mapped-transcript.partial.md" if failures else "mapped-transcript.md"
     )
-    combined_path = os.path.join(interview_dir, combined_name)
+    combined_path = os.path.join(workspace_dir, combined_name)
     review_prefix = (
         "mapped-transcript-partial-review" if failures else "mapped-transcript-review"
     )
@@ -278,13 +283,13 @@ def merge_mapping_outputs(
         batch = columns[offset : offset + review_batch_size]
         review_index = offset // review_batch_size + 1
         review_path = os.path.join(
-            interview_dir,
+            workspace_dir,
             f"{review_prefix}-{review_index:02d}.md",
         )
         _atomic_write(review_path, _render_table(base_rows, batch))
         review_paths.append(review_path)
 
-    for existing in glob.glob(os.path.join(interview_dir, f"{review_prefix}-*.md")):
+    for existing in glob.glob(os.path.join(workspace_dir, f"{review_prefix}-*.md")):
         if existing not in review_paths and REVIEW_FILE_PATTERN.fullmatch(
             os.path.basename(existing)
         ):
@@ -295,7 +300,7 @@ def merge_mapping_outputs(
         if failures
         else "mapping-review-manifest.md"
     )
-    review_manifest_path = os.path.join(interview_dir, review_manifest_name)
+    review_manifest_path = os.path.join(workspace_dir, review_manifest_name)
     _atomic_write(review_manifest_path, _render_review_manifest(columns, status))
     _atomic_write(combined_path, _render_table(base_rows, columns))
 
@@ -304,7 +309,7 @@ def merge_mapping_outputs(
         "combined_file": combined_path,
         "review_files": review_paths,
         "review_manifest": review_manifest_path,
-        "total_expected": len(find_transcripts(interview_dir)),
+        "total_expected": len(find_transcripts(workspace_dir)),
         "total_mapped": len(columns),
         "failures": failures,
     }

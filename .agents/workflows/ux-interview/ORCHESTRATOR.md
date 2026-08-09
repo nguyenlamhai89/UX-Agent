@@ -8,7 +8,7 @@ description: Orchestrates UX research workflows by routing requests to transcrib
 ## Description
 The UX Interview orchestrates UX research tasks, delegating user requests to the appropriate skills. Its core capabilities include:
 1. **Questionnaire Table Extraction**: Reading a question table from a Google Sheet link, Excel file (.xlsx/.xls tab "2. Questionnaire"), or image to produce a structured `full-questionnaire.md`.
-2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs (primary) or Google Gemini (fallback).
+2. **Audio Transcription**: Converting interview audio into Markdown transcripts using ElevenLabs Speech to Text.
 3. **Transcript Mapping**: Mapping interviewee responses from transcripts to the questionnaire structure.
 4. **Insights Saturation**: Synthesizing responses into a structured `insights.md` and saturation matrix.
 
@@ -26,18 +26,22 @@ never reads `.env` directly.
 1. **Folder Creation & Data Preparation**: Create a folder named `Interview` inside the provided `folder_path`. Move all input files (e.g., images and audio files) from `folder_path` into this `Interview` folder. All subsequent skills MUST read their inputs from and place their outputs inside this `Interview` folder.
 2. **Questionnaire Extraction** (`create-questionnaire-table`): Extracts table from Google Sheet link, Excel file (tab `"2. Questionnaire"`), or image to `full-questionnaire.md`. If no Excel questionnaire file (`.xlsx`), Google Sheet URL, or question table image is found, halt and prompt the user to upload an Excel questionnaire file (`.xlsx`) downloaded from the template into the project folder, or provide a public Google Sheet URL.
 3. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
-4. **Keyterms Prompting**: Ask user for specific keyterms for transcription. **[CRITICAL] STOP** and wait for the user to provide keyterms. Do NOT execute step 5 automatically.
-5. **Audio Transcription** (`transcribe-audios`): Require at least one of
-   `ELEVENLABS_API_KEY` or `GEMINI_API_KEY` supplied by `ux-research`, inject
-   them into the skill process environment, then transcribe with keyterms.
-   ElevenLabs is tried first; Gemini is used as an automatic fallback. Never
-   read `.env` or expose keys in logs or output artifacts. **Halts workflow
-   and returns detailed per-file error codes on failure.**
-6. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
-7. **Transcript Mapping** (`map-transcript`): Run the controller preflight, process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. Every mapped quote MUST be a complete verbatim turn from that interviewee's source transcript, with the exact timestamp, wording, spelling, and punctuation; never truncate, paraphrase, translate, or correct it. The controller enforces this source equality before promotion. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
-8. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
-9. **Insights Saturation** (`saturate-insights`): Run only after `map-transcript` finalization returns `status: success`; the adjacent mapping manifest must also record `canonical_current: true`. Pass exactly `{"mapped_transcript_file": "<folder_path>/Interview/mapped-transcript.md"}`; do not pass the folder, per-interviewee mappings, partial/review files, or `temp_insights.json`. The skill verifies the adjacent mapping manifest, extracts participants in controller-bounded batches of at most 4, grounds every quote against the canonical combined table, consolidates evidence in bounded batches, and atomically publishes auditable insight outputs.
-10. **Approval**: **[CRITICAL] STOP** and wait for user approval. Workflow complete.
+4. **Audio Transcription** (`transcribe-audios`): First run
+   `python3 .agents/workflows/ux-interview/skills/transcribe-audios/scripts/check_elevenlabs_docs.py --strict`
+   to fetch and verify the current official ElevenLabs Speech to Text overview,
+   tutorial/quickstart, batch how-to guides, realtime event reference, and API
+   reference. If the live contract has changed or the docs are unavailable,
+   stop before making an ElevenLabs request and review the docs. Then require
+   `ELEVENLABS_API_KEY` supplied by `ux-research`, inject it into the skill
+   process environment, and transcribe with `language_code=vi` and the
+   documented batch options. Never read `.env` or expose keys in
+   logs or output artifacts. **Halts workflow and returns detailed per-file
+   error codes on failure.**
+5. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
+6. **Transcript Mapping** (`map-transcript`): Run the controller preflight, which resolves the shared workspace as a complete `Interview/` handoff first and otherwise the direct folder. Process controller-issued tasks in batches of at most 4 Antigravity subagents, validate and atomically promote each candidate, then finalize. Every mapped quote MUST be a complete verbatim turn from that interviewee's source transcript, with the exact timestamp, wording, spelling, and punctuation; never truncate, paraphrase, translate, or correct it. The controller accepts `[M+:SS]` timestamps, including recordings longer than 999 minutes. A `partial` result MUST halt the workflow before insights; `mapped-transcript.md` is current only after a `success` finalization. The controller also generates review tables in groups of 5 interviewees and `mapping-review-manifest.md` for larger studies such as 20 participants.
+7. **Approval**: **[CRITICAL] STOP** and wait for user approval. Do NOT proceed until the user replies.
+8. **Insights Saturation** (`saturate-insights`): Run only after `map-transcript` finalization returns `status: success`; the adjacent mapping manifest must also record `canonical_current: true`. Pass exactly `{"mapped_transcript_file": "<folder_path>/Interview/mapped-transcript.md"}`; do not pass the folder, per-interviewee mappings, partial/review files, or `temp_insights.json`. The skill verifies the adjacent mapping manifest, extracts participants in controller-bounded batches of at most 4, grounds every quote against the canonical combined table, consolidates evidence in bounded batches, and atomically publishes auditable insight outputs.
+9. **Approval**: **[CRITICAL] STOP** and wait for user approval. Workflow complete.
 
 
 **Isolated Requests (Keyword-based)**:
@@ -56,8 +60,8 @@ never reads `.env` directly.
 
 ## Input & Output
 **Input**: Natural language request, a folder path, and an `api_keys` mapping
-provided by the parent for the full workflow. Transcription requires at least one
-of `api_keys.ELEVENLABS_API_KEY` or `api_keys.GEMINI_API_KEY`; isolated
+provided by the parent for the full workflow. Transcription requires
+`api_keys.ELEVENLABS_API_KEY`; isolated
 `saturate-insights` requests require the absolute canonical
 `Interview/mapped-transcript.md` path and no API key.
 **Output**: Skill execution result (e.g., status, generated file paths).
@@ -66,8 +70,6 @@ of `api_keys.ELEVENLABS_API_KEY` or `api_keys.GEMINI_API_KEY`; isolated
 - **Allowed to access `.env`**: `false`
 - **ELEVENLABS_API_KEY**: Received from `ux-research` and injected only into
   `transcribe-audios`.
-- **GEMINI_API_KEY**: Received from `ux-research` and injected only into
-  `transcribe-audios` as a fallback transcription provider.
 
 ## Sequence Diagram
 ```mermaid
@@ -91,34 +93,36 @@ sequenceDiagram
     UXI-->>User: 3. Ask for approval
     User->>UXI: Approve
     
-    UXI-->>User: 4. Prompt for keyterms
-    User->>UXI: Provide keyterms
-    
-    UXI->>STT: 5. Inject received key and transcribe
+    UXI->>UXI: 4a. Live ElevenLabs Speech to Text docs preflight
+    alt Docs unavailable or contract changed
+        UXI-->>User: Halt and request docs review/update
+    else Docs verified
+    UXI->>STT: 4. Inject received key and transcribe
     
     alt Transcription Error
         STT-->>UXI: Return error
         UXI-->>User: Halt & show error code
     else Success
         STT-->>UXI: Return transcripts
-        UXI-->>User: 6. Ask for approval
+        UXI-->>User: 5. Ask for approval
         User->>UXI: Approve
 
-        UXI->>MT: 7. Prepare, bounded-map, validate, finalize
+        UXI->>MT: 6. Prepare, bounded-map, validate, finalize
         alt Partial Mapping
             MT-->>UXI: Return PARTIAL_MAPPING; canonical unchanged
             UXI-->>User: Halt with per-transcript failures
         else Complete Mapping
             MT-->>UXI: Return canonical + review outputs
-            UXI-->>User: 8. Ask for approval
+            UXI-->>User: 7. Ask for approval
             User->>UXI: Approve
 
-            UXI->>SA: 9. Pass canonical mapped-transcript.md only
+            UXI->>SA: 8. Pass canonical mapped-transcript.md only
             Note over SA: Verify mapping manifest,<br/>extract ≤4 at a time,<br/>ground and consolidate evidence
             SA-->>UXI: Return atomic insights set + review manifest
-            UXI-->>User: 10. Ask for approval
+            UXI-->>User: 9. Ask for approval
             User->>UXI: Approve
         end
+    end
     end
     UXI-->>FO: Return result
     deactivate UXI
@@ -126,14 +130,18 @@ sequenceDiagram
 ```
 
 ## Error Handling
-| Error Scenario | Fallback Behavior |
+| Error Scenario | Handling |
 | --- | --- |
 | `UNKNOWN_INTENT` | Ask for clarification or list capabilities. |
 | `SKILL_FAILURE` | Log and return graceful failure message. |
 | `INVALID_INPUT` | Return validation error for missing folder/format. |
-| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide at least one transcription key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) from the workspace `.env`. |
+| `MISSING_API_KEY` | Halt before transcription and ask `ux-research` to provide `ELEVENLABS_API_KEY` from the workspace `.env`. |
 | `PARTIAL_MAPPING` | Halt before insights, preserve the prior canonical mapped transcript, and show per-transcript failures. |
 | `RETRY_EXHAUSTED` | Halt mapping after the controller limit and ask the user to inspect the recorded diagnostic. |
+| `INVALID_MANIFEST` | Preserve mapping outputs; remove or repair the malformed `mapping-manifest.json` in the resolved workspace, then run mapping `prepare` again. |
+| `NO_MANIFEST` | Run mapping `prepare` before `status`, `next-batch`, `record-success`, `record-failure`, or `finalize`. |
+| `UNKNOWN_TASK` | Do not promote a candidate; rerun `prepare`, obtain a fresh `next-batch`, and use its exact `audio_name`. |
+| `INVALID_STATE` | Do not repeat completion for a non-running task; request the next batch or rerun `prepare` if sources changed. |
 | `SOURCE_TIMESTAMP_NOT_FOUND` / `NON_VERBATIM_RESPONSE` | Retry the affected mapped row using the complete timestamped source turn exactly as written in that interviewee's transcript. |
 | `UPSTREAM_MAPPING_NOT_SUCCESS` | Halt insights; only a complete current canonical mapping may continue. |
 | `UPSTREAM_SIGNATURE_MISMATCH` | Rerun map-transcript preflight; do not consume a modified or stale canonical file. |

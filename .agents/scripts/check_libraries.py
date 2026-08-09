@@ -7,8 +7,9 @@ from importlib.metadata import version, PackageNotFoundError
 # Libraries to check for workflows and skills in this workspace
 LIBRARIES = {
     "elevenlabs": "Required for voice synthesis and audio transcription in the ElevenLabs Transcribe skill.",
+    "docling": "Required for PDF extraction in the Convert Research Paper to Markdown skill.",
     "matplotlib": "Required for rendering insights charts and matrices in the Saturate Insights skill.",
-    "pytest": "Required for running the unit tests of skills and workflows."
+    "pytest": "Required for running the unit tests of skills and workflows.",
 }
 
 def get_installed_version(pkg):

@@ -1,57 +1,59 @@
 # Skill Performance Analysis: transcribe-audios
 
-> Last updated: 2026-07-23
+> Last updated: 2026-08-09 — ElevenLabs-only implementation
 
----
+## Current provider policy
 
-## 1. ⚡ Execution Efficiency
+`transcribe-audios` uses only ElevenLabs Speech to Text (Scribe v2). The only
+accepted credential is `ELEVENLABS_API_KEY`, delegated from `ux-research` to
+`ux-interview` and then injected into the skill process. A failed request is
+retried only when ElevenLabs classifies it as transient; the skill does not
+switch to another transcription service.
 
-| Criteria | 2026-07-06 | 2026-07-14 | 2026-07-23 | 2026-07-23 |
-|----------|---------- | ---------- | ---------- | ----------|
-| Execution Time | • **7/10** — Five workers improve throughput, but the hard-coded limit cannot adapt to host capacity or API quotas. • **Solution**: Make worker count and a rate-limit cap configurable. | N/A | • **8/10** — Processes files concurrently with default 5 workers via ThreadPoolExecutor. Atomic writes prevent partial corruption. Could benefit from chunked streaming for files exceeding 100MB. | • **8/10** — Processes files concurrently with default 5 workers via ThreadPoolExecutor. Atomic writes prevent partial file corruption. Could benefit from chunked streaming for files exceeding 100MB. |
-| API Call Count | • **9/10** — Existing outputs are skipped before API submission; each pending file makes one conversion request per attempt. • No improvement needed. | N/A | • **9/10** — Makes 1 API call per file for ElevenLabs STT. Efficient fallback to Gemini API only when ElevenLabs fails. Valid existing transcripts are skipped without extra API calls. | • **9/10** — Makes 1 API call per file for ElevenLabs STT. Efficient fallback to Gemini API only when ElevenLabs fails. Valid existing transcripts are skipped without extra API calls. |
-| Token Usage | • **9/10** — This is an audio STT integration, not an LLM prompt workflow; keyterms are compact. • No improvement needed. | N/A | • **9/10** — ElevenLabs is direct audio STT. Gemini fallback system prompt is concise and structured under 10 lines. | • **9/10** — ElevenLabs is direct audio STT. Gemini fallback system prompt is concise and structured under 10 lines. |
-| Resource Consumption | • **7/10** — No temporary files persist, but large-file upload pressure is unmanaged. • **Solution**: Add a maximum input size and lower concurrency above a documented threshold. | N/A | • **8/10** — Clean temporary file cleanup via atomic_write and try...finally deletion of Gemini uploaded files. | • **8/10** — Clean temporary file cleanup via atomic_write and try...finally deletion of Gemini uploaded files. |
+## Current performance assessment
 
----
+| Category | Criterion | Before | Current | Evidence and remaining limitation |
+| --- | --- | ---: | ---: | --- |
+| Execution efficiency | Execution time | 8/10 | 8/10 | Configurable worker pool keeps file-level parallelism; provider retry backoff can increase time for failed files. |
+| Execution efficiency | API call count | 8/10 | 9/10 | A valid, current output is skipped; every pending file makes only ElevenLabs attempts under the configured retry limit. |
+| Execution efficiency | Request payload efficiency | 8/10 | 9/10 | The direct Speech to Text request sends only audio and optional keyterms, with no extra model prompt or provider handoff. |
+| Execution efficiency | Resource consumption | 7/10 | 9/10 | Bounded submission enforces `max_inflight_mb`; a single oversized-in-budget file runs alone rather than accumulating uploads. |
+| Output quality | Output completeness | 8/10 | 9/10 | JSON success, partial-failure, per-file attempt, duration, and cost fields are documented; transcript and metadata are atomically published. |
+| Output quality | Format compliance | 8/10 | 9/10 | A completed transcript requires the named header and at least one timestamped speaker segment. |
+| Output quality | Content accuracy | 7/10 | 8/10 | Word-level formatting preserves spacing and source terms; accuracy still ultimately depends on the recording and STT model. |
+| Output quality | Human approval rate | 8/10 | 8/10 | Regression coverage supports review quality, but no production approval telemetry is collected. |
+| Workflow fit | I/O contract adherence | 9/10 | 10/10 | Skill, child orchestrator, parent orchestrator, and README now agree on the single required key and output contract. |
+| Workflow fit | Skip-logic compatibility | 6/10 | 10/10 | Skip requires valid Markdown plus a matching source fingerprint in the metadata sidecar. |
+| Workflow fit | Pipeline passthrough rate | 8/10 | 9/10 | Per-file errors retain successes and unexpected future failures are normalized to `FUTURE_ERROR`. |
+| Workflow fit | Idempotency | 8/10 | 10/10 | Unchanged audio skips deterministically; changed audio invalidates the prior transcript. |
+| Reliability | Error rate | 7/10 | 9/10 | Local parameter validation, terminal/transient error classification, and documented dependency/duration/budget errors stop avoidable bad requests. |
+| Reliability | Error recoverability | 7/10 | 9/10 | Atomic writes, per-file isolation, and clear error envelopes preserve recoverable batch state. |
+| Reliability | Retry success rate | 8/10 | 9/10 | ElevenLabs-only retries use exponential backoff, jitter, `Retry-After`, and a shared local request limiter. |
+| Reliability | Known-bug recurrence | 8/10 | 10/10 | Tests cover strict output validation, source freshness, bounded scheduling, cost budgets, and prior formatting defects. |
+| Cost and scalability | Cost per execution | 6/10 | 9/10 | Optional orchestrator-provided pricing reports duration/cost estimates and can halt a batch before calls exceed a budget. |
+| Cost and scalability | Scaling behavior | 7/10 | 9/10 | Worker, request-rate, per-file-size, and aggregate-in-flight-byte controls provide size- and quota-aware scheduling. |
+| Cost and scalability | Unit-test coverage and pass rate | 8/10 | 9/10 | 22 focused tests mock external API behavior and cover success, error, freshness, budget, and scheduling paths. Coverage percentage is not measured because `pytest-cov` is unavailable. |
+| Cost and scalability | Operational observability | 6/10 | 9/10 | Metadata records source fingerprint, provider, model, attempts, duration, estimated cost, and pricing version without retaining secrets. |
 
-## 2. 🎯 Output Quality & Accuracy
+## Implemented improvements: previous version vs. current version
 
-| Criteria | 2026-07-06 | 2026-07-14 | 2026-07-23 | 2026-07-23 |
-|----------|---------- | ---------- | ---------- | ----------|
-| Output Completeness | • **7/10** — SKILL.md's top-level output schema conflicts with the CLI/example data envelope. • **Solution**: Document the exact CLI schema, including partial-failure fields. | N/A | • **9/10** — Comprehensive output schema returning transcripts list, total count, and structured errors on partial failure. | • **9/10** — Comprehensive output schema returning transcripts list, total count, and structured errors on partial failure. |
-| Format Compliance | • **8/10** — Naming and Markdown formatting are deterministic, with a diarization fallback. • No improvement needed. | N/A | • **9/10** — Strict Markdown output headers and speaker timestamp blocks. Rejects empty transcriptions automatically. | • **9/10** — Strict Markdown output headers and speaker timestamp blocks. Rejects empty transcriptions automatically. |
-| Content Accuracy | • **7/10** — Empty or malformed transcription text can be saved as completed output. • **Solution**: Validate non-empty transcription text per file before writing. | N/A | • **9/10** — Preserves word spacing during ElevenLabs word-level assembly. Gemini prompt enforces verbatim accuracy and handles keyterms. | • **9/10** — Preserves word spacing during ElevenLabs word-level assembly. Gemini prompt enforces verbatim accuracy and handles keyterms. |
-| Human Approval Rate | • **8/10** — Prior output defects are documented and the resulting transcript is readable. • No improvement needed. | N/A | • **9/10** — Thorough regression tests prevent past output issues (spacing, keyterms, atomic writes) from recurring. | • **9/10** — Thorough regression tests prevent past output issues (spacing, keyterms, atomic writes) from recurring. |
+| Area | Previous version | Current version |
+| --- | --- | --- |
+| Provider and credential | Accepted two transcription-key paths and could change provider after an error. | Requires only `ELEVENLABS_API_KEY`; all request paths call ElevenLabs Scribe v2. |
+| Failure handling | A provider switch made final provider, attempt, and cost behavior less predictable. | Keeps ElevenLabs terminal errors per file; retries only transient ElevenLabs errors with jitter and `Retry-After`. |
+| Output freshness | A file could be skipped based on a weak transcript-existence check. | Requires valid named Markdown segments plus matching `stat` or `sha256` source fingerprint metadata. |
+| Write safety | Transcript publication was atomic but did not have source provenance. | Atomically writes both transcript and non-secret metadata sidecar. |
+| Upload pressure | Five workers could submit several very large files at once. | Limits aggregate active bytes with `--max-inflight-mb` and bounded task submission. |
+| Rate control | No shared provider-wide client limiter. | Adds `--requests-per-minute` and shares a backoff window across ElevenLabs workers. |
+| Cost control | No cost estimate or preflight guard. | Uses optional orchestrator-supplied ElevenLabs pricing, `ffprobe` duration probing, and `--max-estimated-cost-usd`. |
+| Documentation | Provider/key instructions differed between skill, workflow, and README. | Skill, `ux-interview`, `ux-research`, and README consistently document ElevenLabs-only operation. |
+| Tests | Focused on the former multi-provider execution paths. | Removes those paths and verifies the ElevenLabs-only contract, strict skip validation, freshness, size budget, and cost guard. |
 
----
+## Known Bugs & Resolutions
 
-## 3. 🔗 Workflow Fit
-
-| Criteria | 2026-07-06 | 2026-07-14 | 2026-07-23 | 2026-07-23 |
-|----------|---------- | ---------- | ---------- | ----------|
-| I/O Contract Adherence | • **7/10** — API-key documentation conflicts and the stated built-in-AI fallback is absent. • **Solution**: Choose one key-delivery contract and remove or implement that fallback. | N/A | • **9/10** — Strictly adheres to inputs from ux-interview (Interview/ directory, injected API keys, optional keyterms) and produces outputs expected by map-transcript. | • **9/10** — Strictly adheres to inputs from ux-interview (Interview/ directory, injected API keys, optional keyterms) and produces outputs expected by map-transcript. |
-| Skip-Logic Compatibility | • **7/10** — File existence alone treats zero-byte or interrupted transcripts as valid. • **Solution**: Validate an existing transcript before returning skipped. | N/A | • **9/10** — is_valid_transcript ensures intact file headers and non-empty content before skipping execution. | • **9/10** — is_valid_transcript ensures intact file headers and non-empty content before skipping execution. |
-| Pipeline Passthrough Rate | • **7/10** — Per-file errors retain successes, but future.result exceptions can escape and failures collapse to API_ERROR. • **Solution**: Guard future results and emit documented, specific error codes. | N/A | • **9/10** — Returns structured PARTIAL_FAILURE envelope when individual files fail, giving upstream orchestrators clear visibility. | • **9/10** — Returns structured PARTIAL_FAILURE envelope when individual files fail, giving upstream orchestrators clear visibility. |
-| Idempotency | • **7/10** — Duplicate uploads are avoided, but partial files can persist and as_completed makes ordering unstable. • **Solution**: Use atomic writes, validation, and sort returned results. | N/A | • **9/10** — Fully idempotent; re-running on identical inputs skips valid files and produces consistent output lists. | • **9/10** — Fully idempotent; re-running on identical inputs skips valid files and produces consistent output lists. |
-
----
-
-## 4. 🛡️ Reliability & Error Handling
-
-| Criteria | 2026-07-06 | 2026-07-14 | 2026-07-23 | 2026-07-23 |
-|----------|---------- | ---------- | ---------- | ----------|
-| Error Rate | • **6/10** — Broad Exception handling masks error classes and SKILL.md omits emitted codes. • **Solution**: Classify terminal versus retryable errors and document all emitted codes. | N/A | • **9/10** — Explicit error classification for retryable vs non-retryable errors across both ElevenLabs and Gemini APIs. | • **9/10** — Explicit error classification for retryable vs non-retryable errors across both ElevenLabs and Gemini APIs. |
-| Error Recoverability | • **7/10** — Batches continue after file errors, but failed writes may leave a future-skipped partial file. • **Solution**: Write atomically via a temporary sibling file then replace. | N/A | • **9/10** — Per-file exception isolation ensures batch execution continues even if one audio file fails. | • **9/10** — Per-file exception isolation ensures batch execution continues even if one audio file fails. |
-| Retry Success Rate | • **6/10** — Exponential backoff exists, but invalid credentials and requests are retried without jitter or Retry-After support. • **Solution**: Retry only transient/rate-limit failures, with jitter and Retry-After handling. | N/A | • **9/10** — Exponential backoff retry with jitter (2^attempt + jitter). Honors Retry-After header when present. | • **9/10** — Exponential backoff retry with jitter (2^attempt + jitter). Honors Retry-After header when present. |
-| Known Bug Recurrence | • **6/10** — Root causes are recorded but word-spacing and empty-keyterm fixes lack regression tests. • **Solution**: Add targeted tests for both documented bugs. | N/A | • **9/10** — Known bugs are well documented and tested. Added a dedicated regression test for unexpected future-result failures in test_transcribe.py. • **Solution**: Added unit test `test_main_handles_future_error` verifying `FUTURE_ERROR` handling for unexpected future exceptions. | • **9/10** — Known bugs are well documented and tested. Added unit tests verifying edge cases and regression scenarios. |
-
----
-
-## 5. 💰 Cost & Scalability
-
-| Criteria | 2026-07-06 | 2026-07-14 | 2026-07-23 | 2026-07-23 |
-|----------|---------- | ---------- | ---------- | ----------|
-| Cost per Execution | • **8/10** — Skip logic prevents re-billing completed files; remaining cost follows audio duration. • No improvement needed. | N/A | • **8/10** — Uses ElevenLabs Scribe v2 as primary, falling back to cost-effective Gemini 2.0 Flash. Valid transcript skipping prevents duplicate API costs. | • **8/10** — Uses ElevenLabs Scribe v2 as primary, falling back to cost-effective Gemini 2.5 Flash. Valid transcript skipping prevents duplicate API costs. |
-| Scaling Behavior | • **7/10** — Parallelism helps, but five simultaneous uploads ignore service backpressure and file size. • **Solution**: Expose worker and rate-limit settings with conservative defaults. | N/A | • **8/10** — Configurable thread pool workers (--max-workers) process multiple files concurrently with file size safety caps. | • **8/10** — Configurable thread pool workers (--max-workers) process multiple files concurrently with file size safety caps. |
-| Unit Test Coverage & Pass Rate | • **7/10** — Seven tests cover core flows, but omit keyterms, timestamps, diarized words, invalid output, and future failures. • **Solution**: Add parameterized and regression tests for those paths. | N/A | • **8/10** — 16 unit tests passing 100% in 1.33 seconds. Mocks external APIs cleanly. | • **9/10** — 17 unit tests passing 100% in 1.05 seconds. Mocks external APIs cleanly. |
+| Bug / error | Cause | Resolution and prevention |
+| --- | --- | --- |
+| Header-only transcript was skipped | The prior structural check accepted a title without a completed speaker block. | `is_valid_transcript` now requires the exact source-name title plus at least one timestamped speaker segment; regression test added. |
+| Replaced audio retained an old transcript | The prior skip decision did not record input provenance. | A `stat` or `sha256` source fingerprint is stored in `.meta.json` and must match before a skip; regression test added. |
+| Large mixed batches could overload uploads | Worker count did not bound aggregate file bytes. | Bounded scheduler enforces `max_inflight_mb`; concurrency regression test added. |
+| Batch cost was opaque | No duration or price information was captured. | Optional pricing/duration metadata and an explicit preflight budget guard were added; regression test added. |

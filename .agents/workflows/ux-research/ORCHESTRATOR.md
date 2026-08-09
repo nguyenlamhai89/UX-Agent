@@ -30,11 +30,11 @@ workflow-owned skill.
    `python3 .agents/scripts/check_libraries.py`. Warn about missing or outdated
    packages, but halt only when the dependency required by the next step is
    unavailable. Read the workspace-root `.env` once and resolve the API keys and
-   credentials (`ELEVENLABS_API_KEY`, `GEMINI_API_KEY`, `GMAIL_APP_USERNAME`, `GMAIL_APP_PASSWORD`)
+   credentials (`ELEVENLABS_API_KEY`, `GMAIL_APP_USERNAME`, `GMAIL_APP_PASSWORD`)
    required by this run. Never log, persist in artifacts, or expose key values.
-1. **Run `ux-interview`** — Pass the absolute `folder_path`, required keyterms,
-   and the transcription keys (`ELEVENLABS_API_KEY` and/or `GEMINI_API_KEY`)
-   loaded by the parent. At least one transcription key is required. The child
+1. **Run `ux-interview`** — Pass the absolute `folder_path` and the
+   transcription key (`ELEVENLABS_API_KEY`) loaded by the parent. This key is
+   required. The child
    orchestrator must not read `.env`; it injects the received keys only into the
    `transcribe-audios` process. Preserve all approval gates and continue only
    after the child reports a complete current canonical mapping and successful
@@ -149,8 +149,7 @@ workflow. Shared cross-workflow skills remain under `.agents/skills/`.
 
 | Key Name | Purpose | Delegation path |
 | --- | --- | --- |
-| `ELEVENLABS_API_KEY` | Interview audio transcription (primary) | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` process environment |
-| `GEMINI_API_KEY` | Interview audio transcription (fallback) | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` process environment |
+| `ELEVENLABS_API_KEY` | Interview audio transcription | `.env` → `ux-research` → `ux-interview` → `transcribe-audios` process environment |
 | `GMAIL_APP_USERNAME` | Gmail sender address / account username | `.env` → `ux-research` → `send-email` parameter |
 | `GMAIL_APP_PASSWORD` | Gmail App Password for SMTP authentication | `.env` → `ux-research` → `send-email` parameter |
 
@@ -203,11 +202,11 @@ sequenceDiagram
     Parent-->>User: Report artifacts and nested email result
 ```
 
-## Error Handling & Fallbacks
+## Error Handling
 
-| Error Code | Fallback Behavior |
+| Error Code | Handling |
 | --- | --- |
-| `MISSING_API_KEY` | Ask the user for at least one transcription key (`ELEVENLABS_API_KEY` or `GEMINI_API_KEY`) and store it only through the authorized parent environment flow. |
+| `MISSING_API_KEY` | Ask the user for `ELEVENLABS_API_KEY` and store it only through the authorized parent environment flow. |
 | `PARTIAL_MAPPING`, `UPSTREAM_MAPPING_NOT_SUCCESS`, `UPSTREAM_SIGNATURE_MISMATCH` | Halt before insights and preserve the last-known-good canonical mapping. |
 | `PARTIAL_EXTRACTION`, `PARTIAL_CONSOLIDATION`, `EXTRACTION_VALIDATION_FAILED`, `CONSOLIDATION_VALIDATION_FAILED` | Halt before journey mapping and preserve prior insight outputs. |
 | `SKILL_FAILURE`, `INVALID_INPUT` from `ux-map-journey` | Halt before visualization and present the failing journey stage. |
