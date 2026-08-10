@@ -19,6 +19,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+import openpyxl
+import pandas as pd
 from openpyxl import Workbook, load_workbook
 
 
@@ -329,7 +331,7 @@ def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expe
         final_paths = stage_paths(root, source.stem, source.name)
         log = {
             "schema_version": "1.0", "status": "success",
-            "run": {"tool_name": "clean-data-xlsx", "tool_version": SCRIPT_VERSION, "replay_mode": replay_root is not None},
+            "run": {"tool_name": "clean-data-xlsx", "tool_version": SCRIPT_VERSION, "replay_mode": replay_root is not None, "library_versions": {"openpyxl": openpyxl.__version__, "pandas": pd.__version__}},
             "input": {"source_path": str(source), "source_filename": source.name, "source_sha256": source_hash, "raw_archive_path": str(final_paths["raw"]), "raw_archive_sha256": source_hash, "raw_archive_verified": True},
             "output": {"output_dir": str(root), "cleaned_xlsx_path": str(final_paths["cleaned"]), "report_xlsx_path": str(final_paths["report"])},
             "packaged_replay_script": {"path": str(final_paths["script"]), "script_version": SCRIPT_VERSION, "sha256": script_hash, "raw_input_resolution": f"../Analysis/{source.name}", "api_key_required": False},
