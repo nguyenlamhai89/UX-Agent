@@ -1,6 +1,6 @@
 # Implementation Plan: `clean-data-xlsx`
 
-**Status:** Approved and implemented.  
+**Status:** Approved and implemented.
 **Authorization boundary:** User approval was received before implementation. The completed skill, tests, validator result, commits, and pushes follow this plan.
 
 ## 1. Confirmed requirements
