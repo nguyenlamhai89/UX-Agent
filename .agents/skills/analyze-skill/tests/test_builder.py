@@ -108,14 +108,14 @@ class TestBuildNewReport:
 
         assert "• **N/A** — No data available." in report
 
-    def test_has_score_and_analysis_format(self):
-        """Test that cells contain only score and analysis, not solutions."""
+    def test_has_score_analysis_and_solution_format(self):
+        """Test that cells include the required recommendation text."""
         analysis = _build_sample_analysis()
         report = build_new_report("my-skill", "2026-07-03", analysis)
 
         assert "• **7/10**" in report
-        assert "Solution" not in report
-        assert "No improvement needed" not in report
+        assert "• **Solution**: Solution for execution_time." in report
+        assert "• No improvement needed." in report
 
 
 class TestUpdateExistingReport:

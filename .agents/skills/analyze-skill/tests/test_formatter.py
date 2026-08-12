@@ -29,10 +29,10 @@ class TestFormatCell:
         }
         result = format_cell(data)
 
-        assert result == "• **5/10** — Needs improvement."
+        assert result == "• **5/10** — Needs improvement. • No improvement needed."
 
-    def test_cell_ignores_solutions(self):
-        """Test that passing solutions doesn't affect the cell output."""
+    def test_cell_includes_solutions(self):
+        """Test that recommendations are emitted in the required format."""
         data = {
             "score": "9/10",
             "analysis": "Excellent performance.",
@@ -40,18 +40,17 @@ class TestFormatCell:
         }
         result = format_cell(data)
 
-        assert result == "• **9/10** — Excellent performance."
-        assert "Solution" not in result
+        assert result == "• **9/10** — Excellent performance. • **Solution**: Fix the issue."
 
     def test_cell_with_missing_fields(self):
         """Test that missing fields fall back to defaults."""
         result = format_cell({})
 
-        assert result == "• **N/A** — No analysis available."
+        assert result == "• **N/A** — No analysis available. • No improvement needed."
 
     def test_cell_with_partial_fields(self):
         """Test that partially provided fields work correctly."""
         data = {"score": "6/10"}
         result = format_cell(data)
 
-        assert result == "• **6/10** — No analysis available."
+        assert result == "• **6/10** — No analysis available. • No improvement needed."

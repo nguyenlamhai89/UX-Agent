@@ -129,3 +129,26 @@ sequenceDiagram
 ### 💰 Cost & Scalability
 - [x] **Scaling Behavior**: Optimize row signature extraction in row deduplication by using batch row iterators (`ws.iter_rows`) instead of individual `ws.cell(row, col)` coordinate lookups.
 - [x] **Unit Test Coverage & Pass Rate**: Add standard `unittest` compatibility / direct execution entry point in `test_clean_data_xlsx.py` so unit tests can run via standard `python3` without requiring `pytest` as an external dependency.
+
+### ⚡ Execution Efficiency
+- [ ] **Execution Time**: Combine profiling and duplicate-signature collection where safe, and add a large-workbook benchmark with an explicit performance budget.
+
+### 🎯 Output Quality & Accuracy
+- [ ] **Format Compliance**: Make conversion choices explicit input parameters gated by confirmation, then align `SKILL.md`, error codes, rules, and log entries with the actual behavior.
+- [ ] **Content Accuracy**: Remove automatic header-name conversions or require explicit confirmed conversion settings; add regression tests proving blanks stay blank by default.
+- [ ] **Human Approval Rate**: Expose a preview/confirmation result before mutation and include every confirmed transformation in the cleaning log.
+
+### 🔗 Workflow Fit
+- [ ] **I/O Contract Adherence**: Define one callable input schema and implement its confirmation/conversion fields consistently in the CLI, Python API, `SKILL.md`, and result JSON.
+- [ ] **Pipeline Passthrough Rate**: Document every emitted error code and normalize unexpected exceptions into stable sanitized diagnostics with targeted tests.
+- [ ] **Idempotency**: Specify artifact-level idempotency semantics and test repeated runs, including hashes where determinism is promised.
+
+### 🛡️ Reliability & Error Handling
+- [ ] **Error Rate**: Complete the error contract and add tests for all documented and emitted failure paths, including unwritable output and replay failures.
+- [ ] **Error Recoverability**: Harden `publish_refresh` rollback for newly created targets and validate every staged artifact before publication.
+- [ ] **Retry Success Rate**: Add bounded retries with backoff only for classified transient filesystem errors; retain immediate failures for validation and integrity errors.
+- [ ] **Known Bug Recurrence**: Add the conversion-contract regression to Known Bugs & Resolutions after fixing it and cover it with focused tests.
+
+### 💰 Cost & Scalability
+- [ ] **Scaling Behavior**: Set supported workbook-size guidance, benchmark large sheets, and rebuild retained rows in one pass instead of repeatedly deleting rows.
+- [ ] **Unit Test Coverage & Pass Rate**: Add tests for conversion opt-in, blank preservation, every error code, refresh rollback, and idempotency; report coverage if a coverage tool is adopted.

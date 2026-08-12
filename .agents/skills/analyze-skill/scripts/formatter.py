@@ -1,9 +1,8 @@
 """
 formatter.py — Cell formatting logic for skill analysis reports.
 
-Formats individual criteria analysis data into the table cell format: 
-• **score** — analysis.
-(Solutions are added manually later upon user approval).
+Formats individual criteria analysis data into the required two-bullet table
+cell format: score/analysis plus a solution or explicit no-action statement.
 """
 
 
@@ -19,7 +18,12 @@ def format_cell(criteria_data: dict) -> str:
     score = criteria_data.get("score", "N/A")
     analysis = criteria_data.get("analysis", "No analysis available.")
 
-    # Build the analysis bullet point
+    # Build the required analysis and solution bullets.
     cell = f"• **{score}** — {analysis}"
+    solutions = criteria_data.get("solutions") or []
+    if solutions:
+        cell += f" • **Solution**: {' '.join(solutions)}"
+    else:
+        cell += " • No improvement needed."
 
     return cell
