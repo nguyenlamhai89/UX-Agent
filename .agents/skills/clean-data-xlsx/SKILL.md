@@ -1,28 +1,29 @@
 ---
 name: clean-data-xlsx
-description: Làm sạch an toàn một tệp Excel `.xlsx` bằng Python xác định, bảo toàn tệp nguồn và xuất workbook sạch, raw archive, báo cáo chất lượng, log và script tái chạy. Dùng khi cần chuẩn hóa, kiểm tra dữ liệu thiếu/trùng/sai kiểu/ngoại lệ trong một file XLSX mà không dùng API hay AI runtime.
+description: Safely cleans an Excel `.xlsx` workbook using deterministic Python logic, preserving source files while outputting a cleaned workbook, raw archive, data quality report, cleaning log, and replay script. Use when missing, duplicate, type-mismatched, or outlier data in an XLSX file needs inspection and normalization without external APIs or LLM runtimes.
 ---
 
 # Clean Data XLSX
 
 ## Description
 
-Xử lý đúng một workbook `.xlsx` bằng `openpyxl` và `pandas`; không đọc `.env`, không gọi API và không sửa file nguồn. Chỉ áp dụng thay đổi an toàn: chuẩn hóa header/khoảng trắng, giữ ID và công thức, chỉ xóa hàng dữ liệu trùng khớp hoàn toàn trong cùng sheet. Không điền dữ liệu thiếu, không sửa/xóa outlier và không join giữa các sheet.
+Safely process an Excel workbook (`.xlsx`) using `openpyxl` and `pandas` without reading `.env`, calling external APIs, or modifying the source file. Only safe and deterministic transformations are applied: normalizing headers and whitespace, preserving identifiers (IDs, codes, phone numbers, leading zeroes) and formulas, and removing strictly identical duplicate data rows within the same sheet. Missing values are never imputed, outliers are flagged rather than altered or deleted, and no cross-sheet joins are performed.
 
 ## Input
 
 - **Type**: `dict`
-- **Format**: `{ "input_xlsx_path": "<path-to-one-file.xlsx>" }`; `input_xlsx_path` là chuỗi bắt buộc, trỏ đến một file `.xlsx` tồn tại.
+- **Format**: `{ "input_xlsx_path": "<path-to-one-file.xlsx>" }`; `input_xlsx_path` is a mandatory string pointing to an existing `.xlsx` file.
 - **Location**: `file_path`
 - **Input File(s)**:
-  - `<filename>.xlsx` — một workbook Excel nguồn; file phải đọc được và không mã hóa.
+  - `<filename>.xlsx` — Source Excel workbook; must be readable and unencrypted.
 - **Examples**:
 
+  **Example 1** — Standard input path:
   ```json
   { "input_xlsx_path": "/data/Customer Data.xlsx" }
   ```
 
-Chạy helper bằng Python bundled của workspace:
+Run helper script via workspace Python:
 
 ```text
 python3 scripts/clean_data_xlsx.py "/data/Customer Data.xlsx"
@@ -31,16 +32,17 @@ python3 scripts/clean_data_xlsx.py "/data/Customer Data.xlsx"
 ## Output
 
 - **Type**: `dict`
-- **Format**: `status`, các path output, SHA-256 của raw/cleaned/script và `warnings`.
+- **Format**: Returns `status`, output file paths, SHA-256 hashes of raw archive, cleaned workbook, replay script, and any `warnings`.
 - **Location**: `file_path`
-- **Output File(s)**: Với `<stem>` là tên input không có `.xlsx`, tạo cạnh input:
-  - `<stem>/<stem>_cleaned.xlsx` — workbook đã làm sạch.
-  - `<stem>/Scripts/clean.py` — snapshot Python tự chứa, có thể chạy không đối số để tái chạy từ raw archive.
-  - `<stem>/Analysis/<original>.xlsx` — raw archive có byte giống file nguồn.
-  - `<stem>/Analysis/data_quality_report.xlsx` — Summary, thống kê sheet, missing values, duplicates, type issues, outliers, merge issues, actions và warnings.
-  - `<stem>/Analysis/cleaning_log.json` — rules, changes, hashes, validation và warnings.
+- **Output File(s)**: Where `<stem>` is the source filename without `.xlsx`, generated alongside the input file:
+  - `<stem>/<stem>_cleaned.xlsx` — Cleaned workbook.
+  - `<stem>/Scripts/clean.py` — Self-contained Python script snapshot that can be re-run without arguments to reproduce outputs from the raw archive.
+  - `<stem>/Analysis/<original>.xlsx` — Byte-identical copy of the source workbook.
+  - `<stem>/Analysis/data_quality_report.xlsx` — Summary, sheet stats, missing values, duplicates, type issues, outliers, merge issues, actions, and warnings.
+  - `<stem>/Analysis/cleaning_log.json` — Rules applied, changes made, hashes, validation checks, and warnings.
 - **Examples**:
 
+  **Example 1** — Successful execution output:
   ```json
   {
     "status": "success",
@@ -53,24 +55,24 @@ python3 scripts/clean_data_xlsx.py "/data/Customer Data.xlsx"
 
 | Field | Value | Notes |
 | --- | --- | --- |
-| **Key** | None | Không có API key, API ngoài hoặc runtime LLM. |
-| **Model** | None | Chỉ dùng Python cục bộ. |
+| **Key** | None | No external API keys or LLM runtimes required. |
+| **Model** | None | Uses local Python execution only. |
 
 ## Custom Instructions
 
-- Sau khi người dùng yêu cầu và trước khi bắt đầu quy trình clean data, agent/hệ thống MUST đọc trước dữ liệu và lập bảng xác nhận bao gồm 2 dòng (và x cột tương ứng với các cột của dữ liệu):
-  - **Dòng 1 (Header)**: Các tên tiêu đề cột dữ liệu.
-  - **Dòng 2 (Data Type)**: Kiểu dữ liệu mà hệ thống đã xác định tương ứng cho từng cột.
-  - **Quy trình chờ (Confirmation)**: Đợi người dùng xác nhận (confirm) với kiểu dữ liệu (data type) và quy tắc đặt tên (naming convention) đó trước khi tiến hành thực hiện bước clean data.
-- Xác thực extension, khả năng đọc workbook và quyền ghi ở parent folder trước khi tạo output.
-- Copy file nguồn theo byte vào `Analysis/`, kiểm tra SHA-256 trước/sau; không mở file nguồn để ghi.
-- Xử lý từng worksheet riêng; ghi `not_applicable` cho relational join analysis.
-- Chỉ chuẩn hóa header khi header text không rỗng, không trùng sau chuẩn hóa và an toàn; giữ nguyên sheet có header không chắc chắn.
-- Giữ string có leading zero, ID/code/phone/zip và mọi công thức; không type-cast dựa trên suy đoán.
-- Chỉ xóa duplicate rows hoàn toàn sau chuẩn hóa an toàn; bỏ qua dedupe khi sheet có formula hoặc merged cells để tránh làm thay đổi cấu trúc.
-- Gắn cờ missing values, mixed types, outliers, merged cells và features rủi ro thay vì tự sửa chúng.
-- Tạo toàn bộ derivative artifacts trong staging và chỉ publish khi workbook/report/log/script đã qua validation; dọn staging khi thành công hoặc lỗi.
-- Nếu output folder hiện hữu, chỉ refresh derivatives khi raw archive, log và SHA-256 khớp input hiện tại; nếu khác, trả lỗi thay vì overwrite.
+- **Pre-cleaning User Confirmation Table**: After receiving the user's request and before starting data cleaning, the agent/system MUST inspect the dataset headers and display a 2-row table (with X columns corresponding to the data columns):
+  - **Row 1 (Header)**: The column header names extracted from the dataset.
+  - **Row 2 (Data Type)**: The inferred/detected data type for each column (e.g., integer, float, string, datetime, boolean, etc.).
+  - **Confirmation Wait**: Wait for the user to confirm the data types and naming conventions before executing the actual data cleaning process.
+- Validate file extension (`.xlsx`), workbook readability, and write permissions in parent folder before generating output.
+- Copy source file byte-for-byte to `Analysis/` raw archive, verifying SHA-256 hashes before and after; never open source file for write operations.
+- Process each worksheet independently; set `not_applicable` for relational join analysis.
+- Only normalize headers when header text is non-empty, non-duplicate after normalization, and safe; preserve original headers when uncertain.
+- Preserve strings with leading zeroes, identifier codes, phone numbers, zip codes, and all formulas; do not type-cast based on guesswork.
+- Only remove exact duplicate rows after safe normalization; skip row deduplication when the sheet contains formulas or merged cells to avoid structural corruption.
+- Flag missing values, mixed data types, outliers, merged cells, and risky features rather than altering them automatically.
+- Generate all derivative artifacts in staging and only publish when workbook, report, log, and script pass validation; clean up staging directory upon success or failure.
+- If output folder exists, only refresh derivatives when raw archive, log, and SHA-256 match current input; otherwise raise an error instead of overwriting.
 
 ## Sequence Diagram
 
@@ -84,8 +86,8 @@ sequenceDiagram
 
     User->>Skill: input_xlsx_path
     Skill->>Source: validate + read-only inspect
-    Skill-->>User: Bảng xác nhận Header & Data Type (2 dòng x Cột)
-    User->>Skill: Confirm data type & naming convention
+    Skill-->>User: Confirmation Table: Header & Data Type (2 rows x N columns)
+    User->>Skill: Confirm data types & naming conventions
     Skill->>Output: stage raw copy, cleaned workbook, report, log, clean.py
     Skill->>Skill: hash and post-write validation
     Skill->>Output: atomic publish
@@ -108,6 +110,8 @@ sequenceDiagram
 
 ## Known Bugs & Resolutions
 
+> **Agent Rule (Error Handling & Bug Documentation):** In the future, when this skill encounters an error during input receiving, processing, or output generation, the AI agent must first propose a solution to the user. If the user agrees, the AI agent will fix the error. If the error is successfully fixed, the AI agent must update this 'Known Bugs & Resolutions' section with the bug, cause, and resolution.
+
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
 | Replay manifest produced a path ending in `.xlsx.xlsx` | The source extension was appended to a filename that already contained it. | Record `../Analysis/<original-filename>` directly and cover replay in tests. |
@@ -121,4 +125,3 @@ sequenceDiagram
 ### 💰 Cost & Scalability
 - [x] **Scaling Behavior**: Optimize row signature extraction in row deduplication by using batch row iterators (`ws.iter_rows`) instead of individual `ws.cell(row, col)` coordinate lookups.
 - [x] **Unit Test Coverage & Pass Rate**: Add standard `unittest` compatibility / direct execution entry point in `test_clean_data_xlsx.py` so unit tests can run via standard `python3` without requiring `pytest` as an external dependency.
-
