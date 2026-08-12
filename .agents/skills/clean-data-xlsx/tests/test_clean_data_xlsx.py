@@ -106,7 +106,7 @@ def test_creates_required_tree_preserves_raw_and_applies_safe_cleaning(case_dir:
     create_workbook(source)
     source_bytes = source.read_bytes()
 
-    result = MODULE.clean_workbook(source)
+    result = MODULE.clean_workbook(source, confirmed=True)
     root = output_root(source)
 
     assert result["status"] == "success"
@@ -133,7 +133,7 @@ def test_formula_rows_are_preserved_and_deduplication_is_skipped(case_dir: Path)
     source = case_dir / "Formula.xlsx"
     create_workbook(source, formula=True)
 
-    MODULE.clean_workbook(source)
+    MODULE.clean_workbook(source, confirmed=True)
     sheet = load_workbook(output_root(source) / "Formula_cleaned.xlsx", data_only=False)["Customers"]
     assert sheet["C7"].value == "=SUM(C2:C6)"
     assert sheet["C8"].value == "=SUM(C2:C6)"
@@ -145,7 +145,7 @@ def test_merged_cells_are_reported_and_not_removed(case_dir: Path):
     source = case_dir / "Merged.xlsx"
     create_workbook(source, merged=True)
 
-    MODULE.clean_workbook(source)
+    MODULE.clean_workbook(source, confirmed=True)
     cleaned = load_workbook(output_root(source) / "Merged_cleaned.xlsx", data_only=False)
     assert "A9:B9" in {str(item) for item in cleaned["Customers"].merged_cells.ranges}
     report = load_workbook(output_root(source) / "Analysis" / "data_quality_report.xlsx", data_only=True)
@@ -156,7 +156,7 @@ def test_uncertain_header_stays_unchanged(case_dir: Path):
     source = case_dir / "Uncertain.xlsx"
     create_workbook(source, numeric_header=True)
 
-    MODULE.clean_workbook(source)
+    MODULE.clean_workbook(source, confirmed=True)
     cleaned = load_workbook(output_root(source) / "Uncertain_cleaned.xlsx", data_only=False)
     assert cleaned["Customers"]["A1"].value == 101
     log = json.loads((output_root(source) / "Analysis" / "cleaning_log.json").read_text(encoding="utf-8"))
@@ -166,7 +166,7 @@ def test_uncertain_header_stays_unchanged(case_dir: Path):
 def test_replay_script_uses_raw_archive_without_creating_nested_folder(case_dir: Path):
     source = case_dir / "Replay.xlsx"
     create_workbook(source)
-    MODULE.clean_workbook(source)
+    MODULE.clean_workbook(source, confirmed=True)
     root = output_root(source)
 
     completed = subprocess.run([sys.executable, str(root / "Scripts" / "clean.py")], text=True, capture_output=True, check=False)
@@ -181,12 +181,12 @@ def test_replay_script_uses_raw_archive_without_creating_nested_folder(case_dir:
 def test_mismatched_existing_raw_refuses_overwrite(case_dir: Path):
     source = case_dir / "Collision.xlsx"
     create_workbook(source)
-    MODULE.clean_workbook(source)
+    MODULE.clean_workbook(source, confirmed=True)
     original_cleaned = (output_root(source) / "Collision_cleaned.xlsx").read_bytes()
     create_workbook(source, formula=True)
 
     with pytest.raises(MODULE.CleanDataError) as error:
-        MODULE.clean_workbook(source)
+        MODULE.clean_workbook(source, confirmed=True)
 
     assert error.value.code == "OUTPUT_COLLISION_RAW_MISMATCH"
     assert (output_root(source) / "Collision_cleaned.xlsx").read_bytes() == original_cleaned
@@ -198,7 +198,7 @@ def test_rejects_non_xlsx_input(case_dir: Path, name: str):
     source.write_text("data", encoding="utf-8")
 
     with pytest.raises(MODULE.CleanDataError) as error:
-        MODULE.clean_workbook(source)
+        MODULE.clean_workbook(source, confirmed=True)
 
     assert error.value.code == "UNSUPPORTED_EXTENSION"
 
@@ -207,6 +207,36 @@ def test_cli_requires_exactly_one_input(case_dir: Path):
     completed = subprocess.run([sys.executable, str(SCRIPT_PATH)], text=True, capture_output=True, check=False)
     assert completed.returncode == 1
     assert "INPUT_PATH_REQUIRED" in completed.stderr
+
+
+def test_requires_confirmation_and_preview_is_non_mutating(case_dir: Path):
+    source = case_dir / "Preview.xlsx"
+    create_workbook(source)
+    source_bytes = source.read_bytes()
+
+    with pytest.raises(MODULE.CleanDataError) as error:
+        MODULE.clean_workbook(source)
+    assert error.value.code == "CONFIRMATION_REQUIRED"
+
+    preview = MODULE.inspect_workbook(source)
+    assert preview["status"] == "confirmation_required"
+    assert preview["sheets"][0]["columns"][0] == {"header": " Customer\u00a0 Name ", "data_type": "text"}
+    assert source.read_bytes() == source_bytes
+
+
+def test_blank_values_are_never_imputed(case_dir: Path):
+    source = case_dir / "No Imputation.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["casa-avg-12", "td-avg-12", "user_id"])
+    sheet.append([None, "-", 12])
+    workbook.save(source)
+
+    MODULE.clean_workbook(source, confirmed=True)
+    cleaned = load_workbook(output_root(source) / "No Imputation_cleaned.xlsx", data_only=False).active
+    assert cleaned["A2"].value is None
+    assert cleaned["B2"].value == "-"
+    assert cleaned["C2"].value == 12
 
 
 if __name__ == "__main__":
@@ -248,4 +278,3 @@ if __name__ == "__main__":
                     shutil.rmtree(c_dir, ignore_errors=True)
         print(f"\nTest Summary: {passed} passed, {failed} failed.")
         sys.exit(0 if failed == 0 else 1)
-

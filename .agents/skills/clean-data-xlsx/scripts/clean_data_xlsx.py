@@ -12,6 +12,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 import uuid
 from copy import copy
 from collections import Counter
@@ -24,7 +25,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 
 
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 REPORT_SHEETS = [
     "Summary", "Sheet Statistics", "Missing Values", "Duplicate Rows", "Type Issues",
     "Outliers", "Merge Issues", "Cleaning Actions", "Warnings",
@@ -111,6 +112,35 @@ def header_row(ws) -> tuple[int | None, list[str] | None]:
     return None, None
 
 
+def inspect_workbook(input_path: str | Path) -> dict[str, Any]:
+    """Return a non-mutating header/type preview for user confirmation."""
+    source = Path(input_path).expanduser().resolve()
+    if not source.exists():
+        raise CleanDataError("INPUT_NOT_FOUND", f"Input file not found: {source}")
+    if not source.is_file():
+        raise CleanDataError("INPUT_NOT_FILE", f"Input path is not a file: {source}")
+    if source.suffix.lower() != ".xlsx":
+        raise CleanDataError("UNSUPPORTED_EXTENSION", "Only .xlsx files are supported.")
+    try:
+        workbook = load_workbook(source, read_only=False, data_only=False)
+    except Exception as error:
+        raise CleanDataError("INVALID_XLSX", "Unable to open XLSX safely.") from error
+    previews = []
+    for ws in workbook.worksheets:
+        index, _ = header_row(ws)
+        if index is None:
+            previews.append({"sheet": ws.title, "header_row": None, "columns": [], "warning": "UNCERTAIN_HEADER"})
+            continue
+        columns = []
+        for col in range(1, ws.max_column + 1):
+            header = ws.cell(index, col).value
+            kinds = {value_kind(row[0].value) for row in ws.iter_rows(min_col=col, max_col=col, min_row=index + 1)}
+            kinds.discard("blank")
+            columns.append({"header": header if header is not None else f"Column {col}", "data_type": ", ".join(sorted(kinds)) or "blank"})
+        previews.append({"sheet": ws.title, "header_row": index, "columns": columns})
+    return {"status": "confirmation_required", "input_xlsx_path": str(source), "sheets": previews}
+
+
 def row_signature(ws, row: int) -> tuple[Any, ...]:
     return tuple(ws.cell(row, col).value for col in range(1, ws.max_column + 1))
 
@@ -160,34 +190,6 @@ def inspect_and_clean(ws) -> dict[str, Any]:
     for row_cells in ws.iter_rows(min_row=header_index + 1, max_row=ws.max_row):
         for col_idx, cell in enumerate(row_cells):
             val = cell.value
-            header_name = headers[col_idx].lower().strip() if col_idx < len(headers) else ""
-
-            # Specific column type conversions based on dataset inspection & user confirmation:
-            if header_name == "user_id" and val is not None and not is_formula(val):
-                str_val = str(val).strip()
-                if cell.value != str_val:
-                    original = val
-                    cell.value = str_val
-                    result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_STRING", original, str_val])
-                    val = str_val
-            elif header_name in ("casa-avg-12", "td-avg-12") and not is_formula(val):
-                if val is None or val == "" or str(val).strip() in ("-", "nan", "NaN", "null"):
-                    if cell.value != 0:
-                        original = val
-                        cell.value = 0
-                        result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_INT64", original, 0])
-                        val = 0
-                else:
-                    try:
-                        int_val = int(float(str(val).strip()))
-                        if cell.value != int_val:
-                            original = val
-                            cell.value = int_val
-                            result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_INT64", original, int_val])
-                            val = int_val
-                    except (ValueError, TypeError):
-                        pass
-
             if is_formula(val):
                 formula_count += 1
             kind = value_kind(val)
@@ -302,6 +304,7 @@ def publish_refresh(stage: dict[str, Path], root: Path, stem: str, source_name: 
     final = stage_paths(root, stem, source_name)
     targets = ["cleaned", "script", "report", "log"]
     backups: list[tuple[Path, Path]] = []
+    promoted: list[Path] = []
     token = uuid.uuid4().hex
     try:
         for name in targets:
@@ -311,9 +314,13 @@ def publish_refresh(stage: dict[str, Path], root: Path, stem: str, source_name: 
                 os.replace(target, backup)
                 backups.append((backup, target))
             os.replace(stage[name], target)
+            promoted.append(target)
         for backup, _ in backups:
             backup.unlink(missing_ok=True)
     except Exception:
+        for target in reversed(promoted):
+            if target.exists() and not any(target == original for _, original in backups):
+                target.unlink()
         for _, target in reversed(backups):
             backup = next((item[0] for item in backups if item[1] == target), None)
             if backup and backup.exists():
@@ -321,7 +328,19 @@ def publish_refresh(stage: dict[str, Path], root: Path, stem: str, source_name: 
         raise
 
 
-def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expected_hash: str | None = None) -> dict[str, Any]:
+def save_with_retry(workbook: Workbook, path: Path, attempts: int = 3) -> None:
+    """Retry only transient filesystem write failures with bounded backoff."""
+    for attempt in range(attempts):
+        try:
+            workbook.save(path)
+            return
+        except OSError as error:
+            if attempt == attempts - 1:
+                raise CleanDataError("OUTPUT_WRITE_FAILED", "Unable to write cleaned workbook after retries.") from error
+            time.sleep(0.1 * (2 ** attempt))
+
+
+def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expected_hash: str | None = None, confirmed: bool = False) -> dict[str, Any]:
     source = Path(input_path).expanduser().resolve()
     if not source.exists():
         raise CleanDataError("INPUT_NOT_FOUND", f"Input file not found: {source}")
@@ -329,6 +348,8 @@ def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expe
         raise CleanDataError("INPUT_NOT_FILE", f"Input path is not a file: {source}")
     if source.suffix.lower() != ".xlsx":
         raise CleanDataError("UNSUPPORTED_EXTENSION", "Only .xlsx files are supported.")
+    if not confirmed and replay_root is None:
+        raise CleanDataError("CONFIRMATION_REQUIRED", "Inspect headers and inferred types, then rerun with confirmed=True.")
     source_hash = sha256(source)
     if expected_hash and source_hash != expected_hash:
         raise CleanDataError("RAW_ARCHIVE_HASH_MISMATCH", "Raw archive hash does not match the recorded source hash.")
@@ -354,7 +375,7 @@ def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expe
             if sha256(paths["raw"]) != source_hash:
                 raise CleanDataError("RAW_ARCHIVE_HASH_MISMATCH", "Raw archive copy verification failed.")
         sheet_results = [inspect_and_clean(sheet) for sheet in workbook.worksheets]
-        workbook.save(paths["cleaned"])
+        save_with_retry(workbook, paths["cleaned"])
         try:
             validation_book = load_workbook(paths["cleaned"], data_only=False)
             if [sheet.title for sheet in validation_book.worksheets] != [sheet.title for sheet in workbook.worksheets]:
@@ -370,6 +391,11 @@ def clean_workbook(input_path: str | Path, replay_root: Path | None = None, expe
         }
         build_report(paths["report"], sheet_results, summary)
         shutil.copyfile(Path(__file__).resolve(), paths["script"])
+        try:
+            load_workbook(paths["report"], read_only=True).close()
+            compile(paths["script"].read_text(encoding="utf-8"), str(paths["script"]), "exec")
+        except (OSError, SyntaxError, ValueError) as error:
+            raise CleanDataError("POST_WRITE_VALIDATION_FAILED", "Staged report or replay script is invalid.") from error
         script_hash = sha256(paths["script"])
         final_paths = stage_paths(root, source.stem, source.name)
         log = {
@@ -409,7 +435,7 @@ def replay_from_self(script_path: Path) -> dict[str, Any]:
     raw = root / "Analysis" / str(source_name)
     if not raw.is_file():
         raise CleanDataError("REPLAY_RAW_INPUT_MISSING", f"Raw archive not found: {raw}")
-    return clean_workbook(raw, replay_root=root, expected_hash=expected_hash)
+    return clean_workbook(raw, replay_root=root, expected_hash=expected_hash, confirmed=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -420,10 +446,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             parser = argparse.ArgumentParser(description="Clean one XLSX workbook safely.")
             parser.add_argument("input_xlsx_path", nargs="?", help="Path to one .xlsx file")
+            parser.add_argument("--inspect", action="store_true", help="Print headers and inferred types without modifying data")
+            parser.add_argument("--confirm", action="store_true", help="Confirm the previewed headers and inferred types")
             parsed = parser.parse_args(args)
             if not parsed.input_xlsx_path:
                 raise CleanDataError("INPUT_PATH_REQUIRED", "Provide exactly one .xlsx path.")
-            result = clean_workbook(parsed.input_xlsx_path)
+            result = inspect_workbook(parsed.input_xlsx_path) if parsed.inspect else clean_workbook(parsed.input_xlsx_path, confirmed=parsed.confirm)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except CleanDataError as error:
