@@ -22,7 +22,9 @@ Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguy�
 
 Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 
-> *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc, tạo file `.env` giúp tôi với `GMAIL_APP_USERNAME=myemail@gmail.com` và `GMAIL_APP_PASSWORD=abcd1234efgh5678`, sau đó lập một bảng tóm tắt ngắn gọn về cách các workflow hoạt động (bao gồm các skill bên trong, input và output của từng skill)."*
+```text
+Hãy clone dự án từ https://github.com/nguyenlamhai89/UX-Agent.git, kiểm tra các thư viện phụ thuộc, tạo file .env giúp tôi với GMAIL_APP_USERNAME=myemail@gmail.com và GMAIL_APP_PASSWORD=abcd1234efgh5678, sau đó lập một bảng tóm tắt ngắn gọn về cách các workflow hoạt động (bao gồm các skill bên trong, input và output của từng skill).
+```
 
 ### 3. Kích hoạt Agent (Run Workflow)
 
