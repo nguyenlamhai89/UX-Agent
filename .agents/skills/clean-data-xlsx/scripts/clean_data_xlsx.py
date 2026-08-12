@@ -160,6 +160,34 @@ def inspect_and_clean(ws) -> dict[str, Any]:
     for row_cells in ws.iter_rows(min_row=header_index + 1, max_row=ws.max_row):
         for col_idx, cell in enumerate(row_cells):
             val = cell.value
+            header_name = headers[col_idx].lower().strip() if col_idx < len(headers) else ""
+
+            # Specific column type conversions based on dataset inspection & user confirmation:
+            if header_name == "user_id" and val is not None and not is_formula(val):
+                str_val = str(val).strip()
+                if cell.value != str_val:
+                    original = val
+                    cell.value = str_val
+                    result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_STRING", original, str_val])
+                    val = str_val
+            elif header_name in ("casa-avg-12", "td-avg-12") and not is_formula(val):
+                if val is None or val == "" or str(val).strip() in ("-", "nan", "NaN", "null"):
+                    if cell.value != 0:
+                        original = val
+                        cell.value = 0
+                        result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_INT64", original, 0])
+                        val = 0
+                else:
+                    try:
+                        int_val = int(float(str(val).strip()))
+                        if cell.value != int_val:
+                            original = val
+                            cell.value = int_val
+                            result["changes"].append([ws.title, cell.coordinate, "TYPE_CONVERSION_INT64", original, int_val])
+                            val = int_val
+                    except (ValueError, TypeError):
+                        pass
+
             if is_formula(val):
                 formula_count += 1
             kind = value_kind(val)
