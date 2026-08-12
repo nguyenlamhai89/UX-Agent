@@ -58,6 +58,10 @@ python3 scripts/clean_data_xlsx.py "/data/Customer Data.xlsx"
 
 ## Custom Instructions
 
+- Sau khi người dùng yêu cầu và trước khi bắt đầu quy trình clean data, agent/hệ thống MUST đọc trước dữ liệu và lập bảng xác nhận bao gồm 2 dòng (và x cột tương ứng với các cột của dữ liệu):
+  - **Dòng 1 (Header)**: Các tên tiêu đề cột dữ liệu.
+  - **Dòng 2 (Data Type)**: Kiểu dữ liệu mà hệ thống đã xác định tương ứng cho từng cột.
+  - **Quy trình chờ (Confirmation)**: Đợi người dùng xác nhận (confirm) với kiểu dữ liệu (data type) và quy tắc đặt tên (naming convention) đó trước khi tiến hành thực hiện bước clean data.
 - Xác thực extension, khả năng đọc workbook và quyền ghi ở parent folder trước khi tạo output.
 - Copy file nguồn theo byte vào `Analysis/`, kiểm tra SHA-256 trước/sau; không mở file nguồn để ghi.
 - Xử lý từng worksheet riêng; ghi `not_applicable` cho relational join analysis.
@@ -80,6 +84,8 @@ sequenceDiagram
 
     User->>Skill: input_xlsx_path
     Skill->>Source: validate + read-only inspect
+    Skill-->>User: Bảng xác nhận Header & Data Type (2 dòng x Cột)
+    User->>Skill: Confirm data type & naming convention
     Skill->>Output: stage raw copy, cleaned workbook, report, log, clean.py
     Skill->>Skill: hash and post-write validation
     Skill->>Output: atomic publish
