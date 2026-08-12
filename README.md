@@ -77,7 +77,8 @@ orchestrator và 10 skill chuyên biệt:
 ├── scripts/
 │   └── check_libraries.py          # Kiểm tra & cài đặt dependencies
 ├── skills/
-│   └── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   ├── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   └── clean-data-xlsx/             # 🧹 Làm sạch & chuẩn hóa dữ liệu Excel (XLSX) deterministic
 ├── workflows/
 │   ├── ux-report/                    # 📄 Tạo report HTML & gửi Gmail
 │   │   ├── ORCHESTRATOR.md
@@ -252,6 +253,7 @@ sequenceDiagram
 | Công cụ | Mô tả |
 | --- | --- |
 | 🔍 **analyze-skill** | Phân tích hiệu năng skill theo 5 hạng mục (20 tiêu chí), tạo báo cáo chấm điểm và giải pháp cải thiện. |
+| 🧹 **clean-data-xlsx** | Làm sạch & chuẩn hóa workbook Excel (`.xlsx`) an toàn bằng Python deterministic: hiển thị bảng xác nhận header/kiểu dữ liệu trước khi xử lý, không tự động điền ô trống, loại bỏ dòng trùng lặp, giữ nguyên công thức & định danh (ID/chuỗi), tạo báo cáo chất lượng & script replay. |
 | 📦 **check_libraries.py** | Kiểm tra phiên bản dependencies, cảnh báo nếu thiếu hoặc lỗi thời, đề xuất cài đặt/cập nhật. |
 
 ---
