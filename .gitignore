@@ -9,3 +9,5 @@ __pycache__/
 # System and Cache
 .DS_Store
 .pytest_cache/
+.venv*
+

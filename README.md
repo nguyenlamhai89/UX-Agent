@@ -22,7 +22,9 @@ Trước khi khởi chạy Agent, bạn cần chuẩn bị sẵn các tài nguy�
 
 Nhập prompt sau vào AI IDE (Google Antigravity, Claude Code, Cursor...):
 
-> *"Hãy clone dự án từ `https://github.com/nguyenlamhai89/UX-Agent.git`, kiểm tra các thư viện phụ thuộc và tạo file `.env` giúp tôi với `GMAIL_APP_USERNAME=myemail@gmail.com` và `GMAIL_APP_PASSWORD=abcd1234efgh5678`"*
+```text
+Hãy clone dự án từ https://github.com/nguyenlamhai89/UX-Agent.git, kiểm tra các thư viện phụ thuộc, tạo file .env giúp tôi với GMAIL_APP_USERNAME=myemail@gmail.com và GMAIL_APP_PASSWORD=abcd1234efgh5678, sau đó lập một bảng tóm tắt ngắn gọn về cách các workflow hoạt động (bao gồm các skill bên trong, input và output của từng skill).
+```
 
 ### 3. Kích hoạt Agent (Run Workflow)
 
@@ -51,15 +53,8 @@ ux-report <input report dạng JSON>
 
 * 💡 **Ví dụ 3 (Tạo report sau khi có insights, mapped transcript và journey map):**
 
-  ```json
-  {
-    "folder_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế",
-    "insights_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/insights.md",
-    "transcript_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/mapped-transcript.md",
-    "full_transcript_paths": ["/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/transcript-user-1.md"],
-    "journey_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/Journey Map/journey-map.md",
-    "project_name": "Chuyen-Tien-Quoc-Te"
-  }
+  ```text
+  ux-report /Users/madebynham/Desktop/Chuyển tiền quốc tế
   ```
 
   `ux-report` tạo HTML, hỏi người nhận ở mỗi lần chạy, luôn dùng CC, rồi mới
@@ -77,7 +72,8 @@ orchestrator và 10 skill chuyên biệt:
 ├── scripts/
 │   └── check_libraries.py          # Kiểm tra & cài đặt dependencies
 ├── skills/
-│   └── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   ├── analyze-skill/               # Phân tích hiệu năng skill (global)
+│   └── clean-data-xlsx/             # 🧹 Làm sạch & chuẩn hóa dữ liệu Excel (XLSX) deterministic
 ├── workflows/
 │   ├── ux-report/                    # 📄 Tạo report HTML & gửi Gmail
 │   │   ├── ORCHESTRATOR.md
@@ -252,6 +248,7 @@ sequenceDiagram
 | Công cụ | Mô tả |
 | --- | --- |
 | 🔍 **analyze-skill** | Phân tích hiệu năng skill theo 5 hạng mục (20 tiêu chí), tạo báo cáo chấm điểm và giải pháp cải thiện. |
+| 🧹 **clean-data-xlsx** | Làm sạch & chuẩn hóa workbook Excel (`.xlsx`) an toàn bằng Python deterministic: hiển thị bảng xác nhận header/kiểu dữ liệu trước khi xử lý, không tự động điền ô trống, loại bỏ dòng trùng lặp, giữ nguyên công thức & định danh (ID/chuỗi), tạo báo cáo chất lượng & script replay. |
 | 📦 **check_libraries.py** | Kiểm tra phiên bản dependencies, cảnh báo nếu thiếu hoặc lỗi thời, đề xuất cài đặt/cập nhật. |
 
 ---

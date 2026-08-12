@@ -5,9 +5,12 @@ Parses existing analysis report files to extract date columns and
 criteria table data, enabling report updates without data loss.
 """
 
+from __future__ import annotations
+
 import re
 
 from constants import CATEGORIES
+
 
 
 def parse_existing_report(content: str) -> dict:
