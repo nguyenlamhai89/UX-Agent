@@ -123,14 +123,19 @@ def inspect_and_clean(ws) -> dict[str, Any]:
         "normalized_headers": 0, "normalized_text_cells": 0, "removed_duplicates": 0,
         "missing": [], "type_issues": [], "outliers": [], "changes": [], "warnings": [],
     }
-    formula_count = sum(1 for row in ws.iter_rows() for cell in row if is_formula(cell.value))
-    result["formulas"] = formula_count
     header_index, _ = header_row(ws)
     if header_index is None:
         result["uncertain_header"] = True
         result["warnings"].append(["UNCERTAIN_HEADER", "warning", ws.title, "", "Sheet kept unchanged because its header is not safely identifiable."])
         return result
     result["header_row"] = header_index
+
+    # Count any formulas in rows up to and including header_row
+    formula_count = 0
+    for r in range(1, header_index + 1):
+        for col in range(1, ws.max_column + 1):
+            if is_formula(ws.cell(r, col).value):
+                formula_count += 1
 
     headers: list[str] = []
     for col in range(1, ws.max_column + 1):
@@ -152,24 +157,28 @@ def inspect_and_clean(ws) -> dict[str, Any]:
     kinds: list[set[str]] = [set() for _ in range(ws.max_column)]
     numbers: list[list[float]] = [[] for _ in range(ws.max_column)]
     missing: list[int] = [0 for _ in range(ws.max_column)]
-    for row in range(header_index + 1, ws.max_row + 1):
-        for col in range(1, ws.max_column + 1):
-            cell = ws.cell(row, col)
-            kind = value_kind(cell.value)
+    for row_cells in ws.iter_rows(min_row=header_index + 1, max_row=ws.max_row):
+        for col_idx, cell in enumerate(row_cells):
+            val = cell.value
+            if is_formula(val):
+                formula_count += 1
+            kind = value_kind(val)
             if kind == "blank":
-                missing[col - 1] += 1
+                missing[col_idx] += 1
                 continue
-            kinds[col - 1].add(kind)
+            kinds[col_idx].add(kind)
             if kind == "number":
-                numbers[col - 1].append(float(cell.value))
+                numbers[col_idx].append(float(val))
             if kind == "text":
-                identifier = bool(IDENTIFIER_RE.search(cell.value) or IDENTIFIER_HEADER_RE.search(headers[col - 1]))
-                cleaned = safe_text(cell.value, identifier=identifier)
-                if cleaned != cell.value:
-                    original = cell.value
+                identifier = bool(IDENTIFIER_RE.search(val) or IDENTIFIER_HEADER_RE.search(headers[col_idx]))
+                cleaned = safe_text(val, identifier=identifier)
+                if cleaned != val:
+                    original = val
                     cell.value = cleaned
                     result["normalized_text_cells"] += 1
                     result["changes"].append([ws.title, cell.coordinate, "DATA_WHITESPACE_NORMALIZATION", original, cleaned])
+
+    result["formulas"] = formula_count
 
     for col, count in enumerate(missing, start=1):
         result["missing"].append([ws.title, headers[col - 1], count, ws.max_row - header_index])
@@ -194,15 +203,15 @@ def inspect_and_clean(ws) -> dict[str, Any]:
     if not result["merged_ranges"] and not formula_count:
         seen: dict[tuple[Any, ...], int] = {}
         duplicates: list[int] = []
-        for row in range(header_index + 1, ws.max_row + 1):
-            signature = row_signature(ws, row)
+        for row_idx, row_cells in enumerate(ws.iter_rows(min_row=header_index + 1, max_row=ws.max_row), start=header_index + 1):
+            signature = tuple(cell.value for cell in row_cells)
             if all(value in (None, "") for value in signature):
                 continue
             if signature in seen:
-                duplicates.append(row)
-                result["changes"].append([ws.title, f"row:{row}", "EXACT_DUPLICATE_ROW_REMOVAL", f"duplicate_of_row:{seen[signature]}", "removed"])
+                duplicates.append(row_idx)
+                result["changes"].append([ws.title, f"row:{row_idx}", "EXACT_DUPLICATE_ROW_REMOVAL", f"duplicate_of_row:{seen[signature]}", "removed"])
             else:
-                seen[signature] = row
+                seen[signature] = row_idx
         for row in reversed(duplicates):
             ws.delete_rows(row, 1)
         result["removed_duplicates"] = len(duplicates)

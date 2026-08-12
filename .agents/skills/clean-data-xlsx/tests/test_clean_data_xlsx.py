@@ -8,8 +8,43 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    class _MockPytestRaises:
+        def __init__(self, expected_exception):
+            self.expected_exception = expected_exception
+            self.value = None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_type is None:
+                raise AssertionError(f"Expected {self.expected_exception.__name__} but no exception was raised.")
+            if issubclass(exc_type, self.expected_exception):
+                self.value = exc_val
+                return True
+            return False
+
+    class _MockPytestMark:
+        @staticmethod
+        def parametrize(*args, **kwargs):
+            def decorator(func):
+                return func
+            return decorator
+
+    class _MockPytest:
+        raises = _MockPytestRaises
+        mark = _MockPytestMark
+
+        @staticmethod
+        def fixture(func):
+            return func
+
+    pytest = _MockPytest()
 from openpyxl import Workbook, load_workbook
+
 
 
 SCRIPT_PATH = Path(__file__).parents[1] / "scripts" / "clean_data_xlsx.py"
@@ -172,3 +207,45 @@ def test_cli_requires_exactly_one_input(case_dir: Path):
     completed = subprocess.run([sys.executable, str(SCRIPT_PATH)], text=True, capture_output=True, check=False)
     assert completed.returncode == 1
     assert "INPUT_PATH_REQUIRED" in completed.stderr
+
+
+if __name__ == "__main__":
+    try:
+        import pytest
+        sys.exit(pytest.main([__file__]))
+    except ImportError:
+        import inspect
+        print("pytest not installed; running tests via standard python test runner...")
+        passed = 0
+        failed = 0
+        test_funcs = [
+            (name, func) for name, func in list(globals().items())
+            if name.startswith("test_") and callable(func)
+        ]
+        for name, func in test_funcs:
+            if name == "test_rejects_non_xlsx_input":
+                sub_names = ["not_excel.csv", "not_excel.txt"]
+            else:
+                sub_names = [None]
+            for sub in sub_names:
+                TEST_BASE.mkdir(parents=True, exist_ok=True)
+                c_dir = Path(tempfile.mkdtemp(prefix="case-", dir=TEST_BASE))
+                try:
+                    sig = inspect.signature(func)
+                    params = list(sig.parameters.keys())
+                    if len(params) == 2 and sub is not None:
+                        func(c_dir, sub)
+                    elif len(params) == 1:
+                        func(c_dir)
+                    else:
+                        func()
+                    print(f"  PASSED: {name}{'[' + sub + ']' if sub else ''}")
+                    passed += 1
+                except Exception as error:
+                    print(f"  FAILED: {name}{'[' + sub + ']' if sub else ''}: {error}")
+                    failed += 1
+                finally:
+                    shutil.rmtree(c_dir, ignore_errors=True)
+        print(f"\nTest Summary: {passed} passed, {failed} failed.")
+        sys.exit(0 if failed == 0 else 1)
+

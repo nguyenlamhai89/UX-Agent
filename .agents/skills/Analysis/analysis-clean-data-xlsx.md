@@ -8,7 +8,7 @@
 
 | Criteria | 2026-08-12 |
 |----------|----------|
-| Execution Time | • **7/10** — The skill iterates over worksheet cells multiple times. Specifically, inspect_and_clean performs a full pass over all cells via ws.iter_rows() just to count formulas before starting the main column iteration loop. |
+| Execution Time | • **9/10** — Formula counting was integrated directly into the single-pass column inspection loop in inspect_and_clean(). • **Solution**: Combined formula counting directly into the primary column inspection loop instead of performing a redundant full pass over all cells via ws.iter_rows(). |
 | API Call Count | • **10/10** — Zero external API calls are made. The skill runs entirely in local Python using openpyxl and pandas. |
 | Token Usage | • **10/10** — Uses zero LLM tokens; processing is 100% deterministic local Python execution. |
 | Resource Consumption | • **8/10** — Creates temporary staging folders via tempfile.mkdtemp and cleans them up reliably in a try/finally block. Memory usage is proportional to workbook size in openpyxl. |
@@ -53,5 +53,6 @@
 | Criteria | 2026-08-12 |
 |----------|----------|
 | Cost per Execution | • **10/10** — Zero financial cost per execution as no external APIs or cloud services are invoked. |
-| Scaling Behavior | • **7/10** — In row deduplication, signature extraction calls ws.cell(row, col).value cell-by-cell in a loop, which can cause quadratic overhead on large workbooks. |
-| Unit Test Coverage & Pass Rate | • **7/10** — Unit test suite in test_clean_data_xlsx.py covers main features, but currently requires pytest to be installed in the runtime environment and fails if run with standard python test tools. |
+| Scaling Behavior | • **9/10** — Row signature extraction during deduplication now uses batch ws.iter_rows row tuples instead of coordinate cell lookups. • **Solution**: Optimized row signature extraction in row deduplication by using batch row iterators (ws.iter_rows) instead of individual ws.cell(row, col) coordinate lookups. |
+| Unit Test Coverage & Pass Rate | • **9/10** — Test suite runs with pytest or direct python fallback runner seamlessly. • **Solution**: Added standard unittest compatibility / direct execution entry point and pytest fallback mock in test_clean_data_xlsx.py so unit tests run via standard python3 without requiring pytest. |
+

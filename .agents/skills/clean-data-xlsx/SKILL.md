@@ -110,8 +110,9 @@ sequenceDiagram
 ## Performance Improvement Solutions
 
 ### ⚡ Execution Efficiency
-- [ ] **Execution Time**: Combine formula counting directly into the primary column inspection loop in `inspect_and_clean()` instead of performing a redundant full pass over all cells via `ws.iter_rows()`.
+- [x] **Execution Time**: Combine formula counting directly into the primary column inspection loop in `inspect_and_clean()` instead of performing a redundant full pass over all cells via `ws.iter_rows()`.
 
 ### 💰 Cost & Scalability
-- [ ] **Scaling Behavior**: Optimize row signature extraction in row deduplication by using batch row iterators (`ws.iter_rows`) instead of individual `ws.cell(row, col)` coordinate lookups.
-- [ ] **Unit Test Coverage & Pass Rate**: Add standard `unittest` compatibility / direct execution entry point in `test_clean_data_xlsx.py` so unit tests can run via standard `python3` without requiring `pytest` as an external dependency.
+- [x] **Scaling Behavior**: Optimize row signature extraction in row deduplication by using batch row iterators (`ws.iter_rows`) instead of individual `ws.cell(row, col)` coordinate lookups.
+- [x] **Unit Test Coverage & Pass Rate**: Add standard `unittest` compatibility / direct execution entry point in `test_clean_data_xlsx.py` so unit tests can run via standard `python3` without requiring `pytest` as an external dependency.
+
