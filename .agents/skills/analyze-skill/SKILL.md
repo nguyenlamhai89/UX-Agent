@@ -335,6 +335,8 @@ sequenceDiagram
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
 | `INVALID_JSON` while generating a long analysis report | A large punctuation-heavy JSON object was passed as a shell-quoted `--analysis-json` value and quoting corruption made the payload invalid before the CLI parsed it. | Added mutually exclusive `--analysis-json-file` support, documented it for long payloads, and added a CLI regression test that creates a report from a UTF-8 JSON file. |
+| `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'` in `parser.py` | Python 3.9 does not support the `|` union type syntax in type annotations without `from __future__ import annotations`. | Added `from __future__ import annotations` at the top of `parser.py` to support Python 3.9+. |
+
 
 ## Performance Improvement Solutions
 

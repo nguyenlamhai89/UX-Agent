@@ -136,6 +136,12 @@ def inspect_and_clean(ws) -> dict[str, Any]:
     for col in range(1, ws.max_column + 1):
         cell = ws.cell(header_index, col)
         original = cell.value
+        # A safely identified header may still contain blank cells between
+        # populated columns. Preserve those cells and use a report-only label
+        # so later profiling never treats None as header text.
+        if original is None:
+            headers.append(f"Column {col}")
+            continue
         cleaned = safe_text(original, header=True)
         headers.append(cleaned)
         if cleaned != original:

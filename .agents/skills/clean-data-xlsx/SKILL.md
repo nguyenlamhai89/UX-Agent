@@ -105,10 +105,13 @@ sequenceDiagram
 | Bug / Error | Cause | Resolution |
 | --- | --- | --- |
 | Replay manifest produced a path ending in `.xlsx.xlsx` | The source extension was appended to a filename that already contained it. | Record `../Analysis/<original-filename>` directly and cover replay in tests. |
+| `NoneType` error while inspecting a sheet | A safely identified header row contained blank cells between populated columns; inspection attempted string normalization on `None`. | Preserve blank header cells, assign report-only `Column N` labels, and never call string normalization on `None`. |
 
 ## Performance Improvement Solutions
 
-- Profile and clean each sheet in source order; avoid cross-sheet materialization.
-- Use `openpyxl` for round-trip writing so formulas/styles have the best available preservation path.
-- Use deterministic summaries rather than logging unnecessary cell values.
-- Skip high-risk transforms and surface review warnings rather than retrying unsafe conversion.
+### ⚡ Execution Efficiency
+- [ ] **Execution Time**: Combine formula counting directly into the primary column inspection loop in `inspect_and_clean()` instead of performing a redundant full pass over all cells via `ws.iter_rows()`.
+
+### 💰 Cost & Scalability
+- [ ] **Scaling Behavior**: Optimize row signature extraction in row deduplication by using batch row iterators (`ws.iter_rows`) instead of individual `ws.cell(row, col)` coordinate lookups.
+- [ ] **Unit Test Coverage & Pass Rate**: Add standard `unittest` compatibility / direct execution entry point in `test_clean_data_xlsx.py` so unit tests can run via standard `python3` without requiring `pytest` as an external dependency.
