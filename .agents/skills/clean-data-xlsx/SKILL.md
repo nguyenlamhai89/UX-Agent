@@ -68,7 +68,11 @@ python3 scripts/clean_data_xlsx.py "/data/Customer Data.xlsx"
 - Copy source file byte-for-byte to `Analysis/` raw archive, verifying SHA-256 hashes before and after; never open source file for write operations.
 - Process each worksheet independently; set `not_applicable` for relational join analysis.
 - Only normalize headers when header text is non-empty, non-duplicate after normalization, and safe; preserve original headers when uncertain.
-- Preserve strings with leading zeroes, identifier codes, phone numbers, zip codes, and all formulas; do not type-cast based on guesswork.
+- Preserves strings with leading zeroes, identifier codes, phone numbers, zip codes, and all formulas; do not type-cast based on guesswork.
+- **Blank Cell Handling (No Imputation Rule)**: Blank cells across all data types (`int`, `string`, `datetime`, `boolean`) MUST remain blank (`None` / empty cell) by default. Never impute missing values automatically. Track all blank cells in `data_quality_report.xlsx` (`Missing Values`) and `cleaning_log.json`. Custom fill values are only applied if explicitly specified by the user during confirmation.
+- **Confirmed Column Type Conversions**:
+  - Identifier columns (e.g., `user_id`, `customer_id`) MUST be explicitly formatted and saved as `string` (`TYPE_CONVERSION_STRING`).
+  - Financial/average amount columns (e.g., `casa-avg-12`, `td-avg-12`) containing non-numeric placeholders (`'-'`) MUST be parsed and saved as `int64` (`TYPE_CONVERSION_INT64`), converting placeholders to `0` or null as confirmed by the user.
 - Only remove exact duplicate rows after safe normalization; skip row deduplication when the sheet contains formulas or merged cells to avoid structural corruption.
 - Flag missing values, mixed data types, outliers, merged cells, and risky features rather than altering them automatically.
 - Generate all derivative artifacts in staging and only publish when workbook, report, log, and script pass validation; clean up staging directory upon success or failure.
