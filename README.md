@@ -53,6 +53,11 @@ ux-report <input report dạng JSON>
 
 * 💡 **Ví dụ 3 (Tạo report sau khi có insights, mapped transcript và journey map):**
 
+  ```text
+  ux-report /Users/madebynham/Desktop/Chuyển tiền quốc tế
+  ```
+  *(Hoặc truyền input dạng JSON khi các file nằm ở thư mục tùy chỉnh):*
+
   ```json
   {
     "folder_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế",
