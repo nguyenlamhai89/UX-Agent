@@ -56,18 +56,6 @@ ux-report <input report dạng JSON>
   ```text
   ux-report /Users/madebynham/Desktop/Chuyển tiền quốc tế
   ```
-  *(Hoặc truyền input dạng JSON khi các file nằm ở thư mục tùy chỉnh):*
-
-  ```json
-  {
-    "folder_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế",
-    "insights_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/insights.md",
-    "transcript_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/mapped-transcript.md",
-    "full_transcript_paths": ["/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/transcript-user-1.md"],
-    "journey_path": "/Users/madebynham/Desktop/Chuyển tiền quốc tế/Interview/Journey Map/journey-map.md",
-    "project_name": "Chuyen-Tien-Quoc-Te"
-  }
-  ```
 
   `ux-report` tạo HTML, hỏi người nhận ở mỗi lần chạy, luôn dùng CC, rồi mới
   tạo draft email để bạn phê duyệt.
