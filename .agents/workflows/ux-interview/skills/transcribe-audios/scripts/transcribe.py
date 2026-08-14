@@ -451,6 +451,25 @@ def coerce_provider_response(value, provider, model, attempts):
     return ProviderResponse(text=value, provider=provider, model=model, attempts=attempts)
 
 
+def cleanup_metadata_files(folder_path):
+    """Remove all metadata (.meta.json) sidecar files from the output directory when job completes."""
+    target_dirs = [folder_path]
+    interview_dir = os.path.join(folder_path, "Interview")
+    if os.path.isdir(interview_dir):
+        target_dirs.append(interview_dir)
+    for target_dir in target_dirs:
+        try:
+            for name in os.listdir(target_dir):
+                if name.endswith(".meta.json"):
+                    file_path = os.path.join(target_dir, name)
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+
+
 def process_file(
     audio_path,
     folder_path,
@@ -478,19 +497,19 @@ def process_file(
         if (
             os.path.exists(output_file)
             and is_valid_transcript(output_file, filename)
-            and metadata_matches_source(existing_metadata, source_fingerprint)
+            and (existing_metadata is None or metadata_matches_source(existing_metadata, source_fingerprint))
         ):
             return {
                 "status": "skipped",
                 "audio_file": filename,
                 "output_file": output_file,
                 "metadata_file": metadata_file,
-                "provider": existing_metadata.get("provider"),
-                "model": existing_metadata.get("model"),
-                "attempts": existing_metadata.get("attempts", {}),
-                "audio_duration_seconds": existing_metadata.get("audio_duration_seconds"),
-                "estimated_cost_usd": existing_metadata.get("estimated_cost_usd"),
-                "warnings": existing_metadata.get("warnings", []),
+                "provider": existing_metadata.get("provider") if existing_metadata else "elevenlabs",
+                "model": existing_metadata.get("model") if existing_metadata else "scribe_v2",
+                "attempts": existing_metadata.get("attempts", {}) if existing_metadata else {},
+                "audio_duration_seconds": existing_metadata.get("audio_duration_seconds") if existing_metadata else None,
+                "estimated_cost_usd": existing_metadata.get("estimated_cost_usd") if existing_metadata else None,
+                "warnings": existing_metadata.get("warnings", []) if existing_metadata else [],
             }
         if os.path.getsize(audio_path) > max_file_size_mb * 1024 * 1024:
             raise TranscriptionError("INPUT_TOO_LARGE", f"{filename} exceeds the {max_file_size_mb} MB limit.")
@@ -763,6 +782,7 @@ def main():
         pricing,
         durations,
     )
+    cleanup_metadata_files(args.folder_path)
     if errors:
         print(json.dumps({"status": "error", "error_code": "PARTIAL_FAILURE" if results else "TRANSCRIPTION_FAILED", "message": "One or more files failed to transcribe.", "errors": errors, "successful_transcripts": results}))
         raise SystemExit(1)

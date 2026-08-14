@@ -84,9 +84,9 @@ Additionally, for the Customer Journey Map visualization:
 
 
 ## Dependency Version Checks
-Whenever a workflow runs, the agent MUST check the latest version of the libraries used by its skills:
-- Run the dependency check script: `python3 .agents/scripts/check_libraries.py` at the start of the workflow run.
-- Print warnings and installation/upgrade suggestions if packages are missing or outdated, but do not halt the execution unless a library critical to the immediately executing step is missing.
+Whenever a skill or workflow runs, the agent MUST check the latest version of only the libraries used by the executing skill (e.g. `python3 .agents/scripts/check_libraries.py <package_name>` or `--skill <skill_name>`):
+- Run the dependency check script for the target skill's specific packages at the start of execution (not for all skills).
+- Print warnings and installation/upgrade suggestions if packages for the active skill are missing or outdated, but do not halt execution unless a library critical to the immediately executing step is missing.
 
 ## Workspace Preservation and Syncing
 To ensure the workspace remains fully portable and syncs seamlessly via iCloud:

@@ -56,7 +56,7 @@ The orchestrator should trigger this skill when the user requests audio transcri
 - **Location**: `file_path` — The generated files are saved in `Interview/` whenever it exists; otherwise they are saved directly in `folder_path`.
 - **Output File(s)**:
   - `Interview/transcript_<audio_name>.md` — The generated markdown transcript files.
-  - `Interview/transcript_<audio_name>.meta.json` — Atomically written source fingerprint and non-secret execution metadata. A missing or mismatched sidecar forces re-transcription rather than a stale skip.
+  - `Interview/transcript_<audio_name>.meta.json` — Temporary sidecar metadata file used during execution. The skill automatically cleans up and removes all `.meta.json` metadata files when its transcription jobs finish.
 - **Examples**:
 
   **Example 1** — Successful execution:
@@ -194,6 +194,7 @@ sequenceDiagram
 | Several large files could enter upload together | Worker count bounded tasks but not total active input bytes. | Bounded submission enforces `--max-inflight-mb`; a concurrency regression test proves the byte cap is respected. |
 | Batch cost was not visible before submission | No duration or orchestrator-provided price information was retained. | Optional `ffprobe` duration, non-secret cost metadata, and `--max-estimated-cost-usd` preflight guard were added; regression test added. |
 | Root-level audio was transcribed beside its source even though `Interview/` existed | The output path followed the audio file rather than the workflow handoff directory, so map-transcript could not discover the generated transcript. | `process_file` now emits the transcript and metadata sidecar into `Interview/` whenever it exists; direct-folder output remains only when no `Interview/` directory exists. |
+| Metadata sidecar files (.meta.json) remained in output directory | Metadata files persisted after execution, cluttering output folders. | Added `cleanup_metadata_files` to delete all `.meta.json` sidecar files when transcribe jobs complete, and updated skip checks to work without requiring leftover metadata files. |
 
 ## Performance Improvement Solutions
 

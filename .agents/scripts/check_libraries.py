@@ -30,6 +30,30 @@ def get_latest_version(pkg):
         return None
 
 def check_versions():
+    target_pkgs = set()
+    if len(sys.argv) > 1:
+        args = [arg.lower().lstrip("-") for arg in sys.argv[1:]]
+        # Map skill aliases if needed
+        skill_map = {
+            "transcribe-audios": ["elevenlabs"],
+            "transcribe": ["elevenlabs"],
+            "docling": ["docling"],
+            "convert-paper": ["docling"],
+            "saturate-insights": ["matplotlib"],
+            "insights": ["matplotlib"],
+            "tests": ["pytest"],
+            "pytest": ["pytest"]
+        }
+        for arg in args:
+            if arg in skill_map:
+                target_pkgs.update(skill_map[arg])
+            elif arg in LIBRARIES:
+                target_pkgs.add(arg)
+            else:
+                target_pkgs.add(arg)
+
+    check_libraries = {k: v for k, v in LIBRARIES.items() if not target_pkgs or k in target_pkgs}
+
     print("=" * 60)
     print("      CHECKING DEPENDENCIES AND LIBRARY VERSIONS      ")
     print("=" * 60)
@@ -37,7 +61,7 @@ def check_versions():
     outdated = []
     missing = []
     
-    for pkg, description in LIBRARIES.items():
+    for pkg, description in check_libraries.items():
         installed = get_installed_version(pkg)
         if installed is None:
             print(f"❌ {pkg:<12} | NOT INSTALLED")
@@ -67,7 +91,7 @@ def check_versions():
                 print(f"    pip install --upgrade {pkg}")
         print()
     else:
-        print("\nAll workspace dependencies are fully installed and up to date!\n")
+        print("\nRequested dependencies are fully installed and up to date!\n")
 
 if __name__ == "__main__":
     check_versions()
