@@ -310,6 +310,18 @@ def test_process_file_records_elevenlabs_metadata_only(tmp_path):
     assert "fallback_used" not in metadata
 
 
+def test_cleanup_metadata_files_removes_meta_json_files(tmp_path):
+    interview = tmp_path / "Interview"
+    interview.mkdir()
+    meta1 = interview / "transcript_test.meta.json"
+    meta1.write_text("{}")
+    meta2 = tmp_path / "transcript_other.meta.json"
+    meta2.write_text("{}")
+    transcribe.cleanup_metadata_files(str(tmp_path))
+    assert not meta1.exists()
+    assert not meta2.exists()
+
+
 def test_main_validates_diarization_and_multichannel_conflicts(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "key")
     with patch.object(sys, "argv", ["transcribe.py", str(tmp_path), "--diarization-threshold", "0.09"]):
